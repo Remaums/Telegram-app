@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#ffd23f">
+<title>Kartoon Club — Boutique</title>
+<link rel="icon" href="/assets/ui/leaf.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+
+<!-- ══ Contrôle d'âge ══ -->
+<div class="agegate" id="agegate" hidden>
+  <div class="agegate__card">
+    <img src="/assets/ui/mascot.svg" alt="" class="agegate__mascot">
+    <h1 class="agegate__title">Stop !</h1>
+    <p class="agegate__text">
+      Cette boutique est réservée aux personnes majeures.
+      Tu confirmes avoir <strong>18 ans ou plus</strong> ?
+    </p>
+    <div class="agegate__actions">
+      <button class="btn btn--primary" id="ageYes" type="button">Oui, j'ai 18 ans</button>
+      <button class="btn btn--ghost" id="ageNo" type="button">Non</button>
+    </div>
+    <p class="agegate__legal" id="legalNotice"></p>
+  </div>
+</div>
+
+<!-- ══ En-tête ══ -->
+<header class="topbar">
+  <div class="topbar__brand">
+    <img src="/assets/ui/mascot.svg" alt="" class="topbar__mascot">
+    <span class="topbar__name" id="shopName">KARTOON CLUB</span>
+  </div>
+  <button class="cartbtn" id="cartBtn" type="button" aria-label="Ouvrir le panier">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h3l2.6 11.2a2 2 0 0 0 2 1.6h7.1a2 2 0 0 0 2-1.5L21.5 8H7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/></svg>
+    <span class="cartbtn__count" id="cartCount" hidden>0</span>
+  </button>
+</header>
+
+<main class="page">
+
+  <!-- ══ Bannière ══ -->
+  <section class="hero">
+    <div class="hero__bubble">
+      <p class="hero__title">Fraîchement<br>débarqué du carton</p>
+      <p class="hero__sub">Sélection maison, photos réelles, commande en deux clics.</p>
+    </div>
+    <img src="/assets/ui/mascot.svg" alt="Karton, la mascotte" class="hero__mascot">
+  </section>
+
+  <div class="badges">
+    <span class="badge-chip">📦 Emballage discret</span>
+    <span class="badge-chip">⚡ Réponse rapide</span>
+    <span class="badge-chip">🌿 Sélection testée</span>
+  </div>
+
+  <!-- ══ Catégories ══ -->
+  <nav class="cats" id="cats" aria-label="Catégories"></nav>
+
+  <!-- ══ Grille produits ══ -->
+  <section class="grid" id="grid" aria-live="polite"></section>
+
+  <p class="empty" id="empty" hidden>Rien dans cette catégorie pour le moment.</p>
+
+  <footer class="foot">
+    <img src="/assets/ui/leaf.svg" alt="" class="foot__leaf">
+    <p id="footLegal"></p>
+  </footer>
+</main>
+
+<!-- ══ Fiche produit ══ -->
+<div class="sheet" id="productSheet" hidden>
+  <div class="sheet__backdrop" data-close></div>
+  <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="pName">
+    <button class="sheet__close" type="button" data-close aria-label="Fermer">✕</button>
+    <div class="sheet__scroll">
+      <div class="pdetail__art"><img id="pImage" src="" alt=""></div>
+      <div class="pdetail__body">
+        <div class="pdetail__tags" id="pTags"></div>
+        <h2 class="pdetail__name" id="pName"></h2>
+        <p class="pdetail__desc" id="pDesc"></p>
+        <div class="variants" id="pVariants"></div>
+      </div>
+    </div>
+    <div class="sheet__bar">
+      <div class="qty" role="group" aria-label="Quantité">
+        <button type="button" id="qtyMinus" aria-label="Retirer un">−</button>
+        <span id="qtyValue">1</span>
+        <button type="button" id="qtyPlus" aria-label="Ajouter un">+</button>
+      </div>
+      <button class="btn btn--primary btn--grow" id="addToCart" type="button">
+        Ajouter · <span id="pPrice"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Panier ══ -->
+<div class="sheet" id="cartSheet" hidden>
+  <div class="sheet__backdrop" data-close></div>
+  <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="cartTitle">
+    <button class="sheet__close" type="button" data-close aria-label="Fermer">✕</button>
+    <div class="sheet__scroll">
+      <h2 class="cart__title" id="cartTitle">Ton panier</h2>
+      <ul class="cart__list" id="cartList"></ul>
+      <div class="cart__empty" id="cartEmpty" hidden>
+        <img src="/assets/ui/mascot.svg" alt="">
+        <p>Le carton est vide. On remplit ça ?</p>
+      </div>
+      <label class="field" id="noteField">
+        <span>Un mot pour la commande ? (optionnel)</span>
+        <textarea id="orderNote" rows="2" maxlength="500" placeholder="Créneau souhaité, point de retrait, question…"></textarea>
+      </label>
+    </div>
+    <div class="sheet__bar sheet__bar--cart">
+      <div class="cart__total">
+        <span>Total</span>
+        <strong id="cartTotal">0 €</strong>
+      </div>
+      <button class="btn btn--primary btn--grow" id="checkout" type="button">Commander</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="/js/app.js" type="module"></script>
+</body>
+</html>

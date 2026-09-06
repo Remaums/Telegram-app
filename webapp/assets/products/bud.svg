@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="Fleur de cannabis cartoon">
+  <defs>
+    <path id="lf" d="M0,4 C-7,-18 -16,-40 -9,-56 L-3,-46 L-2,-62 L0,-76 L2,-62 L3,-46 L9,-56 C16,-40 7,-18 0,4 Z"/>
+  </defs>
+  <g transform="translate(120 132)">
+    <!-- ombre portée cartoon -->
+    <ellipse cx="4" cy="54" rx="62" ry="13" fill="#000" opacity="0.18"/>
+    <g stroke="#141414" stroke-width="7" stroke-linejoin="round">
+      <g fill="#3f9142">
+        <use href="#lf" transform="rotate(108) scale(.5)"/>
+        <use href="#lf" transform="rotate(-108) scale(.5)"/>
+        <use href="#lf" transform="rotate(72) scale(.72)"/>
+        <use href="#lf" transform="rotate(-72) scale(.72)"/>
+      </g>
+      <g fill="#57b558">
+        <use href="#lf" transform="rotate(36) scale(.9)"/>
+        <use href="#lf" transform="rotate(-36) scale(.9)"/>
+        <use href="#lf" transform="scale(1.15)"/>
+      </g>
+      <path d="M0,4 L0,34" stroke-linecap="round" fill="none"/>
+    </g>
+    <!-- reflets -->
+    <g fill="#a7e39a" opacity=".85">
+      <ellipse cx="-4" cy="-52" rx="4" ry="14" transform="rotate(-6 -4 -52)"/>
+      <ellipse cx="-30" cy="-30" rx="3" ry="9" transform="rotate(-38 -30 -30)"/>
+    </g>
+  </g>
+</svg>

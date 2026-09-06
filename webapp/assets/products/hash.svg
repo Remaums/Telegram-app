@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="Bloc de résine pressée">
+  <g stroke="#141414" stroke-width="7" stroke-linejoin="round">
+    <ellipse cx="120" cy="196" rx="72" ry="14" fill="#000" opacity=".18" stroke="none"/>
+    <!-- bloc du bas -->
+    <path d="M46,120 l74,-34 l74,34 l-74,34 Z" fill="#a9743f"/>
+    <path d="M46,120 v42 l74,34 v-42 Z" fill="#7d5127"/>
+    <path d="M194,120 v42 l-74,34 v-42 Z" fill="#5d3a1a"/>
+    <!-- petit bloc posé dessus -->
+    <path d="M84,80 l36,-17 l36,17 l-36,17 Z" fill="#c08b52"/>
+    <path d="M84,80 v20 l36,17 v-20 Z" fill="#8d5c2e"/>
+    <path d="M156,80 v20 l-36,17 v-20 Z" fill="#6b4220"/>
+  </g>
+  <g fill="#141414" opacity=".55">
+    <circle cx="112" cy="118" r="3"/><circle cx="140" cy="128" r="3"/><circle cx="96" cy="130" r="3"/>
+  </g>
+  <path d="M96,74 l24,-11" stroke="#e0b988" stroke-width="6" stroke-linecap="round" opacity=".8"/>
+</svg>

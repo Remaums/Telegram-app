@@ -1,0 +1,5 @@
+node_modules/
+.env
+*.log
+server/data/orders.json
+.DS_Store

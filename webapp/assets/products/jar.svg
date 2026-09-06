@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="Bocal en verre rempli de fleurs">
+  <g stroke="#141414" stroke-width="7" stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="120" cy="212" rx="66" ry="13" fill="#000" opacity=".18" stroke="none"/>
+    <!-- corps du bocal -->
+    <path d="M62,86 h116 a10,10 0 0 1 10,10 v96 a20,20 0 0 1 -20,20 H72 a20,20 0 0 1 -20,-20 V96 a10,10 0 0 1 10,-10 Z" fill="#cfeef6"/>
+    <!-- contenu -->
+    <path d="M64,132 c14,-12 26,4 40,-6 c14,-10 26,8 40,-2 c12,-8 24,2 32,-4 v66 a16,16 0 0 1 -16,16 H78 a16,16 0 0 1 -16,-16 Z" fill="#57b558"/>
+    <circle cx="90" cy="164" r="9" fill="#3f9142"/>
+    <circle cx="124" cy="180" r="11" fill="#3f9142"/>
+    <circle cx="156" cy="160" r="8" fill="#3f9142"/>
+    <!-- couvercle -->
+    <rect x="52" y="52" width="136" height="36" rx="12" fill="#f2b338"/>
+    <path d="M52,70 h136" stroke-width="5"/>
+    <rect x="104" y="34" width="32" height="20" rx="7" fill="#f2b338"/>
+  </g>
+  <!-- reflet verre -->
+  <path d="M76,104 v78" stroke="#fff" stroke-width="10" stroke-linecap="round" opacity=".7"/>
+</svg>

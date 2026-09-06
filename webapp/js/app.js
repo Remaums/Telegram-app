@@ -1,0 +1,461 @@
+/* ══════════════════════════════════════════════════════════════
+   KARTOON CLUB — logique de la Mini App
+   ══════════════════════════════════════════════════════════════ */
+
+const tg = window.Telegram?.WebApp;
+const CART_KEY = 'kartoon.cart.v1';
+const AGE_KEY = 'kartoon.age.ok';
+
+const state = {
+  shop: { shopName: 'KARTOON CLUB', currency: 'EUR', sellerUsername: '' },
+  categories: [],
+  products: [],
+  category: 'all',
+  cart: loadCart(),
+  current: null, // produit ouvert dans la fiche
+  currentVariant: null,
+  currentQty: 1,
+};
+
+const $ = (id) => document.getElementById(id);
+
+/* ── Démarrage ───────────────────────────────────────────── */
+
+init();
+
+async function init() {
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    tg.setHeaderColor?.('#ffd23f');
+    tg.setBackgroundColor?.('#fdf3dd');
+    tg.enableClosingConfirmation?.();
+    tg.BackButton?.onClick(closeSheets);
+    tg.MainButton?.onClick(() => openSheet('cartSheet'));
+  }
+
+  bindStaticHandlers();
+  gateAge();
+
+  try {
+    const res = await fetch('/api/catalog');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    state.shop = data.shop;
+    state.categories = data.categories;
+    state.products = data.products;
+  } catch (err) {
+    console.error(err);
+    toast("Catalogue indisponible, réessaie dans un instant.");
+    return;
+  }
+
+  $('shopName').textContent = state.shop.shopName;
+  document.title = `${state.shop.shopName} — Boutique`;
+  const legal =
+    "Produits réservés aux personnes majeures. Vérifie la législation en vigueur " +
+    'chez toi avant toute commande : la disponibilité de ces produits dépend de ta juridiction.';
+  $('legalNotice').textContent = legal;
+  $('footLegal').textContent = legal;
+
+  renderCategories();
+  renderGrid();
+  renderCart();
+}
+
+function bindStaticHandlers() {
+  $('ageYes').addEventListener('click', () => {
+    try { localStorage.setItem(AGE_KEY, '1'); } catch {}
+    $('agegate').hidden = true;
+    haptic('light');
+  });
+  $('ageNo').addEventListener('click', () => (tg ? tg.close() : window.history.back()));
+
+  $('cartBtn').addEventListener('click', () => openSheet('cartSheet'));
+  $('checkout').addEventListener('click', checkout);
+
+  $('qtyMinus').addEventListener('click', () => setQty(state.currentQty - 1));
+  $('qtyPlus').addEventListener('click', () => setQty(state.currentQty + 1));
+  $('addToCart').addEventListener('click', addCurrentToCart);
+
+  for (const el of document.querySelectorAll('[data-close]')) {
+    el.addEventListener('click', closeSheets);
+  }
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && closeSheets());
+}
+
+function gateAge() {
+  let confirmed = false;
+  try { confirmed = localStorage.getItem(AGE_KEY) === '1'; } catch {}
+  $('agegate').hidden = confirmed;
+}
+
+/* ── Rendu ───────────────────────────────────────────────── */
+
+function renderCategories() {
+  const nav = $('cats');
+  nav.replaceChildren(
+    ...state.categories.map((cat) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cat';
+      btn.textContent = `${cat.emoji} ${cat.label}`;
+      btn.setAttribute('aria-pressed', String(cat.id === state.category));
+      btn.addEventListener('click', () => {
+        state.category = cat.id;
+        haptic('light');
+        renderCategories();
+        renderGrid();
+      });
+      return btn;
+    })
+  );
+}
+
+function renderGrid() {
+  const grid = $('grid');
+  const list =
+    state.category === 'all'
+      ? state.products
+      : state.products.filter((p) => p.category === state.category);
+
+  $('empty').hidden = list.length > 0;
+  grid.replaceChildren(...list.map(productCard));
+}
+
+function productCard(product) {
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.className = 'card';
+  card.setAttribute('aria-label', `${product.name}, ${formatPrice(product.price)}`);
+
+  const fromLabel = product.variants ? '<small>dès</small> ' : '';
+  card.innerHTML = `
+    <div class="card__art">
+      ${product.badge ? `<span class="card__badge">${escapeHtml(product.badge)}</span>` : ''}
+      <img src="${product.image}" alt="" loading="lazy">
+    </div>
+    <div class="card__body">
+      <span class="card__name">${escapeHtml(product.name)}</span>
+      <span class="card__short">${escapeHtml(product.short)}</span>
+      <span class="card__foot">
+        <span class="card__price">${fromLabel}${formatPrice(product.price)}</span>
+        <span class="card__add" aria-hidden="true">+</span>
+      </span>
+    </div>`;
+
+  card.addEventListener('click', () => openProduct(product));
+  return card;
+}
+
+function openProduct(product) {
+  state.current = product;
+  state.currentVariant = product.variants ? product.variants[0].id : null;
+  state.currentQty = 1;
+
+  $('pImage').src = product.image;
+  $('pImage').alt = product.name;
+  $('pName').textContent = product.name;
+  $('pDesc').textContent = product.description;
+
+  $('pTags').replaceChildren(
+    ...(product.tags ?? []).map((t) => {
+      const span = document.createElement('span');
+      span.className = 'tag';
+      span.textContent = t;
+      return span;
+    })
+  );
+
+  renderVariants();
+  setQty(1);
+  openSheet('productSheet');
+  haptic('light');
+}
+
+function renderVariants() {
+  const box = $('pVariants');
+  const product = state.current;
+  if (!product?.variants) {
+    box.replaceChildren();
+    return;
+  }
+  box.replaceChildren(
+    ...product.variants.map((v) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'variant';
+      btn.setAttribute('aria-pressed', String(v.id === state.currentVariant));
+      btn.innerHTML = `${escapeHtml(v.label)}<small>${formatPrice(v.price)}</small>`;
+      btn.addEventListener('click', () => {
+        state.currentVariant = v.id;
+        renderVariants();
+        setQty(state.currentQty);
+        haptic('light');
+      });
+      return btn;
+    })
+  );
+}
+
+function setQty(next) {
+  state.currentQty = Math.min(99, Math.max(1, next));
+  $('qtyValue').textContent = state.currentQty;
+  $('pPrice').textContent = formatPrice(unitPrice(state.current, state.currentVariant) * state.currentQty);
+}
+
+/* ── Panier ──────────────────────────────────────────────── */
+
+function loadCart() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CART_KEY) ?? '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCart() {
+  try { localStorage.setItem(CART_KEY, JSON.stringify(state.cart)); } catch {}
+}
+
+function addCurrentToCart() {
+  const product = state.current;
+  if (!product) return;
+
+  const key = `${product.id}::${state.currentVariant ?? ''}`;
+  const existing = state.cart.find((l) => l.key === key);
+  if (existing) {
+    existing.quantity = Math.min(99, existing.quantity + state.currentQty);
+  } else {
+    state.cart.push({
+      key,
+      id: product.id,
+      variantId: state.currentVariant,
+      quantity: state.currentQty,
+    });
+  }
+
+  saveCart();
+  renderCart();
+  closeSheets();
+  haptic('success');
+  toast(`${product.name} ajouté au carton 📦`);
+
+  const badge = $('cartCount');
+  badge.classList.remove('pop');
+  void badge.offsetWidth; // force le redémarrage de l'animation
+  badge.classList.add('pop');
+}
+
+/** Enrichit les lignes du panier avec les données produit à jour. */
+function detailedCart() {
+  return state.cart
+    .map((line) => {
+      const product = state.products.find((p) => p.id === line.id);
+      if (!product) return null;
+      const variant = product.variants?.find((v) => v.id === line.variantId) ?? null;
+      const price = variant?.price ?? product.price;
+      return { ...line, product, variant, unitPrice: price, lineTotal: price * line.quantity };
+    })
+    .filter(Boolean);
+}
+
+function cartTotal() {
+  return detailedCart().reduce((sum, l) => sum + l.lineTotal, 0);
+}
+
+function renderCart() {
+  const lines = detailedCart();
+  const count = lines.reduce((sum, l) => sum + l.quantity, 0);
+
+  const badge = $('cartCount');
+  badge.textContent = count;
+  badge.hidden = count === 0;
+
+  $('cartEmpty').hidden = lines.length > 0;
+  $('noteField').hidden = lines.length === 0;
+  $('checkout').disabled = lines.length === 0;
+  $('cartTotal').textContent = formatPrice(cartTotal());
+
+  $('cartList').replaceChildren(...lines.map(cartRow));
+  syncMainButton();
+}
+
+function cartRow(line) {
+  const li = document.createElement('li');
+  li.className = 'cart-item';
+  li.innerHTML = `
+    <span class="cart-item__art"><img src="${line.product.image}" alt=""></span>
+    <span class="cart-item__info">
+      <span class="cart-item__name">${escapeHtml(line.product.name)}</span>
+      <span class="cart-item__meta">${line.variant ? escapeHtml(line.variant.label) + ' · ' : ''}${formatPrice(line.lineTotal)}</span>
+    </span>
+    <span class="cart-item__ctl">
+      <button type="button" data-act="minus" aria-label="Retirer un">−</button>
+      <span>${line.quantity}</span>
+      <button type="button" data-act="plus" aria-label="Ajouter un">+</button>
+    </span>`;
+
+  li.querySelector('[data-act="minus"]').addEventListener('click', () => changeLine(line.key, -1));
+  li.querySelector('[data-act="plus"]').addEventListener('click', () => changeLine(line.key, +1));
+  return li;
+}
+
+function changeLine(key, delta) {
+  const line = state.cart.find((l) => l.key === key);
+  if (!line) return;
+  line.quantity += delta;
+  if (line.quantity < 1) state.cart = state.cart.filter((l) => l.key !== key);
+  saveCart();
+  renderCart();
+  haptic('light');
+}
+
+/* ── Commande ────────────────────────────────────────────── */
+
+async function checkout() {
+  const lines = detailedCart();
+  if (!lines.length) return;
+
+  const button = $('checkout');
+  button.disabled = true;
+  button.textContent = 'Préparation…';
+
+  const note = $('orderNote').value.trim();
+
+  // On enregistre la commande côté serveur pour avoir une référence et une
+  // trace. Si le serveur ne répond pas, on continue quand même : l'essentiel
+  // est que le client arrive dans la conversation avec son récapitulatif.
+  let reference = null;
+  try {
+    const res = await fetch('/api/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Telegram-Init-Data': tg?.initData ?? '',
+      },
+      body: JSON.stringify({
+        items: lines.map((l) => ({ id: l.id, variantId: l.variantId, quantity: l.quantity })),
+        note,
+      }),
+    });
+    if (res.ok) reference = (await res.json()).reference;
+  } catch (err) {
+    console.warn('Enregistrement de la commande impossible :', err);
+  }
+
+  const message = buildOrderMessage(lines, note, reference);
+  openSellerChat(message);
+
+  button.disabled = false;
+  button.textContent = 'Commander';
+  haptic('success');
+}
+
+function buildOrderMessage(lines, note, reference) {
+  const parts = [`Bonjour ! Je souhaite commander sur ${state.shop.shopName} 🌿`, ''];
+
+  for (const line of lines) {
+    const variant = line.variant ? ` (${line.variant.label})` : '';
+    parts.push(`• ${line.quantity} × ${line.product.name}${variant} — ${formatPrice(line.lineTotal)}`);
+  }
+
+  parts.push('', `Total : ${formatPrice(cartTotal())}`);
+  if (reference) parts.push(`Réf : ${reference}`);
+  if (note) parts.push('', `Note : ${note}`);
+
+  return parts.join('\n');
+}
+
+/** Ouvre la conversation du vendeur avec le récapitulatif pré-rempli. */
+function openSellerChat(message) {
+  const username = state.shop.sellerUsername;
+  if (!username) {
+    toast("Le compte vendeur n'est pas encore configuré.");
+    return;
+  }
+
+  // Telegram tronque les URL très longues : on garde le message sous une
+  // taille sûre, le détail complet restant côté serveur avec la référence.
+  const text = message.length > 1500 ? `${message.slice(0, 1490)}…` : message;
+  const url = `https://t.me/${username}?text=${encodeURIComponent(text)}`;
+
+  if (tg?.openTelegramLink) {
+    tg.openTelegramLink(url);
+  } else {
+    window.open(url, '_blank', 'noopener');
+  }
+}
+
+/* ── Panneaux ────────────────────────────────────────────── */
+
+function openSheet(id) {
+  closeSheets();
+  $(id).hidden = false;
+  document.body.style.overflow = 'hidden';
+  tg?.BackButton?.show();
+  syncMainButton();
+}
+
+function closeSheets() {
+  for (const sheet of document.querySelectorAll('.sheet')) sheet.hidden = true;
+  document.body.style.overflow = '';
+  tg?.BackButton?.hide();
+  syncMainButton();
+}
+
+/** Le bouton natif de Telegram sert de raccourci vers le panier. */
+function syncMainButton() {
+  const main = tg?.MainButton;
+  if (!main) return;
+
+  const total = cartTotal();
+  const sheetOpen = [...document.querySelectorAll('.sheet')].some((s) => !s.hidden);
+
+  if (total > 0 && !sheetOpen) {
+    main.setText(`VOIR MON PANIER · ${formatPrice(total)}`);
+    main.setParams?.({ color: '#57b558', text_color: '#ffffff' });
+    main.show();
+  } else {
+    main.hide();
+  }
+}
+
+/* ── Utilitaires ─────────────────────────────────────────── */
+
+function unitPrice(product, variantId) {
+  if (!product) return 0;
+  const variant = product.variants?.find((v) => v.id === variantId);
+  return variant?.price ?? product.price;
+}
+
+function formatPrice(cents) {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: state.shop.currency || 'EUR',
+    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
+  }).format(cents / 100);
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+  );
+}
+
+let toastTimer;
+function toast(message) {
+  const el = $('toast');
+  el.textContent = message;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (el.hidden = true), 2600);
+}
+
+function haptic(type) {
+  const h = tg?.HapticFeedback;
+  if (!h) return;
+  if (type === 'success') h.notificationOccurred?.('success');
+  else h.impactOccurred?.(type);
+}
