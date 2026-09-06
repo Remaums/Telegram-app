@@ -129,10 +129,14 @@ function productCard(product) {
   card.className = 'card';
   card.setAttribute('aria-label', `${product.name}, ${formatPrice(product.price)}`);
 
+  const soldOut = isSoldOut(product);
+  if (soldOut) card.classList.add('card--soldout');
+
   const fromLabel = product.variants ? '<small>dès</small> ' : '';
+  const badge = soldOut ? 'ÉPUISÉ' : product.badge;
   card.innerHTML = `
     <div class="card__art">
-      ${product.badge ? `<span class="card__badge">${escapeHtml(product.badge)}</span>` : ''}
+      ${badge ? `<span class="card__badge ${soldOut ? 'card__badge--out' : ''}">${escapeHtml(badge)}</span>` : ''}
       <img src="${product.image}" alt="" loading="lazy">
     </div>
     <div class="card__body">
@@ -150,7 +154,10 @@ function productCard(product) {
 
 function openProduct(product) {
   state.current = product;
-  state.currentVariant = product.variants ? product.variants[0].id : null;
+  // On présélectionne le premier format encore disponible plutôt que le premier tout court.
+  state.currentVariant = product.variants
+    ? (product.variants.find((v) => Number(v.stock ?? 0) > 0) ?? product.variants[0]).id
+    : null;
   state.currentQty = 1;
 
   $('pImage').src = product.image;
@@ -186,7 +193,10 @@ function renderVariants() {
       btn.type = 'button';
       btn.className = 'variant';
       btn.setAttribute('aria-pressed', String(v.id === state.currentVariant));
-      btn.innerHTML = `${escapeHtml(v.label)}<small>${formatPrice(v.price)}</small>`;
+      btn.disabled = Number(v.stock ?? 0) <= 0;
+      btn.innerHTML = `${escapeHtml(v.label)}<small>${
+        btn.disabled ? 'épuisé' : formatPrice(v.price)
+      }</small>`;
       btn.addEventListener('click', () => {
         state.currentVariant = v.id;
         renderVariants();
@@ -199,9 +209,26 @@ function renderVariants() {
 }
 
 function setQty(next) {
-  state.currentQty = Math.min(99, Math.max(1, next));
+  const product = state.current;
+  const available = product ? remainingFor(product, state.currentVariant) : 0;
+
+  state.currentQty = Math.min(99, Math.max(1, next), Math.max(1, available));
   $('qtyValue').textContent = state.currentQty;
-  $('pPrice').textContent = formatPrice(unitPrice(state.current, state.currentVariant) * state.currentQty);
+
+  const addButton = $('addToCart');
+  if (available <= 0) {
+    addButton.disabled = true;
+    $('pPrice').textContent = '';
+    addButton.firstChild.textContent = 'Épuisé ';
+    return;
+  }
+
+  addButton.disabled = false;
+  addButton.firstChild.textContent = 'Ajouter · ';
+  $('pPrice').textContent = formatPrice(unitPrice(product, state.currentVariant) * state.currentQty);
+
+  // On signale la fin de série : c'est ce qui fait bouger un panier.
+  $('qtyPlus').disabled = state.currentQty >= available;
 }
 
 /* ── Panier ──────────────────────────────────────────────── */
@@ -224,9 +251,10 @@ function addCurrentToCart() {
   if (!product) return;
 
   const key = `${product.id}::${state.currentVariant ?? ''}`;
+  const available = stockOf(product, state.currentVariant);
   const existing = state.cart.find((l) => l.key === key);
   if (existing) {
-    existing.quantity = Math.min(99, existing.quantity + state.currentQty);
+    existing.quantity = Math.min(99, available, existing.quantity + state.currentQty);
   } else {
     state.cart.push({
       key,
@@ -305,6 +333,13 @@ function cartRow(line) {
 function changeLine(key, delta) {
   const line = state.cart.find((l) => l.key === key);
   if (!line) return;
+
+  const product = state.products.find((p) => p.id === line.id);
+  if (delta > 0 && product && line.quantity >= stockOf(product, line.variantId)) {
+    toast('Stock maximum atteint');
+    return;
+  }
+
   line.quantity += delta;
   if (line.quantity < 1) state.cart = state.cart.filter((l) => l.key !== key);
   saveCart();
@@ -423,6 +458,29 @@ function syncMainButton() {
 }
 
 /* ── Utilitaires ─────────────────────────────────────────── */
+
+/** Stock disponible pour un produit, ou pour une de ses variantes. */
+function stockOf(product, variantId = null) {
+  if (product.variants?.length) {
+    const variant = product.variants.find((v) => v.id === variantId);
+    return variant ? Number(variant.stock ?? 0) : 0;
+  }
+  return Number(product.stock ?? 0);
+}
+
+/** Un produit est épuisé quand aucune de ses variantes n'est disponible. */
+function isSoldOut(product) {
+  return product.variants?.length
+    ? product.variants.every((v) => Number(v.stock ?? 0) <= 0)
+    : stockOf(product) <= 0;
+}
+
+/** Ce qu'il reste après déduction de ce qui est déjà dans le panier. */
+function remainingFor(product, variantId) {
+  const key = `${product.id}::${variantId ?? ''}`;
+  const inCart = state.cart.find((l) => l.key === key)?.quantity ?? 0;
+  return Math.max(0, stockOf(product, variantId) - inCart);
+}
 
 function unitPrice(product, variantId) {
   if (!product) return 0;

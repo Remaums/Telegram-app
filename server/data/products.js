@@ -19,6 +19,7 @@ export const categories = [
 export const products = [
   {
     id: 'kartoon-kush',
+    stock: null, // le stock est porté par les variantes
     name: 'Kartoon Kush',
     category: 'fleurs',
     price: 1200,
@@ -31,13 +32,14 @@ export const products = [
       "Nez terreux et sucré, fumée ronde. Le grand classique de la maison, celui qu'on garde " +
       "pour le canapé et les dessins animés du dimanche soir.",
     variants: [
-      { id: '2g', label: '2 g', price: 1200 },
-      { id: '5g', label: '5 g', price: 2700 },
-      { id: '10g', label: '10 g', price: 5000 },
+      { id: '2g', label: '2 g', price: 1200, stock: 24 },
+      { id: '5g', label: '5 g', price: 2700, stock: 12 },
+      { id: '10g', label: '10 g', price: 5000, stock: 6 },
     ],
   },
   {
     id: 'yellow-toon-haze',
+    stock: null, // le stock est porté par les variantes
     name: 'Yellow Toon Haze',
     category: 'fleurs',
     price: 1400,
@@ -50,13 +52,14 @@ export const products = [
       "Effet clair et bavard, parfaite pour la journée, les longues discussions et les idées " +
       "qui partent dans tous les sens.",
     variants: [
-      { id: '2g', label: '2 g', price: 1400 },
-      { id: '5g', label: '5 g', price: 3200 },
-      { id: '10g', label: '10 g', price: 6000 },
+      { id: '2g', label: '2 g', price: 1400, stock: 24 },
+      { id: '5g', label: '5 g', price: 3200, stock: 12 },
+      { id: '10g', label: '10 g', price: 6000, stock: 6 },
     ],
   },
   {
     id: 'cardboard-cookies',
+    stock: null, // le stock est porté par les variantes
     name: 'Cardboard Cookies',
     category: 'fleurs',
     price: 1600,
@@ -67,12 +70,13 @@ export const products = [
       "Hybride équilibrée au profil dessert : biscuit chaud, vanille, une pointe de terre humide. " +
       "Têtes compactes couvertes de trichomes, coupe manuelle. Notre préférée pour la fin de soirée.",
     variants: [
-      { id: '2g', label: '2 g', price: 1600 },
-      { id: '5g', label: '5 g', price: 3600 },
+      { id: '2g', label: '2 g', price: 1600, stock: 24 },
+      { id: '5g', label: '5 g', price: 3600, stock: 12 },
     ],
   },
   {
     id: 'hash-brick',
+    stock: null, // le stock est porté par les variantes
     name: 'Brique Cartoon',
     category: 'resines',
     price: 1800,
@@ -84,12 +88,13 @@ export const products = [
       "Résine tamisée puis pressée à la main, texture souple qui se travaille au pouce. " +
       "Nez épicé et boisé, fumée dense. Emballée dans son petit carton kraft tamponné maison.",
     variants: [
-      { id: '2g', label: '2 g', price: 1800 },
-      { id: '5g', label: '5 g', price: 4000 },
+      { id: '2g', label: '2 g', price: 1800, stock: 24 },
+      { id: '5g', label: '5 g', price: 4000, stock: 12 },
     ],
   },
   {
     id: 'toon-dry-sift',
+    stock: 8,
     name: 'Toon Dry Sift',
     category: 'resines',
     price: 2500,
@@ -102,6 +107,7 @@ export const products = [
   },
   {
     id: 'space-brownie',
+    stock: 30,
     name: 'Space Brownie',
     category: 'comestibles',
     price: 800,
@@ -115,6 +121,7 @@ export const products = [
   },
   {
     id: 'gummy-pack',
+    stock: 40,
     name: 'Gummies Kartoon',
     category: 'comestibles',
     price: 1200,
@@ -128,6 +135,7 @@ export const products = [
   },
   {
     id: 'grinder',
+    stock: 15,
     name: 'Grinder Cartoon 4 parts',
     category: 'accessoires',
     price: 1500,
@@ -140,6 +148,7 @@ export const products = [
   },
   {
     id: 'rolling-kit',
+    stock: 50,
     name: 'Kit Roule-Carton',
     category: 'accessoires',
     price: 600,
@@ -152,6 +161,7 @@ export const products = [
   },
   {
     id: 'pack-decouverte',
+    stock: 10,
     name: 'Pack Découverte',
     category: 'packs',
     price: 4500,
@@ -166,6 +176,7 @@ export const products = [
   },
   {
     id: 'pack-collector',
+    stock: 5,
     name: 'Carton Collector',
     category: 'packs',
     price: 8900,

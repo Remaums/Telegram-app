@@ -3,9 +3,17 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 
 import { config, publicConfig, assertConfigured } from './config.js';
-import { categories, products, findProduct, resolvePrice } from './data/products.js';
 import { verifyInitData } from './telegram-auth.js';
+import {
+  HttpError,
+  getCatalog,
+  getProduct,
+  priceOf,
+  reserveStock,
+  restoreStock,
+} from './catalog.js';
 import { createOrder, listOrders } from './orders.js';
+import { adminRouter } from './admin.js';
 import { bot, notifyAdmin } from './bot.js';
 
 assertConfigured();
@@ -25,14 +33,18 @@ app.use((req, res, next) => {
 
 app.use(express.static(webappDir, { extensions: ['html'] }));
 
-app.get('/api/catalog', (req, res) => {
-  res.json({ shop: publicConfig, categories, products });
+/* ── Boutique ────────────────────────────────────────────── */
+
+app.get('/api/catalog', async (req, res, next) => {
+  try {
+    const { products, categories } = await getCatalog();
+    res.json({ shop: publicConfig, categories, products });
+  } catch (err) {
+    next(err);
+  }
 });
 
-/**
- * Middleware d'authentification : chaque appel authentifié doit porter
- * l'en-tête `X-Telegram-Init-Data` signé par Telegram.
- */
+/** Chaque appel authentifié doit porter l'en-tête signé par Telegram. */
 function authenticate(req, res, next) {
   const result = verifyInitData(req.get('X-Telegram-Init-Data'), config.botToken);
   if (!result.ok) {
@@ -42,67 +54,99 @@ function authenticate(req, res, next) {
   next();
 }
 
-app.post('/api/orders', authenticate, async (req, res) => {
-  const { items, contact, note } = req.body ?? {};
+app.post('/api/orders', authenticate, async (req, res, next) => {
+  try {
+    const { items, contact, note } = req.body ?? {};
 
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'Panier vide.' });
-  }
-  if (items.length > 50) {
-    return res.status(400).json({ error: 'Trop de lignes dans le panier.' });
-  }
-
-  // Les prix sont recalculés côté serveur à partir du catalogue : ceux envoyés
-  // par le client sont ignorés, sinon n'importe qui commanderait à 0 €.
-  const resolved = [];
-  for (const item of items) {
-    const product = findProduct(item.id);
-    if (!product) return res.status(400).json({ error: `Produit inconnu : ${item.id}` });
-
-    const quantity = Number(item.quantity);
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
-      return res.status(400).json({ error: `Quantité invalide pour ${product.name}.` });
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new HttpError(400, 'Panier vide.');
+    }
+    if (items.length > 50) {
+      throw new HttpError(400, 'Trop de lignes dans le panier.');
     }
 
-    const variant = product.variants?.find((v) => v.id === item.variantId) ?? null;
-    if (product.variants && !variant) {
-      return res.status(400).json({ error: `Format invalide pour ${product.name}.` });
+    // Les prix sont recalculés côté serveur à partir du catalogue : ceux
+    // envoyés par le client sont ignorés, sinon n'importe qui commanderait à 0 €.
+    const resolved = [];
+    for (const item of items) {
+      const product = await getProduct(item.id, { includeHidden: false });
+      if (!product) throw new HttpError(400, `Produit indisponible : ${item.id}`);
+
+      const quantity = Number(item.quantity);
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+        throw new HttpError(400, `Quantité invalide pour ${product.name}.`);
+      }
+
+      const variant = product.variants?.find((v) => v.id === item.variantId) ?? null;
+      if (product.variants?.length && !variant) {
+        throw new HttpError(400, `Format invalide pour ${product.name}.`);
+      }
+
+      const unitPrice = priceOf(product, variant?.id);
+      resolved.push({
+        id: product.id,
+        name: product.name,
+        variantId: variant?.id ?? null,
+        variantLabel: variant?.label ?? null,
+        unitPrice,
+        quantity,
+        lineTotal: unitPrice * quantity,
+      });
     }
 
-    const unitPrice = resolvePrice(product, variant?.id);
-    resolved.push({
-      id: product.id,
-      name: product.name,
-      variantId: variant?.id ?? null,
-      variantLabel: variant?.label ?? null,
-      unitPrice,
-      quantity,
-      lineTotal: unitPrice * quantity,
-    });
+    // Réservation tout-ou-rien : deux clients ne peuvent pas emporter
+    // le dernier article en même temps.
+    await reserveStock(resolved);
+
+    let order;
+    try {
+      order = await createOrder({
+        user: req.telegramUser,
+        items: resolved,
+        total: resolved.reduce((sum, i) => sum + i.lineTotal, 0),
+        contact: typeof contact === 'string' ? contact.slice(0, 200) : null,
+        note: typeof note === 'string' ? note.slice(0, 500) : null,
+      });
+    } catch (err) {
+      // La commande n'a pas pu être écrite : on ne garde pas le stock réservé.
+      await restoreStock(resolved).catch(() => {});
+      throw err;
+    }
+
+    notifyAdmin(order).catch(() => {});
+
+    res.status(201).json({ reference: order.reference, total: order.total, items: order.items });
+  } catch (err) {
+    next(err);
   }
-
-  const total = resolved.reduce((sum, i) => sum + i.lineTotal, 0);
-
-  const order = await createOrder({
-    user: req.telegramUser,
-    items: resolved,
-    total,
-    contact: typeof contact === 'string' ? contact.slice(0, 200) : null,
-    note: typeof note === 'string' ? note.slice(0, 500) : null,
-  });
-
-  notifyAdmin(order).catch(() => {});
-
-  res.status(201).json({ reference: order.reference, total: order.total, items: order.items });
 });
 
-app.get('/api/orders', authenticate, async (req, res) => {
-  res.json(await listOrders({ userId: req.telegramUser.id, limit: 10 }));
+app.get('/api/orders', authenticate, async (req, res, next) => {
+  try {
+    res.json(await listOrders({ userId: req.telegramUser.id, limit: 10 }));
+  } catch (err) {
+    next(err);
+  }
 });
+
+/* ── Administration ──────────────────────────────────────── */
+
+app.use('/api/admin', adminRouter);
+
+/* ── Gestion d'erreurs ───────────────────────────────────── */
+
+app.use((err, req, res, next) => {
+  if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+  console.error('Erreur serveur :', err);
+  res.status(500).json({ error: 'Erreur interne.' });
+});
+
+/* ── Démarrage ───────────────────────────────────────────── */
 
 app.listen(config.port, () => {
   console.log(`  Boutique servie sur http://localhost:${config.port}`);
   if (config.webappUrl) console.log(`  URL publique déclarée : ${config.webappUrl}`);
+  console.log(`  Admins autorisés : ${config.adminIds.join(', ') || 'aucun'}`);
 });
 
 // Un token invalide ne doit pas empêcher de servir la boutique : on garde le

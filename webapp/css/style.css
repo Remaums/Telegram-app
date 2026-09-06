@@ -358,3 +358,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ── Ruptures de stock ───────────────────────────────────── */
+.card--soldout .card__art img { filter: grayscale(1); opacity: .5; }
+.card--soldout .card__price { color: var(--ink); opacity: .45; }
+.card--soldout .card__add { background: #ddd6c8; opacity: .6; }
+.card__badge--out { background: var(--ink); }
+
+.variant[disabled] {
+  background: #e6ded0; color: rgba(20,20,20,.45);
+  box-shadow: none; border-style: dashed; pointer-events: none;
+}
+.variant[disabled] small { opacity: .8; }
+
+.qty button[disabled] { opacity: .3; pointer-events: none; }

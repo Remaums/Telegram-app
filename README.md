@@ -86,11 +86,56 @@ Le bouton apparaît alors en permanence à côté du champ de saisie du bot.
 
 ---
 
+## ⚙️ Espace admin
+
+![Espace admin](docs/admin.png)
+
+Envoie `/admin` au bot (réservé aux identifiants listés dans `ADMIN_IDS`) : la
+Mini App d'administration s'ouvre avec quatre onglets.
+
+| Onglet | Ce que tu y fais |
+|---|---|
+| **Tableau** | Chiffre d'affaires total et du jour, nombre de commandes, commandes à traiter, meilleures ventes, alertes de stock bas |
+| **Commandes** | Toutes les commandes, filtrables par statut, avec les boutons pour les faire avancer |
+| **Stock** | Réglage direct des quantités, format par format, avec recherche |
+| **Produits** | Créer, modifier, masquer ou supprimer un produit |
+
+### Le cycle d'une commande
+
+```
+Nouvelle ──▶ Confirmée ──▶ Prête ──▶ Livrée
+    │            │           │
+    └────────────┴───────────┴──▶ Annulée   (le stock est remis en rayon)
+```
+
+Le client reçoit **automatiquement un message du bot** à chaque changement de statut.
+Les transitions illégales sont refusées côté serveur : on ne passe pas de
+« Nouvelle » directement à « Livrée ».
+
+### Le stock
+
+- Chaque produit a un stock ; s'il a des formats (2 g, 5 g…), le stock est tenu
+  **par format**.
+- Une commande **décrémente le stock en tout ou rien** : deux clients ne peuvent
+  pas emporter le dernier article en même temps.
+- Un produit épuisé apparaît **grisé et non commandable** dans la boutique, et
+  le format épuisé est barré dans la fiche produit.
+- Le tableau de bord signale tout ce qui descend **à 5 unités ou moins**.
+- Annuler une commande **remet automatiquement les articles en rayon**.
+
+---
+
 ## Personnaliser
 
 ### Les produits
 
-Tout le catalogue est dans **`server/data/products.js`**. Une entrée ressemble à ça :
+Le plus simple est de passer par l'**espace admin** (`/admin` dans le bot) : tout se
+modifie depuis le téléphone, sans toucher au code.
+
+Au premier démarrage, le catalogue est créé dans `server/data/catalog.json` à partir
+du catalogue d'exemple de **`server/data/products.js`**. Ensuite c'est le fichier JSON
+qui fait foi. Pour repartir du catalogue d'exemple, supprime `catalog.json` et
+redémarre. Une entrée ressemble à ça :
 
 ```js
 {
@@ -103,9 +148,10 @@ Tout le catalogue est dans **`server/data/products.js`**. Une entrée ressemble 
   tags: ['Indica', 'Nuit'],
   short: 'Texte court affiché sur la vignette.',
   description: 'Texte long affiché dans la fiche produit.',
+  stock: null,                   // null si le stock est porté par les variantes
   variants: [                    // optionnel : formats au choix
-    { id: '2g', label: '2 g', price: 1200 },
-    { id: '5g', label: '5 g', price: 2700 },
+    { id: '2g', label: '2 g', price: 1200, stock: 24 },
+    { id: '5g', label: '5 g', price: 2700, stock: 12 },
   ],
 }
 ```
@@ -141,6 +187,7 @@ Change ces variables et toute la boutique suit.
 | `/boutique` | Rouvre la Mini App |
 | `/commandes` | Les 5 dernières commandes du client |
 | `/aide` | Liste des commandes |
+| `/admin` | Espace d'administration (réservé aux `ADMIN_IDS`) |
 
 ---
 
@@ -151,8 +198,13 @@ Change ces variables et toute la boutique suit.
 - Les signatures ont une **durée de vie de 24 h** pour éviter le rejeu.
 - Les **prix et les variantes sont revalidés côté serveur** à partir du catalogue.
 - Le `BOT_TOKEN` n'est jamais envoyé au navigateur (`.env` est dans `.gitignore`).
+- L'espace admin est verrouillé sur les identifiants de `ADMIN_IDS`, vérifiés à
+  **chaque appel** à partir de la signature Telegram : un client ne peut pas se
+  déclarer administrateur.
 
-Tests automatisés (serveur démarré dans un autre terminal) :
+Tests automatisés — 38 tests couvrant l'authentification, la falsification de prix,
+les droits d'admin, la gestion du stock et les transitions de statut
+(serveur démarré dans un autre terminal) :
 
 ```bash
 npm test
@@ -162,9 +214,16 @@ npm test
 
 ## Stockage des commandes
 
-Les commandes sont écrites dans `server/data/orders.json` (créé automatiquement,
-ignoré par git). C'est suffisant pour démarrer. Au-delà de quelques milliers de
-commandes, passe sur SQLite ou Postgres : seul `server/orders.js` est à réécrire.
+Le catalogue et les commandes sont écrits dans `server/data/catalog.json` et
+`server/data/orders.json` (créés automatiquement, ignorés par git). Les écritures
+sont sérialisées et atomiques : pas de JSON tronqué si le serveur s'arrête en
+pleine sauvegarde.
+
+C'est suffisant pour démarrer. Au-delà de quelques milliers de commandes, passe sur
+SQLite ou Postgres : seul `server/json-store.js` est à réécrire.
+
+> 💾 **Pense à sauvegarder `server/data/`** : c'est là que vivent ton catalogue et
+> tes commandes.
 
 ---
 

@@ -1,11 +1,16 @@
 import { Bot, InlineKeyboard } from 'grammy';
 import { config } from './config.js';
-import { listOrders } from './orders.js';
+import { listOrders, STATUSES } from './orders.js';
 
 export const bot = new Bot(config.botToken);
 
 const shopKeyboard = () =>
   new InlineKeyboard().webApp('🛒 Ouvrir la boutique', config.webappUrl);
+
+const adminKeyboard = () =>
+  new InlineKeyboard().webApp('⚙️ Espace admin', `${config.webappUrl}/admin.html`);
+
+const isAdmin = (id) => config.adminIds.includes(String(id));
 
 bot.command('start', async (ctx) => {
   await ctx.reply(
@@ -34,12 +39,22 @@ bot.command('commandes', async (ctx) => {
   await ctx.reply(`Tes dernières commandes :\n\n${lines.join('\n')}`);
 });
 
+bot.command('admin', async (ctx) => {
+  if (!isAdmin(ctx.from.id)) {
+    return ctx.reply("Cet espace est réservé à l'administrateur.");
+  }
+  await ctx.reply('Gestion du stock, des produits et des commandes 👇', {
+    reply_markup: adminKeyboard(),
+  });
+});
+
 bot.command('aide', (ctx) =>
   ctx.reply(
     'Commandes disponibles :\n' +
       '/boutique — ouvrir le catalogue\n' +
       '/commandes — voir tes commandes\n' +
-      '/aide — ce message'
+      '/aide — ce message' +
+      (isAdmin(ctx.from.id) ? '\n/admin — espace administrateur' : '')
   )
 );
 
@@ -83,6 +98,26 @@ export async function notifyAdmin(order) {
   } catch (err) {
     console.error('Notification admin impossible :', err.message);
   }
+}
+
+/** Prévient le client que le statut de sa commande a changé. */
+export async function notifyCustomer(order) {
+  const status = STATUSES[order.status];
+  if (!status) return;
+
+  const messages = {
+    confirmee: 'On a bien reçu ta commande, elle est confirmée.',
+    prete: 'Ta commande est prête !',
+    livree: 'Commande livrée. Merci et à bientôt 👋',
+    annulee: 'Ta commande a été annulée. Écris-nous si c\'est une erreur.',
+  };
+
+  const text =
+    `${status.emoji} Commande ${order.reference} — ${status.label}\n\n` +
+    `${messages[order.status] ?? ''}\n` +
+    `Total : ${formatPrice(order.total)}`;
+
+  await bot.api.sendMessage(order.user.id, text);
 }
 
 function formatPrice(cents) {

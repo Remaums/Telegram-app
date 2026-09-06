@@ -7,6 +7,11 @@ export const config = {
   webappUrl: (process.env.WEBAPP_URL ?? '').replace(/\/$/, ''),
   adminChatId: process.env.ADMIN_CHAT_ID ?? '',
   sellerUsername: (process.env.SELLER_USERNAME ?? '').replace(/^@/, ''),
+  // Identifiants Telegram autorisés à ouvrir l'espace admin.
+  adminIds: (process.env.ADMIN_IDS ?? process.env.ADMIN_CHAT_ID ?? '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean),
   port: Number(process.env.PORT ?? 3000),
   currency: process.env.CURRENCY ?? 'EUR',
   shopName: process.env.SHOP_NAME ?? 'KARTOON CLUB',
@@ -27,6 +32,11 @@ export function assertConfigured() {
         `  Copie .env.example vers .env et remplis les valeurs.\n`
     );
     process.exit(1);
+  }
+  if (!config.adminIds.length) {
+    console.warn(
+      "  ADMIN_IDS non défini : personne ne pourra ouvrir l'espace admin."
+    );
   }
   if (!config.sellerUsername) {
     console.warn(
