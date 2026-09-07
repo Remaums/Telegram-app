@@ -71,6 +71,7 @@ function bindHandlers() {
   $('newProductBtn').addEventListener('click', () => openEditor(null));
 
   $('fHasVariants').addEventListener('change', syncPricingMode);
+  $('fImage').addEventListener('change', syncImageField);
   $('addVariant').addEventListener('click', () => addVariantRow());
   $('saveProduct').addEventListener('click', saveProduct);
   $('deleteProduct').addEventListener('click', removeProduct);
@@ -392,6 +393,9 @@ function renderProducts() {
 
 /* ── Éditeur ─────────────────────────────────────────────── */
 
+/** Valeur du menu qui bascule sur la saisie libre d'un chemin de photo. */
+const CUSTOM_IMAGE = '__custom__';
+
 const IMAGES = [
   ['/assets/products/jar.svg', 'Bocal'],
   ['/assets/products/bud.svg', 'Fleur'],
@@ -400,6 +404,7 @@ const IMAGES = [
   ['/assets/products/cookie.svg', 'Comestible'],
   ['/assets/products/grinder.svg', 'Grinder'],
   ['/assets/products/box.svg', 'Carton'],
+  [CUSTOM_IMAGE, '📷 Ma photo (chemin ou adresse)'],
 ];
 
 function openEditor(product) {
@@ -410,6 +415,7 @@ function openEditor(product) {
 
   fillSelect($('fCategory'), state.categories.map((c) => [c.id, `${c.emoji} ${c.label}`]));
   fillSelect($('fImage'), IMAGES);
+  syncImageField();
 
   $('fName').value = product?.name ?? '';
   $('fShort').value = product?.short ?? '';
@@ -417,7 +423,13 @@ function openEditor(product) {
   $('fCategory').value = product?.category ?? state.categories[0]?.id ?? '';
   $('fBadge').value = product?.badge ?? '';
   $('fTags').value = (product?.tags ?? []).join(', ');
-  $('fImage').value = product?.image ?? IMAGES[0][0];
+  // Une photo déposée dans le dossier n'est pas dans la liste : on bascule
+  // alors sur la saisie libre, pré-remplie avec le chemin enregistré.
+  const image = product?.image ?? IMAGES[0][0];
+  const known = IMAGES.some(([value]) => value === image);
+  $('fImage').value = known ? image : CUSTOM_IMAGE;
+  $('fImagePath').value = known ? '' : image;
+  syncImageField();
   $('fVisible').checked = product ? product.visible !== false : true;
 
   const hasVariants = Boolean(product?.variants?.length);
@@ -468,12 +480,14 @@ function collectForm() {
     category: $('fCategory').value,
     badge: $('fBadge').value.trim() || undefined,
     tags: $('fTags').value.split(',').map((t) => t.trim()).filter(Boolean),
-    image: $('fImage').value,
+    image: currentImage(),
     visible: $('fVisible').checked,
   };
 
+  if (!payload.image) throw new Error('Indique le chemin de la photo.');
+
   if ($('fHasVariants').checked) {
-    payload.variants = [...document.querySelectorAll('.a-variant')]
+    payload.variants = [...document.querySelectorAll('#variantRows .a-variant')]
       .map((row) => ({
         label: row.querySelector('.a-variant__label').value.trim(),
         price: toCents(row.querySelector('.a-variant__price').value),
@@ -533,6 +547,18 @@ async function removeProduct() {
   }
 }
 
+/* ── Image du produit ────────────────────────────────────── */
+
+/** Chemin retenu : le menu, ou la saisie libre quand « Ma photo » est choisi. */
+function currentImage() {
+  if ($('fImage').value !== CUSTOM_IMAGE) return $('fImage').value;
+  return $('fImagePath').value.trim();
+}
+
+function syncImageField() {
+  $('imagePathField').hidden = $('fImage').value !== CUSTOM_IMAGE;
+}
+
 /* ── Catégories ──────────────────────────────────────────── */
 
 /**
@@ -545,11 +571,11 @@ function renderCategories() {
 
 function categoryRow(category = { id: '', label: '', emoji: '•' }) {
   const row = document.createElement('div');
-  row.className = 'a-variant';
+  row.className = 'a-catrow';
   row.dataset.id = category.id;
   row.innerHTML = `
     <input class="a-category__emoji" maxlength="4" value="${escapeHtml(category.emoji ?? '•')}" aria-label="Emoji">
-    <input class="a-category__label a-variant__label" maxlength="40" value="${escapeHtml(category.label ?? '')}" placeholder="Nom de la catégorie">
+    <input class="a-category__label" maxlength="40" value="${escapeHtml(category.label ?? '')}" placeholder="Nom de la catégorie">
     <button class="a-variant__del" type="button" aria-label="Supprimer">✕</button>`;
 
   row.querySelector('button').addEventListener('click', () => {

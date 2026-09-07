@@ -593,3 +593,21 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .variant[disabled] small { color: inherit; }
 
 .qty button[disabled] { opacity: .3; pointer-events: none; }
+
+/* ── Photos ──────────────────────────────────────────────── */
+/* Une vraie photo remplit son cadre au lieu de flotter dans le halo, avec
+   un voile sombre en haut pour que la pastille reste lisible. */
+.card__art--photo { background: rgb(var(--ink-rgb) / .6); overflow: hidden; }
+.card__art--photo img { width: 100%; height: 100%; object-fit: cover; filter: none; }
+.card__art--photo::after {
+  content: ''; position: absolute; inset: 0 0 55% 0; pointer-events: none;
+  background: linear-gradient(180deg, rgb(var(--ink-rgb) / .55), transparent);
+}
+
+.pdetail__art--photo { padding: 0; overflow: hidden; }
+.pdetail__art--photo img {
+  width: 100%; max-width: none; height: 250px; object-fit: cover; filter: none;
+}
+
+.cart-item__art--photo { overflow: hidden; background: rgb(var(--ink-rgb) / .5); }
+.cart-item__art--photo img { width: 100%; height: 100%; object-fit: cover; }

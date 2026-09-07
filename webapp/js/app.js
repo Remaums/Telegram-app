@@ -139,7 +139,7 @@ function productCard(product) {
   const fromLabel = product.variants ? '<small>dès</small> ' : '';
   const badge = soldOut ? 'ÉPUISÉ' : product.badge;
   card.innerHTML = `
-    <div class="card__art">
+    <div class="card__art${isPhoto(product.image) ? ' card__art--photo' : ''}">
       ${badge ? `<span class="card__badge ${soldOut ? 'card__badge--out' : ''}">${escapeHtml(badge)}</span>` : ''}
       <img src="${product.image}" alt="" loading="lazy">
     </div>
@@ -166,6 +166,7 @@ function openProduct(product) {
 
   $('pImage').src = product.image;
   $('pImage').alt = product.name;
+  $('pImage').closest('.pdetail__art').classList.toggle('pdetail__art--photo', isPhoto(product.image));
   $('pName').textContent = product.name;
   $('pDesc').textContent = product.description;
 
@@ -318,7 +319,7 @@ function cartRow(line) {
   const li = document.createElement('li');
   li.className = 'cart-item';
   li.innerHTML = `
-    <span class="cart-item__art"><img src="${line.product.image}" alt=""></span>
+    <span class="cart-item__art${isPhoto(line.product.image) ? ' cart-item__art--photo' : ''}"><img src="${line.product.image}" alt=""></span>
     <span class="cart-item__info">
       <span class="cart-item__name">${escapeHtml(line.product.name)}</span>
       <span class="cart-item__meta">${line.variant ? escapeHtml(line.variant.label) + ' · ' : ''}${formatPrice(line.lineTotal)}</span>
@@ -535,6 +536,14 @@ function syncMainButton() {
 }
 
 /* ── Utilitaires ─────────────────────────────────────────── */
+
+/**
+ * Une illustration SVG flotte au milieu de son halo ; une photo, elle, doit
+ * remplir le cadre. On distingue les deux sur l'extension du fichier.
+ */
+function isPhoto(src) {
+  return !/\.svg($|[?#])/i.test(String(src ?? ''));
+}
 
 /** Telegram n'accepte que des couleurs hexadécimales : on convertit les
  *  jetons « R G B » du thème pour que la barre native suive la palette. */

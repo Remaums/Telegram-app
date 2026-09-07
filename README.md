@@ -164,8 +164,17 @@ redémarre. Une entrée ressemble à ça :
 
 Les illustrations sont des SVG originaux dans `webapp/assets/products/`, générés par
 `node tools/generate-art.mjs` (dégradés doux, pensés pour un fond sombre).
-Pour utiliser tes vraies photos : dépose-les dans ce dossier et pointe `image`
-dessus (`/assets/products/ma-photo.jpg`). Un format carré rend le mieux dans la grille.
+**Pour passer à tes vraies photos**, deux chemins :
+
+- depuis l'espace admin : dans l'éditeur de produit, choisis « 📷 Ma photo » dans la
+  liste d'images et colle le chemin (`/assets/products/ma-photo.jpg`) ou une adresse
+  complète ;
+- ou directement dans `server/data/products.js`, champ `image`.
+
+Dépose les fichiers dans `webapp/assets/products/`. La boutique reconnaît une photo à
+son extension et l'affiche alors plein cadre (recadrage centré), au lieu du halo
+réservé aux illustrations. Un format carré, sujet centré, rend le mieux dans la
+grille ; les deux peuvent cohabiter dans le même catalogue.
 
 ### Les couleurs
 
