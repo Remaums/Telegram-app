@@ -1,6 +1,6 @@
-# 🌿 Kartoon Club — boutique Telegram Mini App
+# 🌿 COFFEE SHOP 68 — boutique Telegram Mini App
 
-Une boutique **design cartoon** qui s'ouvre directement dans Telegram : catalogue en
+Une boutique au **design néon nuit** qui s'ouvre directement dans Telegram : catalogue en
 images, fiches produits, panier, et un bouton **Commander** qui ouvre ta conversation
 Telegram avec le récapitulatif de la commande déjà écrit.
 
@@ -162,20 +162,32 @@ redémarre. Une entrée ressemble à ça :
 
 ### Les images
 
-Les illustrations sont des SVG cartoon originaux dans `webapp/assets/products/`.
+Les illustrations sont des SVG originaux dans `webapp/assets/products/`, générés par
+`node tools/generate-art.mjs` (dégradés doux, pensés pour un fond sombre).
 Pour utiliser tes vraies photos : dépose-les dans ce dossier et pointe `image`
 dessus (`/assets/products/ma-photo.jpg`). Un format carré rend le mieux dans la grille.
 
 ### Les couleurs
 
-Toute la palette est en haut de `webapp/css/style.css` :
+Toute la palette tient dans le premier bloc de `webapp/css/style.css`, en composantes
+RVB brutes (pour pouvoir moduler l'opacité) :
 
 ```css
---kraft: #d7a86a;   --green: #57b558;
---yellow: #ffd23f;  --red: #e8734a;
+--night-rgb:   4 22 15;    /* fond de page */
+--panel-rgb:  12 62 41;    /* cartes et panneaux */
+--neon-rgb: 198 255 61;    /* accent principal : boutons, sélection */
+--halo-rgb:  15 157 99;    /* fumée du fond */
+--gold-rgb: 255 210 63;    /* lettrage d'affiche */
 ```
 
-Change ces variables et toute la boutique suit.
+Réécris ce bloc et toute la boutique change de couleurs — l'espace admin et la barre
+native de Telegram suivent, ils lisent les mêmes variables.
+
+### Les polices
+
+`Luckiest Guy` (lettrage d'affiche) et `Baloo 2` (texte) sont servies depuis
+`webapp/assets/fonts/` : pas de dépendance à Google Fonts dans la WebView. Voir
+`webapp/assets/fonts/NOTICE.txt` pour les licences (SIL OFL 1.1).
 
 ---
 

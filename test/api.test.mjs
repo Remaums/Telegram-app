@@ -55,7 +55,7 @@ r = await post(valid, {
 let body = await r.json();
 check('Commande valide acceptée', r.status === 201, `HTTP ${r.status}`);
 check('Prix client falsifié ignoré (2×27 € = 54 €)', body.total === 5400, `total = ${body.total} centimes`);
-check('Référence générée', /^KTN-[0-9A-F]{6}$/.test(body.reference ?? ''), body.reference);
+check('Référence générée', /^CS68-[0-9A-F]{6}$/.test(body.reference ?? ''), body.reference);
 
 // 5. produit inexistant
 r = await post(valid, { items: [{ id: 'produit-pirate', quantity: 1 }] });

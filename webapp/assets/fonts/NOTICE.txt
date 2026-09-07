@@ -1,0 +1,17 @@
+Polices embarquées dans la boutique
+===================================
+
+Luckiest Guy
+  Auteur   : Astigmatic (AOETI)
+  Source   : https://fonts.google.com/specimen/Luckiest+Guy
+  Licence  : SIL Open Font License 1.1 (https://openfontlicense.org)
+
+Baloo 2
+  Auteur   : Ek Type
+  Source   : https://fonts.google.com/specimen/Baloo+2
+  Licence  : SIL Open Font License 1.1 (https://openfontlicense.org)
+
+Fichiers .woff2 récupérés depuis fonts.gstatic.com (sous-ensembles latin et
+latin-ext). La SIL OFL autorise la redistribution telle quelle, y compris
+embarquée dans un produit ; le texte complet de la licence est disponible aux
+adresses ci-dessus.

@@ -14,7 +14,7 @@ export const config = {
     .filter(Boolean),
   port: Number(process.env.PORT ?? 3000),
   currency: process.env.CURRENCY ?? 'EUR',
-  shopName: process.env.SHOP_NAME ?? 'KARTOON CLUB',
+  shopName: process.env.SHOP_NAME ?? 'COFFEE SHOP 68',
 };
 
 /** Ce que la Mini App a le droit de connaître (jamais le token, jamais l'admin chat). */

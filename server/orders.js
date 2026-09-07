@@ -13,9 +13,9 @@ export const STATUSES = {
   annulee: { label: 'Annulée', emoji: '❌', next: [], final: true },
 };
 
-/** Référence courte et lisible, du type KTN-7F3A9C. */
+/** Référence courte et lisible, du type CS68-7F3A9C. */
 function makeReference() {
-  return `KTN-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+  return `CS68-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 }
 
 export async function createOrder({ user, items, total, contact, note }) {

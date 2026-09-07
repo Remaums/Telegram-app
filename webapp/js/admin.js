@@ -27,8 +27,9 @@ async function init() {
   if (tg) {
     tg.ready();
     tg.expand();
-    tg.setHeaderColor?.('#141414');
-    tg.setBackgroundColor?.('#f6f1e6');
+    const night = themeHex('--night-rgb', '#04160f');
+    tg.setHeaderColor?.(night);
+    tg.setBackgroundColor?.(night);
   }
 
   bindHandlers();
@@ -391,6 +392,7 @@ function renderProducts() {
 const IMAGES = [
   ['/assets/products/jar.svg', 'Bocal'],
   ['/assets/products/bud.svg', 'Fleur'],
+  ['/assets/products/bud-sativa.svg', 'Fleur sativa'],
   ['/assets/products/hash.svg', 'Résine'],
   ['/assets/products/cookie.svg', 'Comestible'],
   ['/assets/products/grinder.svg', 'Grinder'],
@@ -591,4 +593,13 @@ function haptic(type) {
   if (!h) return;
   if (type === 'success') h.notificationOccurred?.('success');
   else h.impactOccurred?.(type);
+}
+
+/** Telegram n'accepte que des couleurs hexadécimales : on convertit les
+ *  jetons « R G B » du thème pour que la barre native suive la palette. */
+function themeHex(token, fallback) {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(token);
+  const parts = raw.match(/\d+/g);
+  if (!parts || parts.length < 3) return fallback;
+  return `#${parts.slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('')}`;
 }

@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════
-   KARTOON CLUB — logique de la Mini App
+   COFFEE SHOP 68 — logique de la Mini App
    ══════════════════════════════════════════════════════════════ */
 
 const tg = window.Telegram?.WebApp;
@@ -7,7 +7,7 @@ const CART_KEY = 'kartoon.cart.v1';
 const AGE_KEY = 'kartoon.age.ok';
 
 const state = {
-  shop: { shopName: 'KARTOON CLUB', currency: 'EUR', sellerUsername: '' },
+  shop: { shopName: 'COFFEE SHOP 68', currency: 'EUR', sellerUsername: '' },
   categories: [],
   products: [],
   category: 'all',
@@ -27,8 +27,9 @@ async function init() {
   if (tg) {
     tg.ready();
     tg.expand();
-    tg.setHeaderColor?.('#ffd23f');
-    tg.setBackgroundColor?.('#fdf3dd');
+    const night = themeHex('--night-rgb', '#04160f');
+    tg.setHeaderColor?.(night);
+    tg.setBackgroundColor?.(night);
     tg.enableClosingConfirmation?.();
     tg.BackButton?.onClick(closeSheets);
     tg.MainButton?.onClick(() => openSheet('cartSheet'));
@@ -143,7 +144,7 @@ function productCard(product) {
       <span class="card__name">${escapeHtml(product.name)}</span>
       <span class="card__short">${escapeHtml(product.short)}</span>
       <span class="card__foot">
-        <span class="card__price">${fromLabel}${formatPrice(product.price)}</span>
+        <span class="card__price goldtext">${fromLabel}${formatPrice(product.price)}</span>
         <span class="card__add" aria-hidden="true">+</span>
       </span>
     </div>`;
@@ -268,7 +269,7 @@ function addCurrentToCart() {
   renderCart();
   closeSheets();
   haptic('success');
-  toast(`${product.name} ajouté au carton 📦`);
+  toast(`${product.name} ajouté au panier 🛒`);
 
   const badge = $('cartCount');
   badge.classList.remove('pop');
@@ -450,7 +451,7 @@ function syncMainButton() {
 
   if (total > 0 && !sheetOpen) {
     main.setText(`VOIR MON PANIER · ${formatPrice(total)}`);
-    main.setParams?.({ color: '#57b558', text_color: '#ffffff' });
+    main.setParams?.({ color: themeHex('--neon-rgb', '#c6ff3d'), text_color: themeHex('--ink-rgb', '#030c08') });
     main.show();
   } else {
     main.hide();
@@ -458,6 +459,15 @@ function syncMainButton() {
 }
 
 /* ── Utilitaires ─────────────────────────────────────────── */
+
+/** Telegram n'accepte que des couleurs hexadécimales : on convertit les
+ *  jetons « R G B » du thème pour que la barre native suive la palette. */
+function themeHex(token, fallback) {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(token);
+  const parts = raw.match(/\d+/g);
+  if (!parts || parts.length < 3) return fallback;
+  return `#${parts.slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('')}`;
+}
 
 /** Stock disponible pour un produit, ou pour une de ses variantes. */
 function stockOf(product, variantId = null) {
