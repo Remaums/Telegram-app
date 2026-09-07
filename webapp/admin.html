@@ -33,6 +33,7 @@
   <button class="a-tab" data-tab="orders" role="tab" aria-selected="false">Commandes<span class="a-tab__dot" id="pendingDot" hidden></span></button>
   <button class="a-tab" data-tab="stock" role="tab" aria-selected="false">Stock</button>
   <button class="a-tab" data-tab="products" role="tab" aria-selected="false">Produits</button>
+  <button class="a-tab" data-tab="categories" role="tab" aria-selected="false">Catégories</button>
 </nav>
 
 <main class="a-main">
@@ -62,6 +63,17 @@
   <section class="a-panel" id="panel-products" hidden>
     <button class="a-btn a-btn--primary a-btn--block" id="newProductBtn" type="button">+ Nouveau produit</button>
     <div id="productsList"></div>
+  </section>
+
+  <!-- ══ Catégories ══ -->
+  <section class="a-panel" id="panel-categories" hidden>
+    <p class="a-hint">
+      L'ordre ci-dessous est celui des onglets de la boutique. Une catégorie qui
+      contient des produits ne peut pas être supprimée.
+    </p>
+    <div id="categoryRows"></div>
+    <button class="a-btn a-btn--ghost a-btn--block" id="addCategory" type="button">+ Ajouter une catégorie</button>
+    <button class="a-btn a-btn--primary a-btn--block" id="saveCategories" type="button">Enregistrer les catégories</button>
   </section>
 
 </main>

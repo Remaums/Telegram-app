@@ -77,6 +77,30 @@ bot.catch((err) => {
   console.error('Erreur bot :', err.error ?? err);
 });
 
+/**
+ * Confirme au client que sa commande est bien partie.
+ *
+ * C'est le seul accusé de réception qu'il reçoit : le bouton « Commander »
+ * ouvre bien la conversation vendeur avec le récapitulatif, mais rien ne dit
+ * qu'il appuiera sur Envoyer — et si SELLER_USERNAME n'est pas configuré, il
+ * ne se passait tout simplement rien de son côté.
+ */
+export async function notifyOrderPlaced(order) {
+  const items = order.items
+    .map((i) => `• ${i.quantity} × ${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ''}`)
+    .join('\n');
+
+  const text =
+    `✅ Commande ${order.reference} enregistrée\n\n` +
+    `${items}\n\n` +
+    `Total : ${formatPrice(order.total)}\n\n` +
+    'On revient vers toi très vite.';
+
+  await bot.api.sendMessage(order.user.id, text, {
+    reply_markup: config.webappUrl ? shopKeyboard() : undefined,
+  });
+}
+
 /** Prévient le vendeur qu'une commande vient d'être enregistrée. */
 export async function notifyAdmin(order) {
   if (!config.adminChatId) return;

@@ -10,6 +10,7 @@ const state = {
   shop: { shopName: 'COFFEE SHOP 68', currency: 'EUR', sellerUsername: '' },
   categories: [],
   products: [],
+  statuses: {},
   category: 'all',
   cart: loadCart(),
   current: null, // produit ouvert dans la fiche
@@ -45,6 +46,7 @@ async function init() {
     state.shop = data.shop;
     state.categories = data.categories;
     state.products = data.products;
+    state.statuses = data.statuses ?? {};
   } catch (err) {
     console.error(err);
     toast("Catalogue indisponible, réessaie dans un instant.");
@@ -73,6 +75,7 @@ function bindStaticHandlers() {
   $('ageNo').addEventListener('click', () => (tg ? tg.close() : window.history.back()));
 
   $('cartBtn').addEventListener('click', () => openSheet('cartSheet'));
+  $('ordersBtn').addEventListener('click', openOrders);
   $('checkout').addEventListener('click', checkout);
 
   $('qtyMinus').addEventListener('click', () => setQty(state.currentQty - 1));
@@ -359,6 +362,7 @@ async function checkout() {
   button.textContent = 'Préparation…';
 
   const note = $('orderNote').value.trim();
+  const contact = $('orderContact').value.trim();
 
   // On enregistre la commande côté serveur pour avoir une référence et une
   // trace. Si le serveur ne répond pas, on continue quand même : l'essentiel
@@ -373,6 +377,7 @@ async function checkout() {
       },
       body: JSON.stringify({
         items: lines.map((l) => ({ id: l.id, variantId: l.variantId, quantity: l.quantity })),
+        contact,
         note,
       }),
     });
@@ -381,7 +386,7 @@ async function checkout() {
     console.warn('Enregistrement de la commande impossible :', err);
   }
 
-  const message = buildOrderMessage(lines, note, reference);
+  const message = buildOrderMessage(lines, note, reference, contact);
   openSellerChat(message);
 
   button.disabled = false;
@@ -389,7 +394,7 @@ async function checkout() {
   haptic('success');
 }
 
-function buildOrderMessage(lines, note, reference) {
+function buildOrderMessage(lines, note, reference, contact) {
   const parts = [`Bonjour ! Je souhaite commander sur ${state.shop.shopName} 🌿`, ''];
 
   for (const line of lines) {
@@ -399,6 +404,7 @@ function buildOrderMessage(lines, note, reference) {
 
   parts.push('', `Total : ${formatPrice(cartTotal())}`);
   if (reference) parts.push(`Réf : ${reference}`);
+  if (contact) parts.push(`Contact : ${contact}`);
   if (note) parts.push('', `Note : ${note}`);
 
   return parts.join('\n');
@@ -422,6 +428,76 @@ function openSellerChat(message) {
   } else {
     window.open(url, '_blank', 'noopener');
   }
+}
+
+/* ── Mes commandes ───────────────────────────────────────── */
+
+/**
+ * L'historique vit côté serveur : c'est l'identifiant Telegram signé qui
+ * décide de ce qu'on affiche, jamais le panier local.
+ */
+async function openOrders() {
+  const list = $('ordersList');
+  const empty = $('ordersEmpty');
+  list.replaceChildren();
+  empty.hidden = false;
+  empty.textContent = 'Chargement…';
+  openSheet('ordersSheet');
+  haptic('light');
+
+  try {
+    const res = await fetch('/api/orders', {
+      headers: { 'X-Telegram-Init-Data': tg?.initData ?? '' },
+    });
+    if (res.status === 401) {
+      empty.textContent = 'Ouvre la boutique depuis Telegram pour retrouver tes commandes.';
+      return;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const orders = await res.json();
+    if (!orders.length) {
+      empty.textContent = "Tu n'as pas encore passé de commande.";
+      return;
+    }
+
+    empty.hidden = true;
+    list.replaceChildren(...orders.map(orderCard));
+  } catch (err) {
+    console.error(err);
+    empty.textContent = 'Historique indisponible pour le moment.';
+  }
+}
+
+function orderCard(order) {
+  const status = state.statuses[order.status] ?? { label: order.status, emoji: '•' };
+  const date = new Date(order.createdAt).toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const card = document.createElement('article');
+  card.className = 'order';
+  card.innerHTML = `
+    <div class="order__head">
+      <span class="order__ref">${escapeHtml(order.reference)}</span>
+      <span class="order__status order__status--${escapeHtml(order.status)}">${status.emoji} ${escapeHtml(status.label)}</span>
+    </div>
+    <p class="order__date">${escapeHtml(date)}</p>
+    <ul class="order__items">
+      ${order.items
+        .map(
+          (i) =>
+            `<li>${i.quantity} × ${escapeHtml(i.name)}${
+              i.variantLabel ? ` <small>${escapeHtml(i.variantLabel)}</small>` : ''
+            }</li>`
+        )
+        .join('')}
+    </ul>
+    <p class="order__total">${formatPrice(order.total)}</p>`;
+  return card;
 }
 
 /* ── Panneaux ────────────────────────────────────────────── */

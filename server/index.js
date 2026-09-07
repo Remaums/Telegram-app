@@ -13,9 +13,9 @@ import {
   reserveStock,
   restoreStock,
 } from './catalog.js';
-import { createOrder, listOrders } from './orders.js';
+import { createOrder, listOrders, STATUSES } from './orders.js';
 import { adminRouter } from './admin.js';
-import { bot, notifyAdmin } from './bot.js';
+import { bot, notifyAdmin, notifyOrderPlaced } from './bot.js';
 import { storageKind } from './store.js';
 
 /** Vrai quand ce fichier est lancé directement (`npm start`), faux quand il
@@ -94,7 +94,9 @@ app.get('/api/health', async (req, res) => {
 app.get('/api/catalog', async (req, res, next) => {
   try {
     const { products, categories } = await getCatalog();
-    res.json({ shop: publicConfig, categories, products });
+    // `statuses` sert à l'écran « Mes commandes » de la Mini App : les
+    // libellés et emojis de statut vivent côté serveur, une seule fois.
+    res.json({ shop: publicConfig, categories, products, statuses: STATUSES });
   } catch (err) {
     next(err);
   }
@@ -170,6 +172,9 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
     }
 
     notifyAdmin(order).catch(() => {});
+    notifyOrderPlaced(order).catch((err) =>
+      console.warn('Confirmation client impossible :', err.message)
+    );
 
     res.status(201).json({ reference: order.reference, total: order.total, items: order.items });
   } catch (err) {

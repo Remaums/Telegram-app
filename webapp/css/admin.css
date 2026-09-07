@@ -224,6 +224,10 @@ body.admin {
 .a-btn--sm { padding: 7px 12px; font-size: 13px; border-radius: 10px; }
 .a-btn[disabled] { opacity: .45; pointer-events: none; box-shadow: none; }
 
+/* ── Catégories ──────────────────────────────────────────── */
+.a-hint { font-size: 13px; font-weight: 700; color: var(--muted); line-height: 1.45; margin: 0 0 14px; }
+.a-category__emoji { width: 58px; flex: none; text-align: center; }
+
 /* ── Éditeur ─────────────────────────────────────────────── */
 .a-modal { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
 .a-modal__backdrop { position: absolute; inset: 0; background: rgb(var(--void-rgb) / .75); backdrop-filter: blur(4px); }

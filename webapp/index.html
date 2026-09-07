@@ -43,10 +43,15 @@
     <img src="/assets/ui/leaf.svg" alt="" class="topbar__leaf">
     <span class="topbar__name goldtext" id="shopName">COFFEE SHOP 68</span>
   </div>
+  <div class="topbar__actions">
+  <button class="iconbtn" id="ordersBtn" type="button" aria-label="Mes commandes">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-2 2-2-2-2 2-2-2-3 2V4a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 8h6M9 12h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
   <button class="cartbtn" id="cartBtn" type="button" aria-label="Ouvrir le panier">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h3l2.6 11.2a2 2 0 0 0 2 1.6h7.1a2 2 0 0 0 2-1.5L21.5 8H7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/></svg>
     <span class="cartbtn__count" id="cartCount" hidden>0</span>
   </button>
+  </div>
 </header>
 
 <main class="page">
@@ -120,6 +125,10 @@
         <img src="/assets/ui/leaf.svg" alt="" class="cart__empty-leaf">
         <p>Le panier est vide. On le remplit ?</p>
       </div>
+      <label class="field" id="contactField">
+        <span>Téléphone ou adresse (optionnel)</span>
+        <input id="orderContact" type="text" maxlength="200" placeholder="Pour te joindre ou te livrer">
+      </label>
       <label class="field" id="noteField">
         <span>Un mot pour la commande ? (optionnel)</span>
         <textarea id="orderNote" rows="2" maxlength="500" placeholder="Créneau souhaité, point de retrait, question…"></textarea>
@@ -131,6 +140,19 @@
         <strong class="goldtext" id="cartTotal">0 €</strong>
       </div>
       <button class="btn btn--primary btn--grow" id="checkout" type="button">Commander</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Mes commandes ══ -->
+<div class="sheet" id="ordersSheet" hidden>
+  <div class="sheet__backdrop" data-close></div>
+  <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="ordersTitle">
+    <button class="sheet__close" type="button" data-close aria-label="Fermer">✕</button>
+    <div class="sheet__scroll">
+      <h2 class="cart__title goldtext" id="ordersTitle">Mes commandes</h2>
+      <div class="orders" id="ordersList"></div>
+      <p class="orders__empty" id="ordersEmpty" hidden></p>
     </div>
   </div>
 </div>

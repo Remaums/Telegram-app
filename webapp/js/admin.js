@@ -66,6 +66,8 @@ function bindHandlers() {
   });
 
   $('stockSearch').addEventListener('input', renderStock);
+  $('addCategory').addEventListener('click', () => addCategoryRow());
+  $('saveCategories').addEventListener('click', saveCategoryList);
   $('newProductBtn').addEventListener('click', () => openEditor(null));
 
   $('fHasVariants').addEventListener('change', syncPricingMode);
@@ -95,6 +97,7 @@ async function refreshAll() {
   renderOrders();
   renderStock();
   renderProducts();
+  renderCategories();
 
   $('pendingDot').hidden = stats.pending === 0;
 }
@@ -527,6 +530,69 @@ async function removeProduct() {
     await refreshAll();
   } catch (err) {
     toast(err.message);
+  }
+}
+
+/* ── Catégories ──────────────────────────────────────────── */
+
+/**
+ * Les catégories sont enregistrées d'un bloc (PUT /categories) : l'écran
+ * édite une copie de travail, et rien ne part tant qu'on n'enregistre pas.
+ */
+function renderCategories() {
+  $('categoryRows').replaceChildren(...state.categories.map(categoryRow));
+}
+
+function categoryRow(category = { id: '', label: '', emoji: '•' }) {
+  const row = document.createElement('div');
+  row.className = 'a-variant';
+  row.dataset.id = category.id;
+  row.innerHTML = `
+    <input class="a-category__emoji" maxlength="4" value="${escapeHtml(category.emoji ?? '•')}" aria-label="Emoji">
+    <input class="a-category__label a-variant__label" maxlength="40" value="${escapeHtml(category.label ?? '')}" placeholder="Nom de la catégorie">
+    <button class="a-variant__del" type="button" aria-label="Supprimer">✕</button>`;
+
+  row.querySelector('button').addEventListener('click', () => {
+    const used = state.products.filter((p) => p.category === category.id).length;
+    if (used) {
+      toast(`${used} produit(s) utilisent cette catégorie.`);
+      return;
+    }
+    row.remove();
+  });
+  return row;
+}
+
+function addCategoryRow() {
+  $('categoryRows').append(categoryRow());
+}
+
+async function saveCategoryList() {
+  const categories = [...$('categoryRows').children]
+    .map((row) => ({
+      // On garde l'identifiant existant : les produits pointent dessus.
+      id: row.dataset.id || undefined,
+      label: row.querySelector('.a-category__label').value.trim(),
+      emoji: row.querySelector('.a-category__emoji').value.trim() || '•',
+    }))
+    .filter((c) => c.label);
+
+  if (!categories.length) {
+    toast('Il faut au moins une catégorie.');
+    return;
+  }
+
+  const button = $('saveCategories');
+  button.disabled = true;
+  try {
+    await api('/categories', { method: 'PUT', body: { categories } });
+    await refreshAll();
+    toast('Catégories enregistrées');
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    button.disabled = false;
   }
 }
 
