@@ -28,6 +28,22 @@ assertConfigured({ exit: standalone });
 const webappDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'webapp');
 const app = express();
 
+// Le runtime serverless de Vercel lit le corps de la requête avant nous et
+// l'expose sur `req.body` : le flux est alors épuisé (`req.readable === false`)
+// et `express.json()` répondrait « stream is not readable » (HTTP 500). On
+// reprend donc le corps déjà analysé et on marque la requête comme traitée.
+// En local, rien de tout ça : le flux est intact, ce filtre ne fait rien.
+app.use((req, res, next) => {
+  if (req._body || req.readable !== false) return next();
+  try {
+    req.body = req.body ?? {};
+  } catch {
+    return res.status(400).json({ error: 'JSON invalide.' });
+  }
+  req._body = true;
+  next();
+});
+
 app.use(express.json({ limit: '64kb' }));
 
 // La Mini App tourne dans une WebView Telegram : ces en-têtes évitent qu'elle
@@ -39,6 +55,39 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static(webappDir, { extensions: ['html'] }));
+
+/* ── Santé ───────────────────────────────────────────────── */
+
+/**
+ * Vérifie d'un coup d'œil qu'un déploiement est vivant : configuration
+ * complète et stockage joignable. Ne renvoie que des booléens et des
+ * compteurs — jamais un token, une URL de base ni un identifiant d'admin.
+ */
+app.get('/api/health', async (req, res) => {
+  const health = {
+    ok: true,
+    shop: config.shopName,
+    storage: storageKind,
+    config: {
+      botToken: Boolean(config.botToken),
+      webappUrl: Boolean(config.webappUrl),
+      sellerUsername: Boolean(config.sellerUsername),
+      adminIds: config.adminIds.length,
+      webhookSecret: Boolean(config.webhookSecret),
+    },
+  };
+
+  try {
+    const { products } = await getCatalog();
+    health.products = products.length;
+  } catch (err) {
+    health.ok = false;
+    health.error = `Stockage injoignable : ${err.message}`;
+    return res.status(503).json(health);
+  }
+
+  res.json(health);
+});
 
 /* ── Boutique ────────────────────────────────────────────── */
 

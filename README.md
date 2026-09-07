@@ -242,10 +242,28 @@ BOT_TOKEN=… WEBAPP_URL=https://ton-projet.vercel.app TELEGRAM_WEBHOOK_SECRET=�
 long polling en local. Un webhook déclaré et un `npm start` local se disputent
 les mêmes mises à jour : garde-en un seul actif à la fois.
 
-### 4. Enfin
+### 4. Vérifier
+
+```bash
+npm run doctor                       # ou : node tools/doctor.mjs https://…
+```
+
+Le diagnostic contrôle la configuration, appelle `/api/health` sur le
+déploiement (stockage joignable, nombre de produits), vérifie que la Mini App
+est bien servie et demande à Telegram où pointe le webhook. `/api/health` est
+aussi consultable directement dans un navigateur — il ne renvoie que des
+booléens et des compteurs, jamais un token.
+
+### 5. Enfin
 
 Chez BotFather, `/setmenubutton` avec la même URL `WEBAPP_URL`, puis `/start`
 dans ton bot.
+
+> ⚙️ **Pourquoi le corps des requêtes est repris à la main** : le runtime de
+> Vercel lit la requête avant la fonction, si bien que `express.json()` trouve
+> un flux déjà terminé et répond « stream is not readable ». Un filtre en tête
+> de `server/index.js` récupère le corps déjà analysé ; `test/vercel-compat.test.mjs`
+> rejoue ce comportement pour que la protection ne saute pas par mégarde.
 
 > Les commandes et le catalogue sont stockés en JSONB, un document par magasin,
 > et chaque écriture verrouille sa ligne le temps de la transaction : deux
@@ -278,10 +296,10 @@ dans ton bot.
   **chaque appel** à partir de la signature Telegram : un client ne peut pas se
   déclarer administrateur.
 
-Tests automatisés — 41 tests couvrant l'authentification, la falsification de prix,
-les droits d'admin, la gestion du stock, les transitions de statut et la
-concurrence (cinq clients sur le dernier article) — serveur démarré dans un
-autre terminal :
+Tests automatisés — 45 tests couvrant l'authentification, la falsification de prix,
+les droits d'admin, la gestion du stock, les transitions de statut, la concurrence
+(cinq clients sur le dernier article) et la compatibilité serverless — serveur
+démarré dans un autre terminal :
 
 ```bash
 npm test
