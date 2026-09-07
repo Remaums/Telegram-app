@@ -278,13 +278,17 @@ dans ton bot.
   **chaque appel** à partir de la signature Telegram : un client ne peut pas se
   déclarer administrateur.
 
-Tests automatisés — 38 tests couvrant l'authentification, la falsification de prix,
-les droits d'admin, la gestion du stock et les transitions de statut
-(serveur démarré dans un autre terminal) :
+Tests automatisés — 41 tests couvrant l'authentification, la falsification de prix,
+les droits d'admin, la gestion du stock, les transitions de statut et la
+concurrence (cinq clients sur le dernier article) — serveur démarré dans un
+autre terminal :
 
 ```bash
 npm test
 ```
+
+La même suite passe sur les deux stockages : lance le serveur sans `DATABASE_URL`
+pour tester les fichiers JSON, avec pour tester Postgres.
 
 ---
 
@@ -295,11 +299,14 @@ Le catalogue et les commandes sont écrits dans `server/data/catalog.json` et
 sont sérialisées et atomiques : pas de JSON tronqué si le serveur s'arrête en
 pleine sauvegarde.
 
-C'est suffisant pour démarrer. Au-delà de quelques milliers de commandes, passe sur
-SQLite ou Postgres : seul `server/json-store.js` est à réécrire.
+En ligne avec `DATABASE_URL`, c'est `server/pg-store.js` qui prend le relais : un
+document JSONB par magasin, et chaque écriture verrouille sa ligne le temps de la
+transaction. Les deux magasins exposent la même interface, `server/store.js`
+choisit — le reste du serveur ignore lequel tourne.
 
-> 💾 **Pense à sauvegarder `server/data/`** : c'est là que vivent ton catalogue et
-> tes commandes.
+> 💾 **En local, pense à sauvegarder `server/data/`** : c'est là que vivent ton
+> catalogue et tes commandes. En ligne, c'est la base Postgres qu'il faut
+> sauvegarder (la plupart des fournisseurs le font pour toi).
 
 ---
 

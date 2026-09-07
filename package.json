@@ -1,13 +1,13 @@
 {
   "name": "kartoon-shop",
   "version": "1.0.0",
-  "description": "Boutique Telegram Mini App au design cartoon (bot + web app)",
+  "description": "Boutique Telegram Mini App au design néon nuit (bot + web app)",
   "type": "module",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node test/api.test.mjs && node test/admin.test.mjs"
+    "test": "node test/api.test.mjs && node test/admin.test.mjs && node test/concurrence.test.mjs"
   },
   "engines": {
     "node": ">=20"
