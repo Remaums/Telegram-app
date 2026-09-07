@@ -13,6 +13,10 @@ export const config = {
     .map((v) => v.trim())
     .filter(Boolean),
   port: Number(process.env.PORT ?? 3000),
+  // Postgres : présent = mise en ligne serverless, absent = fichiers JSON.
+  databaseUrl: process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? '',
+  // Jeton partagé avec Telegram : il signe chaque appel du webhook.
+  webhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET ?? '',
   currency: process.env.CURRENCY ?? 'EUR',
   shopName: process.env.SHOP_NAME ?? 'COFFEE SHOP 68',
 };
@@ -24,14 +28,24 @@ export const publicConfig = {
   sellerUsername: config.sellerUsername,
 };
 
-export function assertConfigured() {
+/**
+ * Vérifie la configuration.
+ *
+ * `exit: true` pour un démarrage en ligne de commande (message lisible puis
+ * arrêt) ; sinon on lève, car en serverless un `process.exit` ne laisse
+ * qu'un code d'erreur nu dans les journaux.
+ */
+export function assertConfigured({ exit = false } = {}) {
   const missing = required.filter((key) => !process.env[key]);
   if (missing.length) {
-    console.error(
-      `\n  Configuration incomplète : ${missing.join(', ')} manquant(s).\n` +
-        `  Copie .env.example vers .env et remplis les valeurs.\n`
-    );
-    process.exit(1);
+    const message =
+      `Configuration incomplète : ${missing.join(', ')} manquant(s). ` +
+      'Copie .env.example vers .env (ou renseigne les variables chez ton hébergeur).';
+    if (exit) {
+      console.error(`\n  ${message}\n`);
+      process.exit(1);
+    }
+    throw new Error(message);
   }
   if (!config.adminIds.length) {
     console.warn(

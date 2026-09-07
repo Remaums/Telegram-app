@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { createStore } from './json-store.js';
+import { createStore } from './store.js';
 import { HttpError } from './catalog.js';
 
 const store = createStore('orders.json', []);

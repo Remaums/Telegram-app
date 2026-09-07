@@ -191,6 +191,70 @@ native de Telegram suivent, ils lisent les mêmes variables.
 
 ---
 
+## Mise en ligne sur Vercel
+
+En local, la boutique tourne telle quelle : fichiers JSON dans `server/data/` et
+bot en long polling. En ligne sur Vercel, deux choses changent — le disque y est
+en lecture seule et aucun process ne vit entre deux requêtes :
+
+| | En local | Sur Vercel |
+|---|---|---|
+| Stockage | `server/data/*.json` | Postgres (`DATABASE_URL`) |
+| Bot | long polling | webhook `/api/telegram` |
+
+Le code choisit tout seul : `server/store.js` bascule sur Postgres dès que
+`DATABASE_URL` est défini, et `server/index.js` n'écoute un port que s'il est
+lancé directement. Rien à commenter, rien à dupliquer.
+
+### 1. Une base Postgres
+
+Crée une base chez Neon, Supabase ou Vercel Postgres et récupère la chaîne de
+connexion **« pooled »** (celle qui passe par le pooler du fournisseur). La table
+`shop_documents` est créée automatiquement au premier appel — aucune migration à
+lancer.
+
+### 2. Le projet Vercel
+
+Importe le dépôt sur Vercel (aucune commande de build : `vercel.json` sert
+`webapp/` en statique et route `/api/*` vers la fonction), puis renseigne les
+variables d'environnement du projet :
+
+```
+BOT_TOKEN=…                        (BotFather)
+WEBAPP_URL=https://ton-projet.vercel.app
+SELLER_USERNAME=tonpseudo
+ADMIN_IDS=123456789
+ADMIN_CHAT_ID=123456789
+DATABASE_URL=postgres://…?sslmode=require
+TELEGRAM_WEBHOOK_SECRET=…          (openssl rand -hex 32)
+```
+
+### 3. Le webhook
+
+Une fois le déploiement en ligne, déclare le webhook une bonne fois :
+
+```bash
+BOT_TOKEN=… WEBAPP_URL=https://ton-projet.vercel.app TELEGRAM_WEBHOOK_SECRET=… \
+  node tools/set-webhook.mjs
+```
+
+`--info` affiche l'état vu par Telegram, `--delete` le retire pour repasser au
+long polling en local. Un webhook déclaré et un `npm start` local se disputent
+les mêmes mises à jour : garde-en un seul actif à la fois.
+
+### 4. Enfin
+
+Chez BotFather, `/setmenubutton` avec la même URL `WEBAPP_URL`, puis `/start`
+dans ton bot.
+
+> Les commandes et le catalogue sont stockés en JSONB, un document par magasin,
+> et chaque écriture verrouille sa ligne le temps de la transaction : deux
+> clients ne peuvent pas acheter le même dernier article. Au-delà de quelques
+> dizaines de milliers de commandes, passe à une ligne par commande — seul
+> `server/pg-store.js` est à revoir.
+
+---
+
 ## Commandes du bot
 
 | Commande | Effet |

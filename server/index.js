@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
+import { webhookCallback } from 'grammy';
 
 import { config, publicConfig, assertConfigured } from './config.js';
 import { verifyInitData } from './telegram-auth.js';
@@ -15,8 +16,14 @@ import {
 import { createOrder, listOrders } from './orders.js';
 import { adminRouter } from './admin.js';
 import { bot, notifyAdmin } from './bot.js';
+import { storageKind } from './store.js';
 
-assertConfigured();
+/** Vrai quand ce fichier est lancé directement (`npm start`), faux quand il
+ *  est simplement importé — par la fonction serverless de `api/index.js`. */
+const standalone =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+assertConfigured({ exit: standalone });
 
 const webappDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'webapp');
 const app = express();
@@ -133,6 +140,20 @@ app.get('/api/orders', authenticate, async (req, res, next) => {
 
 app.use('/api/admin', adminRouter);
 
+/* ── Webhook Telegram ────────────────────────────────────── */
+
+// En serverless, aucun process ne vit assez longtemps pour interroger
+// Telegram en boucle : c'est Telegram qui appelle cette route. Le jeton
+// secret voyage dans l'en-tête X-Telegram-Bot-Api-Secret-Token, grammY le
+// vérifie et rejette tout appel qui ne vient pas de Telegram.
+if (config.webhookSecret) {
+  app.post('/api/telegram', webhookCallback(bot, 'express', { secretToken: config.webhookSecret }));
+} else {
+  app.post('/api/telegram', (req, res) =>
+    res.status(503).json({ error: 'TELEGRAM_WEBHOOK_SECRET non défini.' })
+  );
+}
+
 /* ── Gestion d'erreurs ───────────────────────────────────── */
 
 app.use((err, req, res, next) => {
@@ -143,21 +164,29 @@ app.use((err, req, res, next) => {
 
 /* ── Démarrage ───────────────────────────────────────────── */
 
-app.listen(config.port, () => {
-  console.log(`  Boutique servie sur http://localhost:${config.port}`);
-  if (config.webappUrl) console.log(`  URL publique déclarée : ${config.webappUrl}`);
-  console.log(`  Admins autorisés : ${config.adminIds.join(', ') || 'aucun'}`);
-});
+// Importé (Vercel), le module se contente d'exporter l'application : pas de
+// port à écouter, pas de long polling à lancer.
+export { app };
+export default app;
 
-// Un token invalide ne doit pas empêcher de servir la boutique : on garde le
-// site en ligne et on signale le problème plutôt que de tuer le process.
-bot
-  .start({ onStart: (me) => console.log(`  Bot @${me.username} démarré.`) })
-  .catch((err) => {
-    console.error(`  Bot non démarré (${err.message}). La boutique reste accessible.`);
+if (standalone) {
+  app.listen(config.port, () => {
+    console.log(`  Boutique servie sur http://localhost:${config.port}`);
+    if (config.webappUrl) console.log(`  URL publique déclarée : ${config.webappUrl}`);
+    console.log(`  Stockage : ${storageKind}`);
+    console.log(`  Admins autorisés : ${config.adminIds.join(', ') || 'aucun'}`);
   });
 
-// Arrêt propre : sans ça, le long polling garde le process en vie.
-for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.once(signal, () => bot.stop());
+  // Un token invalide ne doit pas empêcher de servir la boutique : on garde
+  // le site en ligne et on signale le problème plutôt que de tuer le process.
+  bot
+    .start({ onStart: (me) => console.log(`  Bot @${me.username} démarré.`) })
+    .catch((err) => {
+      console.error(`  Bot non démarré (${err.message}). La boutique reste accessible.`);
+    });
+
+  // Arrêt propre : sans ça, le long polling garde le process en vie.
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.once(signal, () => bot.stop());
+  }
 }

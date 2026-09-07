@@ -1,4 +1,4 @@
-import { createStore } from './json-store.js';
+import { createStore } from './store.js';
 import { products as seedProducts, categories as seedCategories } from './data/products.js';
 
 /**
