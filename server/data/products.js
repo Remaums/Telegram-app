@@ -20,7 +20,7 @@ export const products = [
   {
     id: 'kartoon-kush',
     stock: null, // le stock est porté par les variantes
-    name: 'Kartoon Kush',
+    name: 'Néon Kush',
     category: 'fleurs',
     price: 1200,
     image: '/assets/products/jar.svg',
@@ -30,7 +30,7 @@ export const products = [
     description:
       "Fleur indica cultivée en intérieur, séchée lentement puis affinée trois semaines en bocal. " +
       "Nez terreux et sucré, fumée ronde. Le grand classique de la maison, celui qu'on garde " +
-      "pour le canapé et les dessins animés du dimanche soir.",
+      "pour le canapé et les séries du dimanche soir.",
     variants: [
       { id: '2g', label: '2 g', price: 1200, stock: 24 },
       { id: '5g', label: '5 g', price: 2700, stock: 12 },
@@ -40,10 +40,10 @@ export const products = [
   {
     id: 'yellow-toon-haze',
     stock: null, // le stock est porté par les variantes
-    name: 'Yellow Toon Haze',
+    name: 'Yellow Neon Haze',
     category: 'fleurs',
     price: 1400,
-    image: '/assets/products/bud.svg',
+    image: '/assets/products/bud-sativa.svg',
     badge: 'NOUVEAU',
     tags: ['Sativa', 'Jour'],
     short: 'Sativa pétillante, agrumes et pin.',
@@ -60,7 +60,7 @@ export const products = [
   {
     id: 'cardboard-cookies',
     stock: null, // le stock est porté par les variantes
-    name: 'Cardboard Cookies',
+    name: 'Midnight Cookies',
     category: 'fleurs',
     price: 1600,
     image: '/assets/products/bud.svg',
@@ -77,7 +77,7 @@ export const products = [
   {
     id: 'hash-brick',
     stock: null, // le stock est porté par les variantes
-    name: 'Brique Cartoon',
+    name: 'Brique 68',
     category: 'resines',
     price: 1800,
     image: '/assets/products/hash.svg',
@@ -95,7 +95,7 @@ export const products = [
   {
     id: 'toon-dry-sift',
     stock: 8,
-    name: 'Toon Dry Sift',
+    name: 'Dry Sift 68',
     category: 'resines',
     price: 2500,
     image: '/assets/products/hash.svg',
@@ -122,7 +122,7 @@ export const products = [
   {
     id: 'gummy-pack',
     stock: 40,
-    name: 'Gummies Kartoon',
+    name: 'Gummies Néon',
     category: 'comestibles',
     price: 1200,
     image: '/assets/products/cookie.svg',
@@ -136,7 +136,7 @@ export const products = [
   {
     id: 'grinder',
     stock: 15,
-    name: 'Grinder Cartoon 4 parts',
+    name: 'Grinder 68 · 4 parts',
     category: 'accessoires',
     price: 1500,
     image: '/assets/products/grinder.svg',
@@ -144,12 +144,12 @@ export const products = [
     short: 'Aluminium, 4 parties, tamis à pollen.',
     description:
       "Grinder aluminium quatre parties avec tamis et bac à pollen, dents aiguisées, " +
-      "aimant central. Sérigraphie cartoon exclusive de la maison sur le couvercle.",
+      "aimant central. Sérigraphie néon exclusive de la maison sur le couvercle.",
   },
   {
     id: 'rolling-kit',
     stock: 50,
-    name: 'Kit Roule-Carton',
+    name: 'Kit du rouleur',
     category: 'accessoires',
     price: 600,
     image: '/assets/products/box.svg',
@@ -170,14 +170,14 @@ export const products = [
     tags: ['Pack', 'Économique'],
     short: '3 fleurs + 1 résine + le kit complet.',
     description:
-      "Le carton d'entrée : 2 g de chaque fleur du moment, 2 g de résine pressée et le " +
-      "Kit Roule-Carton. Environ 15 % d'économie par rapport aux produits pris séparément. " +
+      "La boîte d'entrée : 2 g de chaque fleur du moment, 2 g de résine pressée et le " +
+      "Kit du rouleur. Environ 15 % d'économie par rapport aux produits pris séparément. " +
       "Livré dans une boîte kraft illustrée, prête à offrir.",
   },
   {
     id: 'pack-collector',
     stock: 5,
-    name: 'Carton Collector',
+    name: 'Pack Collector 68',
     category: 'packs',
     price: 8900,
     image: '/assets/products/box.svg',
@@ -186,8 +186,8 @@ export const products = [
     short: 'La grosse boîte, stickers et grinder inclus.',
     description:
       "Édition limitée numérotée : 5 g de fleur premium, 3 g de tamisé, le grinder sérigraphié, " +
-      "une planche de stickers cartoon et un poster A3. Cinquante boîtes seulement, " +
-      "puis on passe au dessin suivant.",
+      "une planche de stickers néon et un poster A3. Cinquante boîtes seulement, " +
+      "puis on passe à la série suivante.",
   },
 ];
 

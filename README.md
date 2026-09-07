@@ -139,12 +139,12 @@ redémarre. Une entrée ressemble à ça :
 
 ```js
 {
-  id: 'kartoon-kush',            // identifiant unique, sans espaces
-  name: 'Kartoon Kush',
+  id: 'neon-kush',               // identifiant unique, sans espaces
+  name: 'Néon Kush',
   category: 'fleurs',            // doit exister dans `categories`
   price: 1200,                   // EN CENTIMES : 1200 = 12,00 €
   image: '/assets/products/jar.svg',
-  badge: 'TOP VENTE',            // pastille rouge, optionnelle
+  badge: 'TOP VENTE',            // pastille rose, optionnelle
   tags: ['Indica', 'Nuit'],
   short: 'Texte court affiché sur la vignette.',
   description: 'Texte long affiché dans la fiche produit.',
