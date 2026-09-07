@@ -1,6 +1,7 @@
 import { Bot, InlineKeyboard } from 'grammy';
 import { config } from './config.js';
-import { listOrders, STATUSES } from './orders.js';
+import { listOrders, STATUSES, setStatus } from './orders.js';
+import { restoreStock } from './catalog.js';
 
 export const bot = new Bot(config.botToken);
 
@@ -101,24 +102,84 @@ export async function notifyOrderPlaced(order) {
   });
 }
 
-/** Prévient le vendeur qu'une commande vient d'être enregistrée. */
-export async function notifyAdmin(order) {
-  if (!config.adminChatId) return;
+/** Récapitulatif d'une commande, tel que le vendeur le lit dans Telegram. */
+export function orderMessage(order) {
+  const status = STATUSES[order.status];
   const who = order.user.username ? `@${order.user.username}` : order.user.firstName ?? 'client';
   const items = order.items
     .map((i) => `• ${i.quantity} × ${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ''}`)
     .join('\n');
 
-  const text =
-    `🧾 NOUVELLE COMMANDE ${order.reference}\n\n` +
+  return (
+    `🧾 COMMANDE ${order.reference} — ${status?.emoji ?? ''} ${status?.label ?? order.status}\n\n` +
     `Client : ${who} (id ${order.user.id})\n` +
     `${items}\n\n` +
     `Total : ${formatPrice(order.total)}\n` +
     (order.contact ? `Contact : ${order.contact}\n` : '') +
-    (order.note ? `Note : ${order.note}` : '');
+    (order.note ? `Note : ${order.note}` : '')
+  );
+}
 
+/**
+ * Boutons de traitement rapide sous la commande : seules les transitions
+ * autorisées depuis le statut courant sont proposées, si bien qu'un appui
+ * ne peut pas produire un enchaînement interdit. Rien quand la commande est
+ * terminée — le clavier disparaît alors de lui-même.
+ */
+export function statusKeyboard(order) {
+  const next = STATUSES[order.status]?.next ?? [];
+  if (!next.length) return undefined;
+
+  const keyboard = new InlineKeyboard();
+  for (const status of next) {
+    keyboard.text(
+      `${STATUSES[status].emoji} ${STATUSES[status].label}`,
+      `st:${order.reference}:${status}`
+    );
+  }
+  return keyboard;
+}
+
+/**
+ * Traitement d'une commande depuis la conversation : le vendeur n'a pas à
+ * ouvrir l'espace admin pour confirmer ou marquer une commande prête.
+ */
+bot.callbackQuery(/^st:([A-Za-z0-9-]+):([a-z]+)$/, async (ctx) => {
+  if (!isAdmin(ctx.from.id)) {
+    return ctx.answerCallbackQuery({
+      text: "Réservé à l'administrateur.",
+      show_alert: true,
+    });
+  }
+
+  const [, reference, next] = ctx.match;
   try {
-    await bot.api.sendMessage(config.adminChatId, text);
+    const { order, changed } = await setStatus(reference, next);
+
+    // Une annulation remet les articles en rayon, comme dans l'espace admin.
+    if (changed && next === 'annulee') await restoreStock(order.items);
+    if (changed) {
+      notifyCustomer(order).catch((err) =>
+        console.error('Notification client impossible :', err.message)
+      );
+    }
+
+    await ctx.answerCallbackQuery({
+      text: changed ? `${reference} → ${STATUSES[next].label}` : 'Déjà à ce statut.',
+    });
+    await ctx.editMessageText(orderMessage(order), { reply_markup: statusKeyboard(order) });
+  } catch (err) {
+    await ctx.answerCallbackQuery({ text: err.message, show_alert: true });
+  }
+});
+
+/** Prévient le vendeur qu'une commande vient d'être enregistrée. */
+export async function notifyAdmin(order) {
+  if (!config.adminChatId) return;
+  try {
+    await bot.api.sendMessage(config.adminChatId, orderMessage(order), {
+      reply_markup: statusKeyboard(order),
+    });
   } catch (err) {
     console.error('Notification admin impossible :', err.message);
   }
