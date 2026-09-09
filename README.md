@@ -200,6 +200,18 @@ native de Telegram suivent, ils lisent les mêmes variables.
 
 ---
 
+## Mise en ligne
+
+Deux chemins, selon ce que tu as sous la main :
+
+- **Un VPS** (Debian/Ubuntu) — le plus simple : le bot tourne en long polling,
+  le catalogue vit dans des fichiers JSON, rien d'autre à installer.
+  👉 **[Guide pas à pas : docs/vps.md](docs/vps.md)**
+- **Vercel** (serverless) — voir la section ci-dessous : le bot passe en
+  webhook et le stockage en Postgres, car le disque y est en lecture seule.
+
+---
+
 ## Mise en ligne sur Vercel
 
 En local, la boutique tourne telle quelle : fichiers JSON dans `server/data/` et

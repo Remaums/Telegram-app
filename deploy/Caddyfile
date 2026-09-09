@@ -1,0 +1,21 @@
+# Reverse proxy avec HTTPS automatique (certificat Let's Encrypt renouvelé seul).
+#
+#   sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Remplace boutique.mondomaine.fr par ton domaine.
+
+boutique.mondomaine.fr {
+	encode gzip zstd
+
+	# La Mini App tourne dans une WebView Telegram : on interdit
+	# l'embarquement ailleurs et on force le HTTPS.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+
+	reverse_proxy 127.0.0.1:3000
+}

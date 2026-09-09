@@ -13,6 +13,9 @@ export const config = {
     .map((v) => v.trim())
     .filter(Boolean),
   port: Number(process.env.PORT ?? 3000),
+  // Derrière un reverse proxy (Nginx, Caddy), on n'écoute que en local :
+  // HOST=127.0.0.1 ferme la porte à un accès direct au port.
+  host: process.env.HOST ?? '0.0.0.0',
   // Postgres : présent = mise en ligne serverless, absent = fichiers JSON.
   databaseUrl: process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? '',
   // Jeton partagé avec Telegram : il signe chaque appel du webhook.

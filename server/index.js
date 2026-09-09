@@ -224,8 +224,8 @@ export { app };
 export default app;
 
 if (standalone) {
-  app.listen(config.port, () => {
-    console.log(`  Boutique servie sur http://localhost:${config.port}`);
+  app.listen(config.port, config.host, () => {
+    console.log(`  Boutique servie sur http://${config.host}:${config.port}`);
     if (config.webappUrl) console.log(`  URL publique déclarée : ${config.webappUrl}`);
     console.log(`  Stockage : ${storageKind}`);
     console.log(`  Admins autorisés : ${config.adminIds.join(', ') || 'aucun'}`);

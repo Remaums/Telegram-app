@@ -1,0 +1,38 @@
+# Service systemd de la boutique.
+#
+#   sudo cp deploy/coffeeshop68.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now coffeeshop68
+#
+# Adapte User, WorkingDirectory et le chemin de node si besoin
+# (`which node` te le donne).
+
+[Unit]
+Description=COFFEE SHOP 68 — boutique Telegram
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=shop
+WorkingDirectory=/home/shop/Telegram-app
+ExecStart=/usr/bin/node server/index.js
+EnvironmentFile=/home/shop/Telegram-app/.env
+
+# Redémarrage automatique : une coupure réseau ne doit pas tuer la boutique.
+Restart=always
+RestartSec=5
+
+# Journalisation : `journalctl -u coffeeshop68 -f`
+StandardOutput=journal
+StandardError=journal
+
+# Garde-fous : le service n'a besoin d'écrire que dans son dossier de données.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/shop/Telegram-app/server/data
+
+[Install]
+WantedBy=multi-user.target

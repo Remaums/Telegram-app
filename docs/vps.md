@@ -1,0 +1,280 @@
+# Mettre la boutique en ligne sur un VPS
+
+Guide complet, du VPS vide au bouton « Ouvrir la boutique » dans Telegram.
+Compter une trentaine de minutes la première fois.
+
+Sur un VPS, un vrai processus tourne en permanence : le bot fonctionne en
+**long polling** (aucun webhook à déclarer) et le catalogue vit dans des
+**fichiers JSON** sur le disque. Ni Postgres ni Vercel ne sont nécessaires —
+c'est le mode le plus simple du projet.
+
+---
+
+## Ce qu'il te faut
+
+| | |
+|---|---|
+| Un VPS | Debian 12 ou Ubuntu 22.04+, 1 vCPU et 1 Go de RAM suffisent |
+| Un nom de domaine | **obligatoire** : Telegram n'ouvre une Mini App qu'en HTTPS, jamais sur une IP nue |
+| Un token de bot | donné par [@BotFather](https://t.me/BotFather) |
+
+---
+
+## 1. Créer le bot chez BotFather
+
+Dans Telegram, écris à **@BotFather** :
+
+```
+/newbot
+```
+
+Il demande un nom affiché (« COFFEE SHOP 68 ») puis un identifiant se terminant
+par `bot` (`coffeeshop68_bot`). Il répond avec un token du type
+`8123456789:AAH...`. **Garde-le secret** : quiconque l'a peut piloter ton bot.
+
+Tu reviendras chez BotFather à l'étape 8, une fois le site en ligne.
+
+---
+
+## 2. Préparer le VPS
+
+Connecte-toi en SSH, puis crée un utilisateur dédié — faire tourner la boutique
+en `root` n'apporte rien et coûte cher le jour où quelque chose dérape :
+
+```bash
+adduser shop
+usermod -aG sudo shop
+su - shop
+```
+
+Mets à jour et installe Node 20+ et git :
+
+```bash
+sudo apt update && sudo apt upgrade -y
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs git
+node -v      # doit afficher v22.x (v20 minimum)
+```
+
+---
+
+## 3. Récupérer le code
+
+```bash
+cd ~
+git clone https://github.com/Remaums/Telegram-app.git
+cd Telegram-app
+git checkout claude/webapp-theme-a4nm82
+npm install --omit=dev
+```
+
+> `--omit=dev` : le projet n'a pas de dépendances de développement, mais
+> l'habitude évite d'installer l'inutile en production.
+
+---
+
+## 4. Le fichier de configuration
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+À remplir :
+
+```ini
+BOT_TOKEN=8123456789:AAH...        # celui de BotFather
+WEBAPP_URL=https://boutique.mondomaine.fr
+SELLER_USERNAME=tonpseudo          # sans @ : la conversation qui reçoit les commandes
+ADMIN_CHAT_ID=123456789            # ton ID Telegram (étape 9)
+ADMIN_IDS=123456789                # qui peut ouvrir l'espace admin
+SHOP_NAME=COFFEE SHOP 68
+CURRENCY=EUR
+PORT=3000
+HOST=127.0.0.1                     # on n'écoute qu'en local, le proxy s'occupe du reste
+```
+
+Laisse `DATABASE_URL` et `TELEGRAM_WEBHOOK_SECRET` **vides** : ils ne servent
+qu'à la mise en ligne serverless.
+
+Protège le fichier, il contient ton token :
+
+```bash
+chmod 600 .env
+```
+
+Premier essai, en avant-plan :
+
+```bash
+npm start
+```
+
+Tu dois lire `Boutique servie sur http://127.0.0.1:3000`, `Stockage : fichiers
+JSON` et `Bot @tonbot démarré.` Arrête avec `Ctrl+C`.
+
+---
+
+## 5. Faire tourner la boutique en service
+
+systemd la relance après un plantage et au redémarrage du serveur.
+
+```bash
+sudo cp deploy/coffeeshop68.service /etc/systemd/system/
+sudo nano /etc/systemd/system/coffeeshop68.service   # vérifie User et les chemins
+sudo systemctl daemon-reload
+sudo systemctl enable --now coffeeshop68
+systemctl status coffeeshop68
+```
+
+Les journaux en direct :
+
+```bash
+journalctl -u coffeeshop68 -f
+```
+
+---
+
+## 6. Domaine et HTTPS
+
+**a.** Chez ton registrar, crée un enregistrement **A** qui pointe
+`boutique.mondomaine.fr` vers l'IP de ton VPS. Vérifie la propagation :
+
+```bash
+dig +short boutique.mondomaine.fr
+```
+
+**b.** Installe Caddy — il obtient et renouvelle le certificat tout seul :
+
+```bash
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+  | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+  | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install -y caddy
+
+sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
+sudo nano /etc/caddy/Caddyfile      # remplace le domaine
+sudo systemctl reload caddy
+```
+
+Ouvre `https://boutique.mondomaine.fr` dans un navigateur : la boutique doit
+s'afficher, cadenas compris.
+
+> Tu préfères Nginx ? `deploy/nginx.conf` est fourni ; le certificat s'obtient
+> ensuite avec `sudo certbot --nginx -d boutique.mondomaine.fr`.
+
+---
+
+## 7. Pare-feu
+
+```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 80,443/tcp
+sudo ufw enable
+sudo ufw status
+```
+
+Le port 3000 n'est **pas** ouvert : avec `HOST=127.0.0.1`, la boutique n'est
+joignable que par le proxy.
+
+---
+
+## 8. Déclarer la Mini App chez BotFather
+
+Retour dans la conversation avec **@BotFather** :
+
+```
+/mybots → ton bot → Bot Settings → Menu Button → Edit menu button URL
+```
+
+Colle `https://boutique.mondomaine.fr`, puis donne un libellé au bouton
+(« Boutique »). Tant que tu y es : `/setdescription`, `/setabouttext` et
+`/setuserpic` soignent la fiche du bot.
+
+---
+
+## 9. Devenir administrateur
+
+Écris `/start` à ton bot : il affiche ton identifiant Telegram. Reporte-le dans
+`.env` (`ADMIN_IDS` et `ADMIN_CHAT_ID`), puis redémarre :
+
+```bash
+nano .env
+sudo systemctl restart coffeeshop68
+```
+
+`/admin` t'ouvre alors l'espace de gestion. Pour plusieurs administrateurs :
+`ADMIN_IDS=123456789,987654321`.
+
+---
+
+## 10. Vérifier que tout tient debout
+
+```bash
+npm run doctor https://boutique.mondomaine.fr
+```
+
+Le diagnostic contrôle la configuration, appelle `/api/health` (stockage
+joignable, nombre de produits), vérifie que la Mini App est servie et demande à
+Telegram l'état du webhook. Tout doit être au vert, sauf l'avertissement
+« aucun webhook déclaré » : c'est normal et voulu en long polling.
+
+Puis, dans Telegram : `/start` → **Ouvrir la boutique**. Passe une commande de
+test, elle doit arriver dans ta conversation avec les boutons de traitement.
+
+---
+
+## 11. Mettre à jour la boutique
+
+```bash
+cd ~/Telegram-app
+git pull
+npm install --omit=dev
+sudo systemctl restart coffeeshop68
+```
+
+---
+
+## 12. Sauvegarder
+
+Tout ce qui est précieux tient dans deux fichiers : `server/data/catalog.json`
+(ton catalogue et tes stocks) et `server/data/orders.json` (tes commandes).
+
+```bash
+mkdir -p ~/sauvegardes
+crontab -e
+```
+
+Une ligne pour une sauvegarde quotidienne, gardée 30 jours :
+
+```cron
+0 4 * * * tar czf ~/sauvegardes/boutique-$(date +\%F).tgz -C ~/Telegram-app/server data && find ~/sauvegardes -name 'boutique-*.tgz' -mtime +30 -delete
+```
+
+---
+
+## 13. Quand ça coince
+
+| Symptôme | Cause la plus fréquente | Ce qu'il faut faire |
+|---|---|---|
+| `409 Conflict` dans les journaux | un webhook est resté déclaré (essai Vercel), il se dispute les mises à jour avec le long polling | `node tools/set-webhook.mjs --delete` |
+| Le bouton du menu ne s'ouvre pas | l'URL n'est pas en HTTPS valide | vérifie le certificat : `curl -I https://ton-domaine` |
+| `502 Bad Gateway` | la boutique ne tourne pas | `systemctl status coffeeshop68`, puis `journalctl -u coffeeshop68 -n 50` |
+| `EADDRINUSE` | le port 3000 est déjà pris | `sudo lsof -i :3000`, ou change `PORT` dans `.env` |
+| `EACCES` sur `server/data` | le service n'écrit pas dans son dossier | `sudo chown -R shop:shop ~/Telegram-app` |
+| Commande passée, rien reçu | `ADMIN_CHAT_ID` absent ou faux | corrige `.env` et redémarre |
+| L'espace admin refuse l'accès | ton ID n'est pas dans `ADMIN_IDS` | `/start` pour le relire, corrige, redémarre |
+| Le bot ne démarre pas | token invalide | recopie le token de BotFather, sans espace |
+
+---
+
+## Et la sécurité ?
+
+- `.env` en `chmod 600`, jamais commité (il est déjà dans `.gitignore`).
+- La boutique tourne sous un utilisateur sans privilèges, pas en `root`.
+- Le port applicatif n'est pas exposé : `HOST=127.0.0.1` plus `ufw`.
+- Chaque appel à l'API est vérifié par la signature Telegram, et l'espace admin
+  filtre en plus sur `ADMIN_IDS`.
+- Les prix sont recalculés côté serveur : un panier trafiqué n'obtient pas de
+  remise.
