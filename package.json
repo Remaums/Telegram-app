@@ -5,6 +5,7 @@
   "type": "module",
   "main": "server/index.js",
   "scripts": {
+    "prestart": "node tools/check-node.cjs",
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "test": "node test/api.test.mjs && node test/admin.test.mjs && node test/concurrence.test.mjs && node test/vercel-compat.test.mjs && node test/bot.test.mjs",

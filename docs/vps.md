@@ -51,10 +51,20 @@ Mets à jour et installe Node 20+ et git :
 
 ```bash
 sudo apt update && sudo apt upgrade -y
+
+# Si un Node est déjà là, c'est souvent celui des dépôts de la distribution :
+# Ubuntu 22.04 livre encore Node 12, bien trop ancien pour la boutique.
+sudo apt remove -y nodejs npm 2>/dev/null; sudo apt autoremove -y
+
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs git
+hash -r      # le shell garde en cache l'ancien chemin de node
 node -v      # doit afficher v22.x (v20 minimum)
 ```
+
+> ⚠️ **Ne passe à la suite que si `node -v` affiche 20 ou plus.** Avec un Node
+> plus ancien, l'installation s'arrête d'elle-même et le démarrage affiche un
+> message qui rappelle ces commandes.
 
 ---
 
@@ -266,6 +276,8 @@ Une ligne pour une sauvegarde quotidienne, gardée 30 jours :
 | Commande passée, rien reçu | `ADMIN_CHAT_ID` absent ou faux | corrige `.env` et redémarre |
 | L'espace admin refuse l'accès | ton ID n'est pas dans `ADMIN_IDS` | `/start` pour le relire, corrige, redémarre |
 | Le bot ne démarre pas | token invalide | recopie le token de BotFather, sans espace |
+| `SyntaxError: Unexpected token '?'` | Node trop ancien (celui des dépôts Ubuntu) | `sudo apt remove -y nodejs npm`, puis réinstalle par NodeSource (étape 2), `hash -r`, `node -v` |
+| `npm install` refuse : `Unsupported engine` | même cause, détectée plus tôt | idem : passe à Node 20+ |
 
 ---
 
