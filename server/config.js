@@ -2,6 +2,26 @@ import 'dotenv/config';
 
 const required = ['BOT_TOKEN'];
 
+/** Vrai si l'adresse n'est qu'un texte de remplissage recopié du modèle. */
+export function estUneAdresseDExemple(url) {
+  return /@(host|adresse|hote)[/:]/i.test(url) || /\/\/(utilisateur|user):(motdepasse|password)@/i.test(url);
+}
+
+function exempleOuVide(url) {
+  const propre = String(url ?? '').trim();
+  if (!propre) return '';
+  if (estUneAdresseDExemple(propre)) {
+    console.warn(
+      "\n  ⚠ DATABASE_URL est restée à sa valeur d'exemple : elle est ignorée.\n" +
+        '    La boutique garde ses données dans server/data/, ce qui est le bon\n' +
+        "    réglage sur un VPS. Efface la ligne de .env pour faire taire cet avertissement,\n" +
+        '    ou renseigne une vraie adresse Postgres pour un déploiement serverless.\n'
+    );
+    return '';
+  }
+  return propre;
+}
+
 export const config = {
   botToken: process.env.BOT_TOKEN ?? '',
   webappUrl: (process.env.WEBAPP_URL ?? '').replace(/\/$/, ''),
@@ -32,7 +52,14 @@ export const config = {
   // HOST=127.0.0.1 ferme la porte à un accès direct au port.
   host: process.env.HOST ?? '0.0.0.0',
   // Postgres : présent = mise en ligne serverless, absent = fichiers JSON.
-  databaseUrl: process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? '',
+  //
+  // Une adresse laissée à sa valeur d'exemple est traitée comme absente. Le
+  // cas s'est produit : `.env` copié depuis le modèle, `DATABASE_URL` non
+  // effacée, et toute la boutique bascule sur un Postgres dont l'hôte
+  // s'appelle littéralement « host ». Plus rien ne s'affiche, et le journal
+  // ne parle que de résolution DNS. Basculer de magasin est trop lourd de
+  // conséquences pour se déclencher sur un texte que personne n'a écrit.
+  databaseUrl: exempleOuVide(process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? ''),
   // Jeton partagé avec Telegram : il signe chaque appel du webhook.
   webhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET ?? '',
   currency: process.env.CURRENCY ?? 'EUR',

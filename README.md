@@ -400,6 +400,16 @@ rempli comme sur un magasin vierge.
 
 ## Stockage des commandes
 
+> **Faut-il une base de données ? Non.** Sur un VPS, la boutique garde tout
+> dans `server/data/` : deux fichiers JSON, aucun compte à créer, aucun service
+> à installer. `DATABASE_URL` ne sert **qu'au déploiement serverless** (Vercel),
+> où le disque est en lecture seule et où chaque requête peut atterrir sur une
+> autre instance. Renseignée par erreur, elle fait basculer toute la boutique
+> sur Postgres — et si l'adresse n'est pas joignable, plus rien ne s'affiche.
+> Dans le doute : laisse la ligne commentée.
+
+
+
 Le catalogue et les commandes sont écrits dans `server/data/catalog.json` et
 `server/data/orders.json` (créés automatiquement, ignorés par git). Les écritures
 sont sérialisées et atomiques : pas de JSON tronqué si le serveur s'arrête en

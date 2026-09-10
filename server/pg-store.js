@@ -19,6 +19,49 @@ import { config } from './config.js';
 
 const TABLE = 'shop_documents';
 
+/**
+ * Traduit une panne de connexion en phrase qui dit quoi faire.
+ *
+ * Une base injoignable fait échouer la moindre lecture : sans traduction, le
+ * vendeur lit « erreur interne » côté écran et une trace `getaddrinfo` côté
+ * journal, pour une ligne de configuration à corriger. Sur un VPS, la réponse
+ * est presque toujours la même — cette ligne n'avait pas lieu d'être.
+ */
+function expliquerBase(err) {
+  const hote = (() => {
+    try { return new URL(config.databaseUrl).host || '?'; } catch { return '?'; }
+  })();
+
+  const conseils = {
+    EAI_AGAIN: `L'adresse « ${hote} » de DATABASE_URL ne se résout pas (DNS).`,
+    ENOTFOUND: `L'adresse « ${hote} » de DATABASE_URL n'existe pas.`,
+    ECONNREFUSED: `Rien n'écoute sur « ${hote} » : la base refuse la connexion.`,
+    ETIMEDOUT: `« ${hote} » ne répond pas — pare-feu, ou base en veille.`,
+    ECONNRESET: `La connexion à « ${hote} » a été coupée.`,
+  };
+  // 28P01 = mot de passe refusé, 3D000 = base inexistante : côté Postgres,
+  // pas côté réseau, et le remède n'est pas le même.
+  const parCode = {
+    '28P01': "Mot de passe refusé par la base : vérifie les identifiants de DATABASE_URL.",
+    '3D000': `La base nommée dans DATABASE_URL n'existe pas sur « ${hote} ».`,
+    '28000': "Connexion refusée par la base : vérifie l'utilisateur et le mode SSL de DATABASE_URL.",
+  };
+
+  const quoi = parCode[err.code] ?? conseils[err.code];
+  if (!quoi) return err;
+
+  const clair = new Error(
+    `${quoi}\n` +
+      '  Sur un VPS, DATABASE_URL ne sert à rien : commente la ligne dans .env et\n' +
+      '  redémarre — la boutique reprendra ses données dans server/data/.\n' +
+      "  Elle n'est utile qu'en déploiement serverless (Vercel).\n" +
+      `  (${err.code} sur ${hote})`
+  );
+  clair.code = err.code;
+  clair.fichier = 'DATABASE_URL'; // fait remonter un 503 plutôt qu'un 500
+  return clair;
+}
+
 let pool;
 let ready;
 
@@ -63,6 +106,14 @@ export function createStore(filename, seed) {
   const key = filename.replace(/\.json$/, '');
 
   async function read() {
+    try {
+      return await lire();
+    } catch (err) {
+      throw expliquerBase(err);
+    }
+  }
+
+  async function lire() {
     await ensureSchema();
     const { rows } = await getPool().query(`select data from ${TABLE} where key = $1`, [key]);
     if (rows.length) return rows[0].data;
@@ -79,6 +130,14 @@ export function createStore(filename, seed) {
   }
 
   async function write(data) {
+    try {
+      return await ecrire(data);
+    } catch (err) {
+      throw expliquerBase(err);
+    }
+  }
+
+  async function ecrire(data) {
     await ensureSchema();
     await getPool().query(
       `insert into ${TABLE} (key, data) values ($1, $2)
@@ -89,6 +148,16 @@ export function createStore(filename, seed) {
 
   /** Lit sous verrou, laisse la fonction muter les données, puis sauvegarde. */
   async function update(mutator) {
+    try {
+      return await muter(mutator);
+    } catch (err) {
+      // Une erreur du mutateur (stock insuffisant, transition interdite) doit
+      // ressortir intacte : seules les pannes de connexion sont traduites.
+      throw expliquerBase(err);
+    }
+  }
+
+  async function muter(mutator) {
     await ensureSchema();
     const client = await getPool().connect();
     try {

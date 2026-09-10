@@ -688,6 +688,17 @@ if (standalone) {
     process.exit(1);
   }
 
+  // Une base injoignable ne se découvre pas requête par requête : on le dit
+  // au lancement, là où le vendeur regarde quand il installe.
+  if (config.databaseUrl) {
+    getCatalog()
+      .then((c) => console.log(`  Base de données joignable (${c.products.length} produits).`))
+      .catch((err) => {
+        console.error(`\n  ⚠ La base de données ne répond pas — la boutique ne pourra rien servir.\n`);
+        console.error(`  ${err.message}\n`);
+      });
+  }
+
   app.listen(config.port, config.host, () => {
     console.log(`  Boutique servie sur http://${config.host}:${config.port}`);
     if (config.webappUrl) console.log(`  URL publique déclarée : ${config.webappUrl}`);
