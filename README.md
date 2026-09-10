@@ -172,6 +172,28 @@ redémarre. Une entrée ressemble à ça :
 > systématiquement **recalculés côté serveur** : un client ne peut pas se commander
 > un produit à 0 €.
 
+### Réimporter les produits d'exemple
+
+Le catalogue de départ ne se pose **qu'une fois**, au tout premier démarrage :
+ensuite, `server/data/catalog.json` appartient à la boutique et n'est plus
+jamais écrasé. Un produit ajouté au dépôt après coup n'a donc aucun moyen
+d'arriver tout seul dans une boutique en service.
+
+```bash
+npm run produits                 # liste ce qui manque, ne change rien
+npm run produits -- --tout       # importe ce qui manque
+npm run produits -- plasma-static-banana-kush   # un seul, par identifiant
+npm run produits -- --tout --remplacer          # écrase aussi l'existant
+```
+
+Sans argument, l'outil ne fait que regarder : on voit d'abord ce qui va se
+passer. Et il **n'écrase jamais** un produit déjà présent sans `--remplacer` —
+un prix ou un stock que tu as ajusté ne doit pas disparaître dans un import.
+Les catégories manquantes sont créées au passage, en fin de liste ; leur ordre
+se règle dans l'espace admin.
+
+Rien à redémarrer après : l'outil écrit dans le même magasin que la boutique.
+
 ### Les images
 
 Les illustrations sont des SVG originaux dans `webapp/assets/products/`, générés par
