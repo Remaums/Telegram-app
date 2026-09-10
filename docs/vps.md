@@ -83,9 +83,55 @@ Connecte-toi en SSH, puis crée un utilisateur dédié — faire tourner la bout
 en `root` n'apporte rien et coûte cher le jour où quelque chose dérape :
 
 ```bash
-adduser shop
+adduser shop           # demande un mot de passe : retiens-le
 usermod -aG sudo shop
+su - shop              # le tiret compte, voir plus bas
+```
+
+Le `whoami` doit maintenant répondre `shop`. L'invite du terminal change aussi :
+`root@vps:~#` devient `shop@vps:~$` — le `$` au lieu du `#` est le signe qu'on
+n'est plus root.
+
+### Y revenir aux connexions suivantes
+
+**Une reconnexion SSH te ramène à l'utilisateur avec lequel tu te connectes.**
+Si c'est `root`, il faut refaire `su - shop` à chaque fois. Trois façons de
+s'en sortir, de la plus simple à la plus propre :
+
+```bash
+# a) Depuis root, à chaque connexion
 su - shop
+
+# b) Se connecter directement en shop (mot de passe demandé)
+ssh shop@IP-DE-TON-VPS
+
+# c) Sans mot de passe : on recopie les clefs SSH de root vers shop.
+#    À faire une fois, depuis root.
+mkdir -p /home/shop/.ssh
+cp /root/.ssh/authorized_keys /home/shop/.ssh/
+chown -R shop:shop /home/shop/.ssh
+chmod 700 /home/shop/.ssh && chmod 600 /home/shop/.ssh/authorized_keys
+# désormais : ssh shop@IP-DE-TON-VPS entre directement
+```
+
+> **Le tiret de `su - shop` n'est pas décoratif.** Sans lui (`su shop`), tu
+> gardes le dossier courant et les variables d'environnement de root : `~` ne
+> désigne plus le bon dossier, et on se retrouve à chercher des fichiers là où
+> ils ne sont pas. Avec le tiret, c'est une vraie session, comme après une
+> connexion.
+
+### Si tu as déjà tout cloné en root
+
+Le dossier `/root` n'est pas lisible par `shop` : la boutique ne pourrait pas
+y écrire ses commandes. Déplace-le une bonne fois :
+
+```bash
+# Depuis root
+systemctl stop coffeeshop68 2>/dev/null
+mv /root/Telegram-app /home/shop/
+chown -R shop:shop /home/shop/Telegram-app
+su - shop
+cd ~/Telegram-app && bash deploy/installer.sh   # réécrit le service au bon chemin
 ```
 
 Mets à jour et installe Node 20+ et git :
@@ -413,6 +459,8 @@ Une ligne pour une sauvegarde quotidienne, gardée 30 jours :
 | Le bouton du menu ne s'ouvre pas | l'URL n'est pas en HTTPS valide | vérifie le certificat : `curl -I https://ton-domaine` |
 | `502 Bad Gateway` | la boutique ne tourne pas | `systemctl status coffeeshop68`, puis `journalctl -u coffeeshop68 -n 50` |
 | `EADDRINUSE` | le port 3000 est déjà pris | `sudo lsof -i :3000`, ou change `PORT` dans `.env` |
+| `sudo : commande introuvable` ou `shop n'est pas dans le fichier sudoers` | l'utilisateur a été créé sans les droits | depuis root : `usermod -aG sudo shop`, puis reconnecte-toi |
+| `bash: cd: /home/shop/Telegram-app : Aucun fichier` | le dépôt a été cloné ailleurs, souvent dans `/root` | voir « Si tu as déjà tout cloné en root », étape 2 |
 | `EACCES` sur `server/data` | le service n'écrit pas dans son dossier | `sudo chown -R shop:shop ~/Telegram-app` |
 | Commande passée, rien reçu | `ADMIN_CHAT_ID` absent ou faux | corrige `.env` et redémarre |
 | L'espace admin refuse l'accès | ton ID n'est pas dans `ADMIN_IDS` | `/start` pour le relire, corrige, redémarre |
