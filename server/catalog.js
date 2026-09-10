@@ -68,6 +68,29 @@ export async function updateProduct(id, patch) {
   });
 }
 
+/**
+ * Rattache une photo envoyée au bot à un produit.
+ *
+ * On enregistre la référence du fichier chez Telegram, pas le fichier : rien
+ * à écrire sur le disque (impossible en serverless), rien à sauvegarder, et
+ * la photo suit la boutique si elle change d'hébergeur. Le paramètre `v`
+ * force les navigateurs à recharger l'image après un changement.
+ */
+export async function setProductPhoto(id, fileId) {
+  return store.update((data) => {
+    const index = data.products.findIndex((p) => p.id === id);
+    if (index === -1) throw new HttpError(404, 'Produit introuvable.');
+
+    data.products[index] = normalizeProduct({
+      ...data.products[index],
+      id,
+      photoFileId: fileId,
+      image: `/api/photo/${id}?v=${Date.now().toString(36)}`,
+    });
+    return data.products[index];
+  });
+}
+
 export async function deleteProduct(id) {
   return store.update((data) => {
     const index = data.products.findIndex((p) => p.id === id);
@@ -216,6 +239,8 @@ function normalizeProduct(input) {
     price: variants ? Math.min(...variants.map((v) => v.price)) : price,
     stock: variants ? null : Math.max(0, Math.floor(Number(input.stock ?? 0))),
     image: String(input.image ?? '/assets/products/box.svg').slice(0, 300),
+    // Photo envoyée au bot : on garde la référence Telegram, pas le fichier.
+    photoFileId: input.photoFileId ? String(input.photoFileId).slice(0, 200) : undefined,
     badge: input.badge ? String(input.badge).slice(0, 20) : undefined,
     tags: Array.isArray(input.tags) ? input.tags.slice(0, 6).map((t) => String(t).slice(0, 24)) : [],
     short: String(input.short ?? '').slice(0, 140),

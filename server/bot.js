@@ -1,7 +1,8 @@
 import { Bot, InlineKeyboard } from 'grammy';
 import { config } from './config.js';
 import { listOrders, STATUSES, setStatus } from './orders.js';
-import { restoreStock } from './catalog.js';
+import { restoreStock, getCatalog, setProductPhoto } from './catalog.js';
+import { matchProduct } from './photos.js';
 import { getSettings, saveSettings } from './settings.js';
 import { requestVerification, decideVerification } from './verification.js';
 
@@ -112,18 +113,75 @@ bot.callbackQuery(/^vfset:(on|off)$/, async (ctx) => {
 });
 
 /**
- * Une pièce d'identité arrive.
+ * Une image arrive dans la conversation.
+ *
+ * Deux usages selon l'expéditeur : le vendeur met à jour la photo d'un
+ * produit, un client fait vérifier sa pièce d'identité. Un seul point d'entrée
+ * évite que le premier gestionnaire avale l'image du second.
+ */
+bot.on(['message:photo', 'message:document'], async (ctx) => {
+  if (isAdmin(ctx.from.id)) return handleProductPhoto(ctx);
+  return handleIdentityDocument(ctx);
+});
+
+/**
+ * Photo de produit : la légende dit quel produit.
+ *
+ * Le fichier reste chez Telegram — on n'enregistre que sa référence. Rien à
+ * écrire sur le disque, donc ça marche aussi bien sur un VPS qu'en serverless.
+ */
+async function handleProductPhoto(ctx) {
+  const caption = ctx.message.caption ?? '';
+  const { products } = await getCatalog({ includeHidden: true });
+
+  if (!caption.trim()) {
+    return ctx.reply(
+      '📸 Renvoie la photo en écrivant le produit en légende.\n\n' +
+        `Par exemple : ${products[0]?.name ?? 'nom du produit'}`
+    );
+  }
+
+  const { match, candidates } = matchProduct(caption, products);
+  if (!match) {
+    const liste = (candidates.length ? candidates : products)
+      .slice(0, 8)
+      .map((p) => `• ${p.name}`)
+      .join('\n');
+    return ctx.reply(
+      candidates.length
+        ? `Plusieurs produits correspondent :\n${liste}\n\nPrécise la légende.`
+        : `Aucun produit ne correspond à « ${caption} ».\n\nProduits :\n${liste}`
+    );
+  }
+
+  // La photo la plus grande est la dernière du tableau ; un document image
+  // (envoyé « sans compression ») convient aussi.
+  const fileId = ctx.message.photo?.at(-1)?.file_id ?? ctx.message.document?.file_id;
+  const mime = ctx.message.document?.mime_type;
+  if (ctx.message.document && mime && !mime.startsWith('image/')) {
+    return ctx.reply("Ce fichier n'est pas une image.");
+  }
+
+  try {
+    await setProductPhoto(match.id, fileId);
+    await ctx.reply(`✅ Photo mise à jour pour « ${match.name} ».`);
+  } catch (err) {
+    await ctx.reply(`Impossible d'enregistrer la photo : ${err.message}`);
+  }
+}
+
+/**
+ * Pièce d'identité d'un client.
  *
  * Le document n'est ni téléchargé ni enregistré : il est transféré tel quel au
  * vendeur, qui le regarde dans Telegram puis le supprime. La boutique ne garde
  * que le verdict.
  */
-bot.on(['message:photo', 'message:document'], async (ctx) => {
+async function handleIdentityDocument(ctx) {
   const settings = await getSettings();
   if (!settings.verification.enabled) {
     return ctx.reply("Merci, mais aucune vérification n'est demandée en ce moment.");
   }
-  if (isAdmin(ctx.from.id)) return; // le vendeur s'envoie ses propres images
 
   await requestVerification(ctx.from.id);
   await ctx.reply(
@@ -152,7 +210,7 @@ bot.on(['message:photo', 'message:document'], async (ctx) => {
   } catch (err) {
     console.error('Transfert de la pièce impossible :', err.message);
   }
-});
+}
 
 /** Verdict du vendeur, d'un appui, sans quitter la conversation. */
 bot.callbackQuery(/^vf:(\d+):(approved|refused)$/, async (ctx) => {
@@ -191,7 +249,8 @@ bot.command('aide', (ctx) =>
       (isAdmin(ctx.from.id)
         ? '\n/admin — espace administrateur' +
           '\n/ouvrir, /fermer — ouvrir ou fermer la boutique' +
-          '\n/verification [on|off] — contrôle des pièces d\'identité'
+          '\n/verification [on|off] — contrôle des pièces d\'identité' +
+          '\n📸 envoie une photo avec le nom du produit en légende pour changer son image'
         : '')
   )
 );

@@ -18,6 +18,7 @@ import { getSettings, isBlocked } from './settings.js';
 import { buildChallenge, solveChallenge, passIsValid } from './captcha.js';
 import { getVerification, isApproved } from './verification.js';
 import { isOpenNow } from './opening.js';
+import { resolveFileUrl } from './photos.js';
 import { adminRouter } from './admin.js';
 import { bot, notifyAdmin, notifyOrderPlaced } from './bot.js';
 import { storageKind } from './store.js';
@@ -284,6 +285,35 @@ app.get('/api/orders', authenticate, async (req, res, next) => {
     res.json(await listOrders({ userId: req.telegramUser.id, limit: 10 }));
   } catch (err) {
     next(err);
+  }
+});
+
+/* ── Photos de produits ──────────────────────────────────── */
+
+/**
+ * Sert la photo d'un produit depuis Telegram.
+ *
+ * Le fichier n'est pas recopié chez nous : cette route va le chercher et le
+ * relaie, en laissant le navigateur le garder en cache. L'URL porte un
+ * paramètre de version, changé à chaque nouvelle photo, ce qui permet un
+ * cache long sans jamais servir l'ancienne image.
+ */
+app.get('/api/photo/:id', async (req, res, next) => {
+  try {
+    const product = await getProduct(req.params.id);
+    if (!product?.photoFileId) return res.status(404).json({ error: 'Pas de photo pour ce produit.' });
+
+    const url = await resolveFileUrl(product.photoFileId);
+    const upstream = await fetch(url);
+    if (!upstream.ok) return res.status(502).json({ error: 'Photo indisponible.' });
+
+    res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+    res.send(Buffer.from(await upstream.arrayBuffer()));
+  } catch (err) {
+    console.error('Photo produit indisponible :', err.message);
+    if (!res.headersSent) res.status(502).json({ error: 'Photo indisponible.' });
+    else next(err);
   }
 });
 

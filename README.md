@@ -164,7 +164,21 @@ redémarre. Une entrée ressemble à ça :
 
 Les illustrations sont des SVG originaux dans `webapp/assets/products/`, générés par
 `node tools/generate-art.mjs` (dégradés doux, pensés pour un fond sombre).
-**Pour passer à tes vraies photos**, deux chemins :
+**Le plus simple : envoie la photo au bot.** Depuis un compte administrateur,
+envoie l'image dans la conversation avec le nom du produit en légende :
+
+```
+[photo]  Néon Kush
+```
+
+Le bot répond « Photo mise à jour ». Le fichier reste chez Telegram — la
+boutique n'enregistre que sa référence et sert l'image à la demande. Rien à
+écrire sur le disque : ça marche aussi bien sur un VPS qu'en serverless, et il
+n'y a rien de plus à sauvegarder. Une légende ambiguë (« neon » quand deux
+produits le contiennent) fait répondre la liste plutôt que d'écraser la
+mauvaise photo.
+
+**Ou par fichier**, deux autres chemins :
 
 - depuis l'espace admin : dans l'éditeur de produit, choisis « 📷 Ma photo » dans la
   liste d'images et colle le chemin (`/assets/products/ma-photo.jpg`) ou une adresse
