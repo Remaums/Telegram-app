@@ -795,12 +795,29 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* ── Photos ──────────────────────────────────────────────── */
 /* Une vraie photo remplit son cadre au lieu de flotter dans le halo, avec
    un voile sombre en haut pour que la pastille reste lisible. */
-.card__art--photo { background: rgb(var(--ink-rgb) / .6); overflow: hidden; }
+.card__art--photo, .card__art--video { background: rgb(var(--ink-rgb) / .6); overflow: hidden; }
 .card__art--photo img { width: 100%; height: 100%; object-fit: cover; filter: none; }
-.card__art--photo::after {
+.card__art--photo::after, .card__art--video::after {
   content: ''; position: absolute; inset: 0 0 55% 0; pointer-events: none;
   background: linear-gradient(180deg, rgb(var(--ink-rgb) / .55), transparent);
 }
+
+/* Une vidéo en vitrine : même cadre qu'une photo. Elle ne reçoit aucun clic —
+   la carte entière doit rester le bouton qui ouvre la fiche. */
+.card__video {
+  width: 100%; height: 100%; object-fit: cover;
+  pointer-events: none; background: rgb(var(--ink-rgb) / .7);
+}
+/* La pastille dit « vidéo » même immobile : sur un système qui demande moins de
+   mouvement, la vitrine montre la première image et rien ne bouge. */
+.card__film {
+  position: absolute; bottom: 8px; right: 8px; z-index: 2;
+  display: grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 999px;
+  background: rgb(var(--ink-rgb) / .72); color: var(--cream);
+  font-size: 10px; padding-left: 2px; pointer-events: none;
+}
+.card--soldout .card__video { filter: grayscale(1); opacity: .38; }
 
 /* ══ Animations et widgets ═══════════════════════════════════
    Tout ce bloc est suspendu par `[data-anim='off']`, que pose la boutique

@@ -256,6 +256,16 @@ Sur la fiche, l'ordre se règle avec les flèches et chaque média se retire d'u
 bouton. La vignette montre le vrai visuel, pas son nom de fichier : c'est la
 seule façon de repérer d'un coup d'œil celui qui ne charge pas.
 
+**Une galerie qui n'a que des vidéos passe en vitrine.** Faute de photo, la
+grille montrait le dessin par défaut, et rien n'annonçait au client la vidéo qui
+l'attendait sur la fiche. Elle s'affiche donc directement sur la carte : muette,
+en boucle, sans contrôles — la carte entière reste le bouton qui ouvre la fiche —
+et seulement tant qu'elle est à l'écran, pour ne pas dépenser les données du
+client hors de vue. Une pastille ▶ l'annonce même immobile : sur un système qui
+demande moins de mouvement, la vitrine s'en tient à la première image. Une photo
+garde toujours la vitrine, elle : un dessin est un pis-aller, une photo posée par
+le vendeur est une décision.
+
 > 🔒 **Une adresse de média finit dans un attribut `src`.** Seuls un chemin
 > commençant par `/` et une adresse en `https://` sont acceptés : `javascript:`,
 > `data:` et les remontées de dossier sont refusés, et des tests le vérifient à

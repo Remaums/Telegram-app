@@ -986,7 +986,23 @@ function renderGrid() {
     });
   }
 
+  arreterLesVideosDeLaGrille(grid);
   grid.replaceChildren(...cartes);
+}
+
+/**
+ * Détache les vidéos de la grille qu'on s'apprête à remplacer.
+ *
+ * Un élément retiré du document peut continuer à charger sa source : on coupe
+ * la lecture et on détache l'adresse, comme pour la galerie d'une fiche.
+ */
+function arreterLesVideosDeLaGrille(grid) {
+  for (const video of grid.querySelectorAll('.card__video')) {
+    regardSurLaGrille?.unobserve(video);
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+  }
 }
 
 /**
@@ -1034,6 +1050,46 @@ function trier(produits) {
   }
 }
 
+/**
+ * La vidéo à montrer dans la grille, s'il y en a une à montrer.
+ *
+ * Un produit dont la galerie ne contient que des vidéos n'avait rien à mettre
+ * en vitrine : la grille gardait le dessin par défaut, et rien n'annonçait au
+ * client qu'une vidéo l'attendait sur la fiche. On prend donc la première
+ * vidéo — mais seulement faute de photo. Une photo posée par le vendeur est une
+ * décision ; un dessin n'est qu'un pis-aller.
+ */
+function videoDeVitrine(product) {
+  if (isPhoto(product.image)) return null;
+
+  const medias = Array.isArray(product.media) ? product.media : [];
+  if (medias.some((m) => m.kind === 'photo')) return null;
+
+  const rang = medias.findIndex((m) => m.kind === 'video');
+  if (rang === -1) return null;
+  return medias[rang].url ?? `/api/media/${product.id}/${rang}`;
+}
+
+/**
+ * Les vidéos de la grille ne tournent que sous les yeux du client.
+ *
+ * Une carte hors écran qui continue de jouer dépense des données et de la
+ * batterie pour rien. L'observateur est unique et survit aux rendus : une carte
+ * retirée de la grille cesse d'être observée d'elle-même.
+ */
+const regardSurLaGrille =
+  'IntersectionObserver' in window
+    ? new IntersectionObserver(
+        (entrees) => {
+          for (const entree of entrees) {
+            if (entree.isIntersecting && anime()) entree.target.play().catch(() => {});
+            else entree.target.pause();
+          }
+        },
+        { threshold: 0.4 }
+      )
+    : null;
+
 function productCard(product) {
   const card = document.createElement('button');
   card.type = 'button';
@@ -1045,10 +1101,19 @@ function productCard(product) {
 
   const fromLabel = product.variants ? '<small>dès</small> ' : '';
   const badge = soldOut ? 'ÉPUISÉ' : product.badge;
+  const video = videoDeVitrine(product);
+  // Muette et sans contrôles : la carte entière reste un bouton qui ouvre la
+  // fiche, et aucun son ne sort d'une grille de catalogue.
+  const visuel = video
+    ? `<video class="card__video" src="${escapeHtml(video)}" muted loop playsinline
+             preload="metadata" disablepictureinpicture tabindex="-1" aria-hidden="true"></video>
+       <span class="card__film" aria-hidden="true">▶</span>`
+    : `<img src="${product.image}" alt="" loading="lazy">`;
+
   card.innerHTML = `
-    <div class="card__art${isPhoto(product.image) ? ' card__art--photo' : ''}">
+    <div class="card__art${video ? ' card__art--video' : isPhoto(product.image) ? ' card__art--photo' : ''}">
       ${badge ? `<span class="card__badge ${soldOut ? 'card__badge--out' : ''}">${escapeHtml(badge)}</span>` : ''}
-      <img src="${product.image}" alt="" loading="lazy">
+      ${visuel}
     </div>
     <div class="card__body">
       <span class="card__name">${escapeHtml(product.name)}</span>
@@ -1058,6 +1123,15 @@ function productCard(product) {
         <span class="card__add" aria-hidden="true">+</span>
       </span>
     </div>`;
+
+  const lecteur = card.querySelector('.card__video');
+  if (lecteur) {
+    // L'attribut seul ne suffit pas partout : sans cette ligne, un navigateur
+    // refuse la lecture faute de garantie que le son est coupé.
+    lecteur.muted = true;
+    if (regardSurLaGrille) regardSurLaGrille.observe(lecteur);
+    else if (anime()) lecteur.play().catch(() => {});
+  }
 
   card.addEventListener('click', () => openProduct(product));
   return card;
