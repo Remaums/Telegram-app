@@ -147,7 +147,10 @@ HOST=127.0.0.1                     # on n'écoute qu'en local, le proxy s'occupe
 ```
 
 Laisse `DATABASE_URL` et `TELEGRAM_WEBHOOK_SECRET` **vides** : ils ne servent
-qu'à la mise en ligne serverless.
+qu'à la mise en ligne serverless. Sur un VPS, le bot reçoit les messages en
+long polling et n'a besoin d'aucun webhook. Un secret qui traîne là n'empêche
+plus rien, mais la boutique le signale au démarrage — c'est le signe d'une
+configuration recopiée d'un déploiement Vercel.
 
 Protège le fichier, il contient ton token :
 
@@ -401,6 +404,7 @@ Une ligne pour une sauvegarde quotidienne, gardée 30 jours :
 |---|---|---|
 | Le tunnel ne rend jamais d'adresse | l'hébergeur filtre l'UDP sortant (port 7844), que cloudflared utilise par défaut | `sudo systemctl edit tunnel` et forcer `--protocol http2` (le 443 en TCP), ou `bash deploy/installer.sh` qui bascule tout seul |
 | `failed to request quick Tunnel` | Cloudflare refuse les tunnels anonymes depuis cette IP | passe à l'option 2 du guide (DuckDNS), qui n'a besoin que du 80 et du 443 |
+| Le service redémarre en boucle (`NRestarts` qui grimpe) | une exception au démarrage, que `Restart=always` relance indéfiniment | `sudo journalctl -u coffeeshop68 -n 50` : la trace est en haut de chaque cycle |
 | **Le bot ne répond pas à `/start`** | dans l'ordre de probabilité : un webhook resté déclaré (le long polling ne reçoit alors plus rien), un token mal recopié, ou le service arrêté | `bash deploy/diagnostic.sh` tranche les trois en une commande |
 | `409 Conflict` dans les journaux | un webhook est resté déclaré (essai Vercel), il se dispute les mises à jour avec le long polling | `node tools/set-webhook.mjs --delete` |
 | Le bouton du menu ne s'ouvre pas | l'URL n'est pas en HTTPS valide | vérifie le certificat : `curl -I https://ton-domaine` |

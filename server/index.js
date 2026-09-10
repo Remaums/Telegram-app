@@ -618,12 +618,21 @@ app.use('/api/admin', adminRouter);
 // Telegram en boucle : c'est Telegram qui appelle cette route. Le jeton
 // secret voyage dans l'en-tête X-Telegram-Bot-Api-Secret-Token, grammY le
 // vérifie et rejette tout appel qui ne vient pas de Telegram.
-if (config.webhookSecret) {
+//
+// Les deux modes de réception s'excluent, et grammY le fait respecter
+// durement : `webhookCallback()` remplace `bot.start` par une fonction qui
+// lève une erreur — dès l'appel, sans attendre la moindre requête. Monter
+// cette route sur un VPS suffisait donc à empêcher le long polling de
+// démarrer : le bot restait muet et seule une ligne de journal le disait,
+// alors que la boutique, elle, continuait de servir. C'est le mode de
+// lancement qui décide, donc, et non la présence d'un secret dans l'environnement.
+if (!standalone && config.webhookSecret) {
   app.post('/api/telegram', webhookCallback(bot, 'express', { secretToken: config.webhookSecret }));
 } else {
-  app.post('/api/telegram', (req, res) =>
-    res.status(503).json({ error: 'TELEGRAM_WEBHOOK_SECRET non défini.' })
-  );
+  const pourquoi = standalone
+    ? 'Cette boutique reçoit les mises à jour en long polling : le webhook n\'est pas servi ici.'
+    : 'TELEGRAM_WEBHOOK_SECRET non défini.';
+  app.post('/api/telegram', (req, res) => res.status(503).json({ error: pourquoi }));
 }
 
 /* ── Gestion d'erreurs ───────────────────────────────────── */
@@ -675,13 +684,39 @@ if (standalone) {
     console.log(`  Admins autorisés : ${config.adminIds.join(', ') || 'aucun'}`);
   });
 
+  // Un secret de webhook traînant dans l'environnement n'empêche plus rien,
+  // mais il trahit presque toujours une configuration copiée d'un déploiement
+  // serverless : autant le dire, sinon on cherchera longtemps pourquoi le
+  // webhook n'est pas servi.
+  if (config.webhookSecret) {
+    console.log('  TELEGRAM_WEBHOOK_SECRET est défini mais ignoré : ce mode lit en long polling.');
+  }
+
   // Un token invalide ne doit pas empêcher de servir la boutique : on garde
   // le site en ligne et on signale le problème plutôt que de tuer le process.
-  bot
-    .start({ onStart: (me) => console.log(`  Bot @${me.username} démarré.`) })
-    .catch((err) => {
-      console.error(`  Bot non démarré (${err.message}). La boutique reste accessible.`);
-    });
+  //
+  // Le `try` n'est pas décoratif : `bot.start` peut lever de façon synchrone,
+  // et un `.catch()` seul ne rattrape pas ça. Le process mourait alors au
+  // démarrage — donc, sous systemd et son `Restart=always`, redémarrait en
+  // boucle toutes les cinq secondes, boutique comprise. Une panne de bot ne
+  // doit jamais coûter la boutique.
+  const signaler = (err) => {
+    console.error(`  Bot non démarré (${err.message}). La boutique reste accessible.`);
+    // Le 409 a une cause précise et un remède d'une ligne : le nommer ici
+    // épargne une heure de recherche à qui voit son bot rester muet.
+    if (/409|conflict/i.test(err.message)) {
+      console.error('  Un webhook est déclaré chez Telegram : il capte les mises à jour à la place du long polling.');
+      console.error('  Remède : node tools/set-webhook.mjs --delete, puis redémarre la boutique.');
+    }
+  };
+
+  try {
+    bot
+      .start({ onStart: (me) => console.log(`  Bot @${me.username} démarré.`) })
+      .catch(signaler);
+  } catch (err) {
+    signaler(err);
+  }
 
   // Arrêt propre : sans ça, le long polling garde le process en vie.
   for (const signal of ['SIGINT', 'SIGTERM']) {
