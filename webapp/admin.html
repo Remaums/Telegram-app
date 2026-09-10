@@ -255,6 +255,28 @@
     <button class="a-btn a-btn--primary a-btn--block" id="sendAnnounce" type="button">Envoyer l'annonce</button>
     <ul class="a-list" id="announceHistory"></ul>
 
+    <h2 class="a-h2">Liens et QR codes</h2>
+    <p class="a-hint">
+      Le lien ouvre la boutique <b>directement sur l'article choisi</b> : collé
+      sur un flyer ou envoyé en message, le client tombe dessus au lieu de le
+      chercher. Le QR code est le même lien, en image : demande-le, il arrive
+      dans la conversation du bot, prêt à être glissé dans un visuel.
+    </p>
+    <label class="a-field">
+      <span>Destination</span>
+      <select id="linkTarget"></select>
+    </label>
+    <div class="a-link" id="linkBox" hidden>
+      <div class="a-link__qr" id="linkQr"></div>
+      <code class="a-link__url" id="linkUrl"></code>
+      <p class="a-hint" id="linkWarn" hidden></p>
+      <div class="a-row">
+        <button class="a-btn a-btn--ghost" id="copyLink" type="button">📋 Copier le lien</button>
+        <button class="a-btn a-btn--ghost" id="sendQr" type="button">🖼 M'envoyer le QR</button>
+      </div>
+    </div>
+    <p class="a-error" id="linkError" hidden></p>
+
     <h2 class="a-h2">Export et sauvegarde</h2>
     <p class="a-hint">
       Les deux fichiers arrivent <b>dans la conversation du bot</b> : un
@@ -344,6 +366,7 @@
     </div>
     <footer class="a-modal__foot">
       <button class="a-btn a-btn--danger" id="deleteProduct" type="button">Supprimer</button>
+      <button class="a-btn a-btn--ghost" id="productLink" type="button" hidden>🔗 Lien &amp; QR</button>
       <button class="a-btn a-btn--primary a-btn--grow" id="saveProduct" type="button">Enregistrer</button>
     </footer>
   </div>

@@ -96,6 +96,7 @@ nano .env
 BOT_TOKEN=8123456789:AAH...        # celui de BotFather
 WEBAPP_URL=https://boutique.mondomaine.fr
 SELLER_USERNAME=tonpseudo          # sans @ : la conversation qui reçoit les commandes
+BOT_USERNAME=coffeeshop68_bot       # sans @ : sert aux liens directs et aux QR codes
 ADMIN_CHAT_ID=123456789            # ton ID Telegram (étape 9)
 ADMIN_IDS=123456789                # qui peut ouvrir l'espace admin
 SHOP_NAME=COFFEE SHOP 68

@@ -34,6 +34,7 @@ const state = {
   captcha: null,      // épreuve en cours
   selection: [],      // tuiles touchées
   cart: loadCart(),
+  startProduct: null, // produit demandé par un lien direct, à ouvrir une fois entré
   current: null, // produit ouvert dans la fiche
   currentVariant: null,
   currentQty: 1,
@@ -56,6 +57,8 @@ async function init() {
     tg.BackButton?.onClick(closeSheets);
     tg.MainButton?.onClick(() => openSheet('cartSheet'));
   }
+
+  state.startProduct = produitDemande();
 
   bindStaticHandlers();
   gateAge();
@@ -497,12 +500,13 @@ async function loadMe() {
   }
 }
 
+/** @returns {boolean} vrai si le voile reste affiché. */
 async function gateVerification() {
   const me = await loadMe();
-  if (!state.gates.verification || !me) return;
+  if (!state.gates.verification || !me) return false;
 
   const status = me.verification.status;
-  if (status === 'approved') return;
+  if (status === 'approved') return false;
 
   const texts = {
     none: "Pour commander ici, une pièce d'identité doit être validée. Envoie-la en photo dans la conversation du bot : le vendeur la regarde et te répond.",
@@ -518,6 +522,7 @@ async function gateVerification() {
   $('verifTitle').textContent = titles[status] ?? titles.none;
   $('verifText').textContent = texts[status] ?? texts.none;
   $('verification').hidden = false;
+  return true;
 }
 
 /* ── Épreuve d'entrée ────────────────────────────────────── */
@@ -617,8 +622,11 @@ async function submitCaptcha() {
     writePass(data.pass);
     $('captcha').hidden = true;
     haptic('success');
-    // L'épreuve franchie, c'est au tour de la porte suivante.
-    await gateVerification();
+    // On repasse par le séquenceur plutôt que d'appeler la porte suivante :
+    // lui seul connaît l'ordre, et ce qui attend derrière la dernière — une
+    // fiche ouverte par un lien direct, par exemple. Le laissez-passer étant
+    // écrit, les portes déjà franchies se contentent de se taire.
+    await runGates();
   } catch (err) {
     console.error(err);
     error.textContent = 'Vérification indisponible. Réessaie dans un instant.';
@@ -646,7 +654,44 @@ function writePass(pass) {
 async function runGates() {
   if (gateAge()) return;
   if (await gateCaptcha()) return;
-  await gateVerification();
+  if (await gateVerification()) return;
+  ouvrirProduitDemande();
+}
+
+/**
+ * Le produit désigné par le lien qui a ouvert la boutique.
+ *
+ * Telegram remet le paramètre de `?startapp=` tel quel dans `start_param`.
+ * Le `?p=` de l'URL sert de secours pour tester hors de Telegram — et pour
+ * les clients qui ouvrent la boutique dans un navigateur.
+ */
+function produitDemande() {
+  const param = tg?.initDataUnsafe?.start_param
+    ?? new URLSearchParams(location.search).get('startapp')
+    ?? '';
+  return /^p_[A-Za-z0-9_-]+$/.test(param) ? param.slice(2) : null;
+}
+
+/**
+ * Ouvre la fiche demandée, une fois les portes franchies.
+ *
+ * Un lien peut survivre à l'article qu'il désignait : retiré du catalogue,
+ * masqué, renommé. Le client ne doit pas rester devant une boutique muette à
+ * se demander si le QR a marché — on lui dit, et il reste dans le catalogue.
+ */
+function ouvrirProduitDemande() {
+  const id = state.startProduct;
+  if (!id) return;
+  // Consommé une bonne fois : refermer la fiche ne doit pas la rouvrir à la
+  // prochaine porte franchie.
+  state.startProduct = null;
+
+  const product = state.products.find((p) => p.id === id);
+  if (!product) {
+    toast("Cet article n'est plus au catalogue. Voici le reste de la boutique.");
+    return;
+  }
+  openProduct(product);
 }
 
 /** @returns {boolean} vrai si la porte reste ouverte. */

@@ -23,7 +23,9 @@ const admin = signInitData(TOKEN, { id: 424242, first_name: 'Patron' });
 // Le décor de départ, posé par cette suite plutôt que hérité de la
 // précédente : sans ça, l'ordre du package.json devient un piège.
 await resetShop(BASE, admin, { features: { slots: true, zones: true } });
-const client = signInitData(TOKEN, { id: 880001, first_name: 'Client' });
+// Un identifiant neuf à chaque passage : un client fixe finirait par buter
+// sur le plafond horaire qu'une exécution précédente a déjà consommé.
+const client = signInitData(TOKEN, { id: 880000 + (Date.now() % 100000), first_name: 'Client' });
 
 let failures = 0;
 const check = (label, ok, detail = '') => {
@@ -56,13 +58,20 @@ const FRAIS_VALLEE = 900;
 const MINIMUM_VALLEE = prix * 3;
 
 // Les créneaux couvrent toute la semaine : le test doit passer un mardi comme
-// un dimanche. Large au départ — la capacité sera resserrée plus bas, une fois
-// qu'on saura combien de places un magasin déjà entamé a déjà consommées.
+// un dimanche.
 const JOURS = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
-const CAPACITE = 50;
-const grille = Object.fromEntries(
-  JOURS.map((jour) => [jour, [{ from: '00:00', to: '23:59', capacity: CAPACITE }]])
+
+/** Une grille d'une seule plage par jour, à la capacité voulue. */
+const grilleDe = (capacite) => Object.fromEntries(
+  JOURS.map((jour) => [jour, [{ from: '00:00', to: '23:59', capacity: capacite }]])
 );
+
+// Au plafond au départ, le temps de compter ce que les commandes déjà passées
+// occupent sur ces jours-là. Une capacité fixe marcherait sur un fichier vierge
+// et lâcherait dès que le magasin aurait servi davantage : le test doit tenir
+// la répétition.
+const PLAFOND = 999; // ce que la boutique accepte au maximum par créneau
+const grille = grilleDe(PLAFOND);
 
 await call('/api/admin/settings', {
   method: 'PUT',
@@ -94,8 +103,39 @@ check('Les zones sont annoncées au client',
   JSON.stringify(publie.zones?.map((z) => z.name)));
 check('La boutique dit que les créneaux sont actifs', publie.slots?.enabled === true);
 
+/** Ce que les commandes déjà passées occupent, jour par jour. */
+const sonde = await (await fetch(`${BASE}/api/slots`)).json();
+const dejaPrisPar = Object.fromEntries(
+  sonde.slots.map((s) => [JOURS[new Date(`${s.date}T12:00:00Z`).getUTCDay()], PLAFOND - s.left])
+);
+
+// La capacité de chaque jour est ramenée à ce qui est déjà pris, plus la
+// marge dont ce test a besoin avant d'attaquer la section « Capacité ».
+const MARGE = 20;
+// Le jour d'un magasin qui aurait déjà servi près de mille commandes ne
+// laisserait plus la place de jouer : mieux vaut le dire que d'échouer plus
+// bas sur un « créneau complet » qu'on n'a pas provoqué.
+for (const [jour, pris] of Object.entries(dejaPrisPar)) {
+  check(`Le ${jour} a encore de la place pour ce test`, pris + MARGE <= PLAFOND,
+    `${pris} déjà pris sur ${PLAFOND}`);
+}
+
+await call('/api/admin/settings', {
+  method: 'PUT',
+  body: {
+    slots: {
+      enabled: true, leadMinutes: 0, daysAhead: 3,
+      days: Object.fromEntries(JOURS.map((jour) => [
+        jour, [{ from: '00:00', to: '23:59', capacity: (dejaPrisPar[jour] ?? 0) + MARGE }],
+      ])),
+    },
+  },
+});
+
 const dispo = await (await fetch(`${BASE}/api/slots`)).json();
 check('Des créneaux sont proposés', dispo.enabled && dispo.slots.length >= 1, `${dispo.slots.length} créneaux`);
+check('Chaque créneau a de la place pour la suite',
+  dispo.slots.every((s) => s.left === MARGE), dispo.slots.map((s) => s.left).join(' '));
 check('Chaque créneau annonce ses places',
   dispo.slots.every((s) => typeof s.left === 'number' && typeof s.label === 'string'));
 
@@ -162,14 +202,15 @@ const etatDe = async (id) =>
 
 // La capacité est resserrée sur la place suivante : le test vaut donc aussi
 // sur un magasin qui a déjà servi, sans dépendre d'un fichier vierge.
-const dejaPris = CAPACITE - (await etatDe(creneau.id)).left;
+const capaciteDuJour = (dejaPrisPar[JOURS[new Date(`${creneau.date}T12:00:00Z`).getUTCDay()]] ?? 0) + MARGE;
+const dejaPris = capaciteDuJour - (await etatDe(creneau.id)).left;
 const jourDuCreneau = JOURS[new Date(`${creneau.date}T12:00:00Z`).getUTCDay()];
 await call('/api/admin/settings', {
   method: 'PUT',
   body: {
     slots: {
       enabled: true, leadMinutes: 0, daysAhead: 3,
-      days: { ...grille, [jourDuCreneau]: [{ from: '00:00', to: '23:59', capacity: dejaPris + 1 }] },
+      days: { ...grilleDe(capaciteDuJour), [jourDuCreneau]: [{ from: '00:00', to: '23:59', capacity: dejaPris + 1 }] },
     },
   },
 });

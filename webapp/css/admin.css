@@ -279,6 +279,30 @@ body.admin {
 }
 .a-restore p { margin: 0 0 10px; font-size: 13px; font-weight: 700; line-height: 1.45; }
 
+/* ── Lien direct et QR code ───────────────────────────────── */
+
+.a-link {
+  margin-top: 10px; padding: 12px; border-radius: 14px;
+  border: 1px solid var(--line-soft); background: rgb(var(--panel-rgb) / .45);
+}
+/* Le QR reste sur fond blanc quoi qu'il arrive : posé sur le fond sombre du
+   panneau, il ne se lirait pas. */
+.a-link__qr {
+  display: flex; justify-content: center;
+  padding: 10px; border-radius: 12px; background: #fff;
+}
+.a-link__qr svg { display: block; width: 100%; max-width: 220px; height: auto; }
+/* L'adresse est longue et sans espace : sans cette césure, elle déborderait
+   du panneau sur un téléphone étroit. */
+.a-link__url {
+  display: block; margin: 10px 0; padding: 8px 10px;
+  border-radius: 10px; background: rgb(var(--night-rgb) / .55);
+  font-size: 12.5px; line-height: 1.5; color: var(--cream);
+  overflow-wrap: anywhere; word-break: break-all; user-select: all;
+}
+.a-link .a-row { gap: 8px; }
+.a-link .a-btn { min-width: 0; }
+
 .a-features { display: flex; flex-direction: column; gap: 7px; margin-bottom: 4px; }
 .a-feature {
   display: flex; align-items: flex-start; gap: 11px;

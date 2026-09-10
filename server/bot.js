@@ -441,6 +441,28 @@ export async function diffuser(envoi, clients, { paquet = 20, pause = 1200 } = {
   return { recus, echecs };
 }
 
+/**
+ * Le nom du bot, demandé une fois puis gardé.
+ *
+ * Il sert à fabriquer les liens `t.me` qui ouvrent la Mini App sur un produit.
+ * `BOT_USERNAME` court-circuite l'appel réseau ; sinon on interroge Telegram,
+ * et on garde la réponse — le nom d'un bot ne change pas en cours de route.
+ */
+let nomDuBot = config.botUsername || null;
+
+export async function botUsername() {
+  if (nomDuBot) return nomDuBot;
+  try {
+    nomDuBot = (await bot.api.getMe()).username ?? null;
+  } catch (err) {
+    // Jeton absent ou Telegram injoignable : on rend la main sans nom plutôt
+    // que de faire tomber la requête. L'appelant sait quoi en dire.
+    console.error('Nom du bot indisponible :', err.message);
+    return null;
+  }
+  return nomDuBot;
+}
+
 /** Récapitulatif d'une commande, tel que le vendeur le lit dans Telegram. */
 export function orderMessage(order) {
   const status = STATUSES[order.status];

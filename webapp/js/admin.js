@@ -87,6 +87,17 @@ function bindHandlers() {
   for (const id of ['fAnnounceDays', 'fAnnounceMin']) {
     $(id).addEventListener('input', compterAudience);
   }
+  $('linkTarget').addEventListener('change', chargerLien);
+  $('copyLink').addEventListener('click', copierLien);
+  $('sendQr').addEventListener('click', envoyerQr);
+  $('productLink').addEventListener('click', () => {
+    const id = state.editing?.id;
+    closeEditor();
+    selectTab('settings');
+    $('linkTarget').value = id ?? '';
+    chargerLien();
+    $('linkTarget').scrollIntoView({ block: 'center', behavior: 'smooth' });
+  });
   $('exportCsv').addEventListener('click', exporterCommandes);
   $('downloadBackup').addEventListener('click', envoyerSauvegarde);
   $('pickBackup').addEventListener('click', () => $('restoreFile').click());
@@ -491,6 +502,9 @@ function openEditor(product) {
   state.editing = product;
   $('editorTitle').textContent = product ? 'Modifier' : 'Nouveau produit';
   $('deleteProduct').hidden = !product;
+  // Un produit qui n'existe pas encore n'a pas de lien : il n'aurait nulle
+  // part où mener.
+  $('productLink').hidden = !product;
   $('editorError').hidden = true;
 
   fillSelect($('fCategory'), state.categories.map((c) => [c.id, `${c.emoji} ${c.label}`]));
@@ -651,6 +665,7 @@ function renderSettings() {
   if (!settings) return;
 
   renderFeatures();
+  renderLinkTargets();
 
   const opening = settings.opening ?? { open: true, hours: {} };
   $('fOpen').checked = Boolean(opening.open);
@@ -912,6 +927,91 @@ function renderAnnonces() {
       return li;
     })
   );
+}
+
+/* ── Liens directs et QR codes ───────────────────────────── */
+
+/** Ce que le dernier chargement a rendu, pour le copier sans redemander. */
+let lienCourant = null;
+
+/**
+ * Remplit le menu des destinations.
+ *
+ * Les articles masqués y figurent quand même, avec la mention : on prépare
+ * souvent le flyer avant de mettre l'article en ligne, et découvrir à ce
+ * moment-là qu'il faudra le rendre visible vaut mieux que le découvrir
+ * imprimé.
+ */
+function renderLinkTargets() {
+  const select = $('linkTarget');
+  const choisi = select.value;
+  fillSelect(select, [
+    ['', '🏪 La boutique'],
+    ...state.products.map((p) => [p.id, `${p.name}${p.visible === false ? ' (masqué)' : ''}`]),
+  ]);
+  select.value = state.products.some((p) => p.id === choisi) ? choisi : '';
+}
+
+async function chargerLien() {
+  const cible = $('linkTarget').value;
+  const erreur = $('linkError');
+  erreur.hidden = true;
+  $('linkBox').hidden = true;
+
+  try {
+    const r = await api(`/link${cible ? `?product=${encodeURIComponent(cible)}` : ''}`);
+    lienCourant = r;
+    // Le SVG vient de notre propre générateur : il n'y a là-dedans qu'un
+    // rectangle et un chemin, tous deux faits de nombres.
+    $('linkQr').innerHTML = r.svg;
+    $('linkUrl').textContent = r.url;
+    $('linkWarn').textContent = r.hidden
+      ? "Cet article est masqué : le lien ouvrira la boutique sans le montrer. Rends-le visible avant d'imprimer."
+      : '';
+    $('linkWarn').hidden = !r.hidden;
+    $('linkBox').hidden = false;
+  } catch (err) {
+    lienCourant = null;
+    erreur.textContent = err.message;
+    erreur.hidden = false;
+  }
+}
+
+/**
+ * Copie le lien.
+ *
+ * `navigator.clipboard` n'est pas toujours là dans la WebView de Telegram :
+ * on retombe alors sur une sélection, que le vendeur copie d'un appui long.
+ */
+async function copierLien() {
+  if (!lienCourant) return;
+  try {
+    await navigator.clipboard.writeText(lienCourant.url);
+    toast('Lien copié');
+    haptic('success');
+  } catch {
+    const plage = document.createRange();
+    plage.selectNodeContents($('linkUrl'));
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(plage);
+    toast('Appui long sur le lien pour le copier');
+  }
+}
+
+async function envoyerQr() {
+  const bouton = $('sendQr');
+  bouton.disabled = true;
+  try {
+    const cible = $('linkTarget').value;
+    await api('/link/send', { method: 'POST', body: { product: cible || undefined } });
+    toast('QR envoyé dans la conversation');
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    bouton.disabled = false;
+  }
 }
 
 /* ── Export et sauvegarde ────────────────────────────────── */

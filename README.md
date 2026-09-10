@@ -47,6 +47,7 @@ Ouvre `.env` et remplis :
 | `WEBAPP_URL` | L'URL **HTTPS** publique de la boutique (obligatoire, Telegram refuse le HTTP) |
 | `SELLER_USERNAME` | **Ton pseudo Telegram sans le `@`** — c'est là qu'arrivent les commandes |
 | `ADMIN_CHAT_ID` | Ton ID numérique, pour recevoir aussi une notification automatique du bot |
+| `BOT_USERNAME` | Le pseudo du bot sans le `@` — sert aux liens directs et aux QR codes (facultatif : demandé à Telegram sinon) |
 | `SHOP_NAME` | Le nom affiché en haut de la boutique |
 | `CURRENCY` | `EUR`, `CHF`, `CAD`… |
 
@@ -258,6 +259,7 @@ variables d'environnement du projet :
 BOT_TOKEN=…                        (BotFather)
 WEBAPP_URL=https://ton-projet.vercel.app
 SELLER_USERNAME=tonpseudo
+BOT_USERNAME=ma_boutique_bot       (facultatif : liens directs et QR codes)
 ADMIN_IDS=123456789
 ADMIN_CHAT_ID=123456789
 DATABASE_URL=postgres://…?sslmode=require
@@ -508,6 +510,45 @@ Quatre tris : par défaut (l'ordre du catalogue, les articles épuisés glissant
 en fin de liste), nouveautés, prix croissant, prix décroissant, alphabétique.
 Chaque produit porte sa date d'entrée au catalogue, posée une fois et
 conservée : modifier un prix ne rajeunit pas le produit.
+
+### Liens directs et QR codes
+
+Un lien qui ouvre la boutique **sur un article précis**, et le même lien en QR
+code. C'est ce qu'on colle sur un flyer : le client scanne et tombe sur la
+variété annoncée, au lieu d'arriver dans un catalogue où il devra la
+retrouver — et où il ne la retrouve pas toujours.
+
+Dans l'onglet Réglages, section *Liens et QR codes* : on choisit la
+destination (la boutique, ou n'importe quel article), le QR s'affiche, le lien
+se copie d'un bouton. Un second bouton l'envoie en PNG dans la conversation du
+bot, prêt à être glissé dans un visuel — en document plutôt qu'en photo,
+Telegram recompressant les photos et un QR destiné à l'impression méritant de
+rester au pixel près. La fiche de chaque produit porte aussi un raccourci
+**🔗 Lien & QR** qui mène droit à sa destination.
+
+La forme du lien est celle que Telegram attend :
+
+```
+https://t.me/<nom-du-bot>?startapp=p_<identifiant-du-produit>
+```
+
+`BOT_USERNAME` dans l'environnement évite d'aller demander le nom à Telegram
+au premier lien ; sans lui, il est demandé une fois puis gardé.
+
+Un article masqué a quand même son lien, avec un avertissement : on prépare
+souvent le flyer avant la mise en ligne, et découvrir le problème à ce
+moment-là vaut mieux que le découvrir imprimé. Un lien qui ne mène plus nulle
+part — article retiré, renommé, paramètre inventé — n'affiche pas d'erreur :
+la boutique s'ouvre normalement, avec un mot au client quand l'article a
+disparu. **Un QR imprimé ne se corrige pas**, c'est toute la raison de ces
+précautions.
+
+Le générateur de QR est écrit dans le projet (`server/qr.js`), sans
+dépendance : correction d'erreur moyenne, versions 1 à 10, rendu en SVG pour
+l'écran et en PNG pour l'impression. Les tests relisent la matrice module par
+module, et les balayages de développement font décoder chaque QR par un
+décodeur indépendant — un encodeur QR qui se trompe produit une image
+parfaitement plausible et parfaitement illisible.
 
 ### Remises et codes promo
 

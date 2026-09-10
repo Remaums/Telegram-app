@@ -7,6 +7,10 @@ export const config = {
   webappUrl: (process.env.WEBAPP_URL ?? '').replace(/\/$/, ''),
   adminChatId: process.env.ADMIN_CHAT_ID ?? '',
   sellerUsername: (process.env.SELLER_USERNAME ?? '').replace(/^@/, ''),
+  // Nom du bot, pour fabriquer les liens t.me qui ouvrent la Mini App. Il se
+  // demande à Telegram si on ne le renseigne pas — mais le renseigner évite
+  // un aller-retour réseau au premier lien généré.
+  botUsername: (process.env.BOT_USERNAME ?? '').replace(/^@/, ''),
   // Identifiants Telegram autorisés à ouvrir l'espace admin.
   adminIds: (process.env.ADMIN_IDS ?? process.env.ADMIN_CHAT_ID ?? '')
     .split(',')

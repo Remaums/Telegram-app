@@ -16,7 +16,9 @@ import {
 import { STATUSES, listOrders, getOrder, setStatus, stats } from './orders.js';
 import { getSettings, saveSettings, blockClient, unblockClient } from './settings.js';
 import { listVerifications, decideVerification, resetVerification } from './verification.js';
-import { notifyCustomer, notifyBackInStock, sendFileToAdmin, diffuser } from './bot.js';
+import {
+  notifyCustomer, notifyBackInStock, sendFileToAdmin, diffuser, botUsername,
+} from './bot.js';
 import { waitlistKey, takeSubscribers } from './waitlist.js';
 import { listPromos, savePromo, deletePromo } from './promos.js';
 import { FEATURES } from './features.js';
@@ -24,6 +26,8 @@ import { buildBackup, restoreBackup, inspectBackup, ordersToCsv } from './backup
 import {
   destinataires, reserverEnvoi, annulerEnvoi, historique, reabonner, desabonner, estDesabonne,
 } from './annonces.js';
+import { productLink, shopLink } from './links.js';
+import { toSvg, toPng } from './qr.js';
 
 export const adminRouter = express.Router();
 
@@ -348,6 +352,88 @@ adminRouter.get(
   route(async (req, res) => res.json({ desabonne: await estDesabonne(req.params.id) }))
 );
 
+/**
+ * Envoie un fichier dans la conversation du bot, en français quand ça rate.
+ *
+ * Le cas courant n'est pas une panne : c'est un vendeur qui n'a jamais écrit
+ * à son propre bot, ou qui l'a bloqué. Telegram répond alors « chat not
+ * found », que personne ne devrait avoir à traduire depuis un toast.
+ */
+async function envoyerDansLaConversation(chatId, nom, contenu, legende) {
+  try {
+    return await sendFileToAdmin(chatId, nom, contenu, legende);
+  } catch (err) {
+    const raison = err?.description ?? err?.message ?? '';
+    if (/chat not found|bot was blocked|user is deactivated/i.test(raison)) {
+      throw new HttpError(409, "Le bot ne peut pas t'écrire : ouvre sa conversation et envoie-lui /start, puis réessaie.");
+    }
+    throw new HttpError(502, `Telegram n'a pas pris le fichier : ${raison || 'raison inconnue'}`);
+  }
+}
+
+/* ── Liens directs et QR codes ───────────────────────────── */
+
+/**
+ * Le lien à coller sur un flyer, et son QR code.
+ *
+ * Sans `?product`, c'est la boutique ; avec, c'est la fiche de l'article.
+ * Le second cas est celui qui compte : un flyer annonce une variété précise,
+ * et le client qui scanne doit tomber dessus, pas sur un catalogue où il
+ * devra la retrouver.
+ */
+async function lienDemande(id) {
+  const nom = await botUsername();
+  if (!nom) throw new HttpError(503, "Le nom du bot est introuvable : renseigne BOT_USERNAME.");
+
+  if (!id) return { url: shopLink(nom), cible: 'boutique', name: null, id: null };
+
+  const product = await getProduct(id);
+  if (!product) throw new HttpError(404, "Ce produit n'existe pas.");
+
+  const url = productLink(nom, product.id);
+  if (!url) throw new HttpError(400, "L'identifiant de ce produit ne tient pas dans un lien Telegram.");
+  return { url, cible: 'produit', name: product.name, id: product.id, hidden: product.visible === false };
+}
+
+adminRouter.get(
+  '/link',
+  route(async (req, res) => {
+    const lien = await lienDemande(req.query.product);
+    // Le SVG part avec la réponse : l'admin l'affiche tel quel, sans second
+    // appel ni image à héberger quelque part.
+    res.json({ ...lien, svg: toSvg(lien.url, { module: 6, marge: 3 }) });
+  })
+);
+
+/**
+ * Le même QR, mais en image, dans la conversation du bot.
+ *
+ * C'est le seul chemin qui marche depuis un téléphone : la WebView de Telegram
+ * ne laisse pas enregistrer un fichier. Envoyé par le bot, le QR se retrouve
+ * dans la galerie, prêt à être glissé dans un flyer.
+ */
+adminRouter.post(
+  '/link/send',
+  route(async (req, res) => {
+    const lien = await lienDemande(req.body?.product);
+    const legende = lien.cible === 'produit'
+      ? `🔗 ${lien.name}\n${lien.url}` +
+        (lien.hidden ? '\n\n⚠️ Cet article est masqué : le lien ouvrira la boutique sans le montrer.' : '')
+      : `🔗 La boutique\n${lien.url}`;
+
+    // En document plutôt qu'en photo : Telegram recompresse les photos, et un
+    // QR destiné à l'impression mérite de rester au pixel près. Le fichier
+    // arrive nommé, prêt à être glissé dans un flyer.
+    const envoi = await envoyerDansLaConversation(
+      req.telegramUser.id,
+      lien.id ? `qr-${lien.id}.png` : 'qr-boutique.png',
+      toPng(lien.url, { module: 10, marge: 4 }),
+      legende
+    );
+    res.json({ ...envoi, url: lien.url });
+  })
+);
+
 /* ── Export et sauvegarde ────────────────────────────────── */
 
 /**
@@ -410,7 +496,7 @@ adminRouter.post(
       : '';
     // Le BOM force les tableurs à lire l'UTF-8 : sans lui, « Néon » arrive
     // en « NÃ©on » et le vendeur croit son export abîmé.
-    const envoi = await sendFileToAdmin(
+    const envoi = await envoyerDansLaConversation(
       req.telegramUser.id,
       `commandes-${jour}.csv`,
       `\ufeff${csv}`,
@@ -425,7 +511,7 @@ adminRouter.post(
   route(async (req, res) => {
     const backup = await buildBackup();
     const jour = new Date().toISOString().slice(0, 10);
-    const envoi = await sendFileToAdmin(
+    const envoi = await envoyerDansLaConversation(
       req.telegramUser.id,
       `boutique-${jour}.json`,
       JSON.stringify(backup, null, 2),
