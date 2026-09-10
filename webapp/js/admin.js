@@ -582,6 +582,7 @@ function renderSettings() {
   const settings = state.settings;
   if (!settings) return;
 
+  $('fCaptcha').checked = Boolean(settings.captcha?.enabled);
   $('fOrdersPerHour').value = settings.limits.ordersPerHour;
   $('fUnitsPerOrder').value = settings.limits.unitsPerOrder;
 
@@ -615,6 +616,7 @@ async function saveGuards() {
     state.settings = await api('/settings', {
       method: 'PUT',
       body: {
+        captcha: { enabled: $('fCaptcha').checked },
         limits: {
           ordersPerHour: Number($('fOrdersPerHour').value),
           unitsPerOrder: Number($('fUnitsPerOrder').value),
@@ -622,7 +624,7 @@ async function saveGuards() {
       },
     });
     renderSettings();
-    toast('Garde-fous enregistrés');
+    toast('Réglages enregistrés');
     haptic('success');
   } catch (err) {
     toast(err.message);

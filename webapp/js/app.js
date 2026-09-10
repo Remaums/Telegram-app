@@ -5,6 +5,7 @@
 const tg = window.Telegram?.WebApp;
 const CART_KEY = 'kartoon.cart.v1';
 const AGE_KEY = 'kartoon.age.ok';
+const PASS_KEY = 'kartoon.pass';
 
 const state = {
   shop: { shopName: 'COFFEE SHOP 68', currency: 'EUR', sellerUsername: '' },
@@ -12,6 +13,9 @@ const state = {
   products: [],
   statuses: {},
   category: 'all',
+  gates: {},
+  captcha: null,      // épreuve en cours
+  selection: [],      // tuiles touchées
   cart: loadCart(),
   current: null, // produit ouvert dans la fiche
   currentVariant: null,
@@ -47,6 +51,7 @@ async function init() {
     state.categories = data.categories;
     state.products = data.products;
     state.statuses = data.statuses ?? {};
+    state.gates = data.gates ?? {};
   } catch (err) {
     console.error(err);
     toast("Catalogue indisponible, réessaie dans un instant.");
@@ -64,6 +69,7 @@ async function init() {
   renderCategories();
   renderGrid();
   renderCart();
+  gateCaptcha();
 }
 
 function bindStaticHandlers() {
@@ -76,6 +82,7 @@ function bindStaticHandlers() {
 
   $('cartBtn').addEventListener('click', () => openSheet('cartSheet'));
   $('ordersBtn').addEventListener('click', openOrders);
+  $('captchaSubmit').addEventListener('click', submitCaptcha);
   $('checkout').addEventListener('click', checkout);
 
   $('qtyMinus').addEventListener('click', () => setQty(state.currentQty - 1));
@@ -86,6 +93,118 @@ function bindStaticHandlers() {
     el.addEventListener('click', closeSheets);
   }
   document.addEventListener('keydown', (e) => e.key === 'Escape' && closeSheets());
+}
+
+/* ── Épreuve d'entrée ────────────────────────────────────── */
+
+/** Rien à demander si l'épreuve est désactivée ou déjà passée aujourd'hui. */
+function gateCaptcha() {
+  if (!state.gates.captcha || !tg?.initData) return;
+  if (readPass()) return;
+  openCaptcha();
+}
+
+async function openCaptcha() {
+  const error = $('captchaError');
+  error.hidden = true;
+  $('captcha').hidden = false;
+
+  try {
+    const res = await fetch('/api/captcha', {
+      headers: { 'X-Telegram-Init-Data': tg?.initData ?? '' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const challenge = await res.json();
+
+    if (!challenge.required) {
+      $('captcha').hidden = true;
+      return;
+    }
+
+    state.captcha = challenge;
+    state.selection = [];
+    $('captchaPrompt').textContent = challenge.prompt;
+    $('captchaSubmit').disabled = true;
+    renderTiles();
+  } catch (err) {
+    console.error(err);
+    error.textContent = 'Vérification indisponible. Réessaie dans un instant.';
+    error.hidden = false;
+  }
+}
+
+function renderTiles() {
+  $('captchaGrid').replaceChildren(
+    ...state.captcha.tiles.map((tile, index) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tile';
+      btn.textContent = tile;
+      btn.setAttribute('aria-pressed', String(state.selection.includes(index)));
+      btn.addEventListener('click', () => {
+        const picked = !state.selection.includes(index);
+        state.selection = picked
+          ? [...state.selection, index]
+          : state.selection.filter((i) => i !== index);
+        // On bascule la tuile touchée plutôt que de refaire la grille :
+        // redessiner ferait perdre le focus au clavier à chaque appui.
+        btn.setAttribute('aria-pressed', String(picked));
+        $('captchaSubmit').disabled = state.selection.length === 0;
+        haptic('light');
+      });
+      return btn;
+    })
+  );
+}
+
+async function submitCaptcha() {
+  const button = $('captchaSubmit');
+  const error = $('captchaError');
+  button.disabled = true;
+  error.hidden = true;
+
+  try {
+    const res = await fetch('/api/captcha', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Telegram-Init-Data': tg?.initData ?? '',
+      },
+      body: JSON.stringify({
+        nonce: state.captcha.nonce,
+        expiresAt: state.captcha.expiresAt,
+        token: state.captcha.token,
+        selection: state.selection,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      error.textContent = data.error ?? 'Raté. Essaie encore.';
+      error.hidden = false;
+      haptic('light');
+      // Nouvelle grille : sinon on rejoue la même jusqu'à tomber juste.
+      await openCaptcha();
+      return;
+    }
+
+    writePass(data.pass);
+    $('captcha').hidden = true;
+    haptic('success');
+  } catch (err) {
+    console.error(err);
+    error.textContent = 'Vérification indisponible. Réessaie dans un instant.';
+    error.hidden = false;
+    button.disabled = false;
+  }
+}
+
+function readPass() {
+  try { return localStorage.getItem(PASS_KEY); } catch { return null; }
+}
+
+function writePass(pass) {
+  try { localStorage.setItem(PASS_KEY, pass ?? ''); } catch {}
 }
 
 function gateAge() {
@@ -375,6 +494,7 @@ async function checkout() {
       headers: {
         'Content-Type': 'application/json',
         'X-Telegram-Init-Data': tg?.initData ?? '',
+        'X-Shop-Pass': readPass() ?? '',
       },
       body: JSON.stringify({
         items: lines.map((l) => ({ id: l.id, variantId: l.variantId, quantity: l.quantity })),
@@ -382,7 +502,22 @@ async function checkout() {
         note,
       }),
     });
-    if (res.ok) reference = (await res.json()).reference;
+    if (res.ok) {
+      reference = (await res.json()).reference;
+    } else {
+      const data = await res.json().catch(() => ({}));
+      // Le laissez-passer a expiré : on refait l'épreuve plutôt que d'envoyer
+      // le client dans la conversation avec une commande non enregistrée.
+      if (data.error === 'CAPTCHA_REQUIS') {
+        writePass('');
+        closeSheets();
+        await openCaptcha();
+        button.disabled = false;
+        button.textContent = 'Commander';
+        return;
+      }
+      toast(data.error ?? 'Commande refusée.');
+    }
   } catch (err) {
     console.warn('Enregistrement de la commande impossible :', err);
   }

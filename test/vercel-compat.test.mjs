@@ -16,6 +16,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { PassThrough } from 'node:stream';
 import 'dotenv/config';
+import { getShopPass } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 if (!TOKEN) {
@@ -92,11 +93,15 @@ check('Catalogue servi', Array.isArray(catalog.products), `${catalog.products?.l
 const product = catalog.products.find((p) => p.variants?.some((v) => v.stock > 0));
 const variant = product.variants.find((v) => v.stock > 0);
 
+const vercelInit = sign({ id: 987654, first_name: 'Vercel' });
+const vercelPass = await getShopPass(BASE, vercelInit);
+
 const res = await fetch(`${BASE}/api/orders`, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'X-Telegram-Init-Data': sign({ id: 987654, first_name: 'Vercel' }),
+    'X-Telegram-Init-Data': vercelInit,
+    'X-Shop-Pass': vercelPass,
   },
   body: JSON.stringify({ items: [{ id: product.id, variantId: variant.id, quantity: 1 }] }),
 });
@@ -108,7 +113,8 @@ const bad = await fetch(`${BASE}/api/orders`, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'X-Telegram-Init-Data': sign({ id: 987654, first_name: 'Vercel' }),
+    'X-Telegram-Init-Data': vercelInit,
+    'X-Shop-Pass': vercelPass,
   },
   body: '{ ceci nest pas du json',
 });

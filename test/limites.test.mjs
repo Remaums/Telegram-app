@@ -11,6 +11,7 @@
  */
 import crypto from 'node:crypto';
 import 'dotenv/config';
+import { getShopPass } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -47,7 +48,19 @@ const api = (path, { method = 'GET', body, init = admin } = {}) =>
     body: body ? JSON.stringify(body) : undefined,
   });
 
-const buy = (init, items) => api('/api/orders', { method: 'POST', body: { items }, init });
+/** Commande en franchissant d'abord l'épreuve d'entrée. */
+async function buy(init, items) {
+  const pass = await getShopPass(BASE, init);
+  return fetch(`${BASE}/api/orders`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Init-Data': init,
+      'X-Shop-Pass': pass,
+    },
+    body: JSON.stringify({ items }),
+  });
+}
 
 /* ── Préparation : un produit avec du stock ──────────────── */
 

@@ -6,6 +6,7 @@
  */
 import crypto from 'node:crypto';
 import 'dotenv/config';
+import { getShopPass } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -105,10 +106,16 @@ const kush = r.data;
 check('Stock de variante modifié', kush?.variants.find((v) => v.id === '5g').stock === 2);
 
 /* ── Rupture de stock à la commande ──────────────────────── */
+const clientPass = await getShopPass(BASE, client);
+
 const order = (items) =>
   fetch(`${BASE}/api/orders`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': client },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Init-Data': client,
+      'X-Shop-Pass': clientPass,
+    },
     body: JSON.stringify({ items }),
   }).then(async (res) => ({ status: res.status, data: await res.json().catch(() => null) }));
 

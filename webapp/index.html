@@ -37,6 +37,18 @@
   </div>
 </div>
 
+<!-- ══ Épreuve d'entrée ══ -->
+<div class="gate" id="captcha" hidden>
+  <div class="gate__card">
+    <p class="gate__eyebrow">Vérification</p>
+    <h2 class="gate__title goldtext" id="captchaPrompt">Touche les 3 feuilles</h2>
+    <p class="gate__text">Une seconde, le temps de vérifier que tu n'es pas un robot.</p>
+    <div class="grid-tiles" id="captchaGrid" role="group" aria-labelledby="captchaPrompt"></div>
+    <p class="gate__error" id="captchaError" hidden></p>
+    <button class="btn btn--primary btn--grow" id="captchaSubmit" type="button" disabled>Valider</button>
+  </div>
+</div>
+
 <!-- ══ En-tête ══ -->
 <header class="topbar">
   <div class="topbar__brand">

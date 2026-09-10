@@ -10,6 +10,7 @@
  */
 import crypto from 'node:crypto';
 import 'dotenv/config';
+import { getShopPass } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -49,12 +50,22 @@ const setStock = (quantity) =>
     body: JSON.stringify({ variantId: VARIANT, quantity }),
   });
 
+// Chaque client franchit l'épreuve d'entrée avant la ruée : ce qu'on mesure
+// ici, c'est la course au dernier article, pas la porte.
+const clients = await Promise.all(
+  Array.from({ length: CLIENTS }, async (_, i) => {
+    const init = sign({ id: 900000 + i + 1, first_name: `Client${i + 1}` });
+    return { init, pass: await getShopPass(BASE, init) };
+  })
+);
+
 const buy = (n) =>
   fetch(`${BASE}/api/orders`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Telegram-Init-Data': sign({ id: 900000 + n, first_name: `Client${n}` }),
+      'X-Telegram-Init-Data': clients[n - 1].init,
+      'X-Shop-Pass': clients[n - 1].pass,
     },
     body: JSON.stringify({ items: [{ id: PRODUCT, variantId: VARIANT, quantity: 1 }] }),
   }).then((res) => res.status);

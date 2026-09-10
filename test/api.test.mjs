@@ -6,6 +6,7 @@
  */
 import crypto from 'node:crypto';
 import 'dotenv/config';
+import { getShopPass } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -23,15 +24,22 @@ function signInitData(user, authDate = Math.floor(Date.now() / 1000)) {
   return params.toString();
 }
 
+let pass = '';   // laissez-passer de l'épreuve d'entrée, obtenu plus bas
+
 const post = (init, body) =>
   fetch(`${BASE}/api/orders`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(init ? { 'X-Telegram-Init-Data': init } : {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init ? { 'X-Telegram-Init-Data': init } : {}),
+      ...(pass ? { 'X-Shop-Pass': pass } : {}),
+    },
     body: JSON.stringify(body),
   });
 
 const user = { id: 424242, first_name: 'Test', username: 'client_test' };
 const valid = signInitData(user);
+pass = await getShopPass(BASE, valid);
 const results = [];
 const check = (name, pass, detail) => results.push({ name, pass, detail });
 

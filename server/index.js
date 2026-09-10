@@ -15,6 +15,7 @@ import {
 } from './catalog.js';
 import { createOrder, listOrders, countOrdersSince, STATUSES } from './orders.js';
 import { getSettings, isBlocked } from './settings.js';
+import { buildChallenge, solveChallenge, passIsValid } from './captcha.js';
 import { adminRouter } from './admin.js';
 import { bot, notifyAdmin, notifyOrderPlaced } from './bot.js';
 import { storageKind } from './store.js';
@@ -97,7 +98,15 @@ app.get('/api/catalog', async (req, res, next) => {
     const { products, categories } = await getCatalog();
     // `statuses` sert à l'écran « Mes commandes » de la Mini App : les
     // libellés et emojis de statut vivent côté serveur, une seule fois.
-    res.json({ shop: publicConfig, categories, products, statuses: STATUSES });
+    const settings = await getSettings();
+    // La Mini App a besoin de savoir quelles portes elle doit présenter.
+    res.json({
+      shop: publicConfig,
+      categories,
+      products,
+      statuses: STATUSES,
+      gates: { captcha: settings.captcha.enabled },
+    });
   } catch (err) {
     next(err);
   }
@@ -120,6 +129,12 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
 
     if (isBlocked(settings, req.telegramUser.id)) {
       throw new HttpError(403, 'Ce compte ne peut pas passer commande. Écris-nous si c\'est une erreur.');
+    }
+
+    // L'épreuve ne vaut que si elle est exigée ici : côté client seul, elle
+    // ne serait qu'un décor qu'on contourne en sautant l'écran.
+    if (settings.captcha.enabled && !passIsValid(req.get('X-Shop-Pass'), req.telegramUser.id)) {
+      throw new HttpError(403, 'CAPTCHA_REQUIS');
     }
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -211,6 +226,31 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
 app.get('/api/orders', authenticate, async (req, res, next) => {
   try {
     res.json(await listOrders({ userId: req.telegramUser.id, limit: 10 }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ── Épreuve d'entrée ────────────────────────────────────── */
+
+app.get('/api/captcha', authenticate, async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.captcha.enabled) return res.json({ required: false });
+    res.json({ required: true, ...buildChallenge(req.telegramUser.id) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/captcha', authenticate, async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.captcha.enabled) return res.json({ ok: true, pass: null });
+
+    const result = solveChallenge(req.telegramUser.id, req.body ?? {});
+    if (!result.ok) return res.status(400).json({ error: result.reason });
+    res.json({ ok: true, pass: result.pass });
   } catch (err) {
     next(err);
   }

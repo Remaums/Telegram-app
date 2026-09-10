@@ -12,6 +12,9 @@ const DEFAULTS = {
     ordersPerHour: 5,   // commandes par client et par heure
     unitsPerOrder: 30,  // articles cumulés dans une même commande
   },
+  // Épreuve d'entrée de la boutique. Vérifiée côté serveur au moment de
+  // commander : la désactiver rouvre la boutique immédiatement.
+  captcha: { enabled: true },
   // Identifiants Telegram privés de commande, sous forme de chaînes.
   blocked: [],
 };
@@ -25,6 +28,7 @@ export async function getSettings() {
     ...DEFAULTS,
     ...data,
     limits: { ...DEFAULTS.limits, ...(data.limits ?? {}) },
+    captcha: { ...DEFAULTS.captcha, ...(data.captcha ?? {}) },
     blocked: Array.isArray(data.blocked) ? data.blocked : [],
   };
 }
@@ -38,6 +42,9 @@ export async function saveSettings(patch) {
         ordersPerHour: bounded(patch.limits.ordersPerHour, 1, 100, DEFAULTS.limits.ordersPerHour),
         unitsPerOrder: bounded(patch.limits.unitsPerOrder, 1, 999, DEFAULTS.limits.unitsPerOrder),
       };
+    }
+    if (patch.captcha) {
+      data.captcha = { enabled: Boolean(patch.captcha.enabled) };
     }
     if (patch.blocked) {
       data.blocked = normalizeIds(patch.blocked);
