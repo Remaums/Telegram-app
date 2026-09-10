@@ -194,6 +194,37 @@ se règle dans l'espace admin.
 
 Rien à redémarrer après : l'outil écrit dans le même magasin que la boutique.
 
+### Animations et widgets
+
+Deux widgets qui renseignent, trois animations qui accompagnent un geste — le
+tout sous un seul interrupteur (Réglages → Fonctionnalités → *Animations et
+widgets*).
+
+**Le bandeau d'état**, sous l'en-tête, dit si la boutique est ouverte **et
+combien de temps il reste** : « ferme dans 2 h 15 ». Un client qui remplit son
+panier veut savoir s'il a le temps de finir. Le décompte est relatif, calculé
+en minutes par le serveur — le téléphone du client peut être à l'heure d'un
+autre fuseau, un décompte relatif reste juste partout. Il n'apparaît que si les
+horaires sont actifs : sans eux, l'état ne change pas et un bandeau qui répète
+« ouvert » n'apprend rien.
+
+**La jauge du panier** montre la progression vers le prochain avantage —
+livraison offerte ou palier de remise — avec ce qu'il manque. Un client à qui
+il manque cinq euros les ajoute presque toujours, encore faut-il qu'il voie de
+combien il s'en approche. Elle remplace alors la phrase équivalente, plutôt que
+de la répéter.
+
+**Les trois animations** : les cartes entrent en cascade, la vignette d'un
+article s'envole vers le panier quand on l'ajoute, et des cartes vides
+occupent la grille pendant le chargement — l'écran ne saute plus au moment où
+les vraies arrivent.
+
+> **Rien de tout ça n'est nécessaire au fonctionnement.** Coupé par le vendeur,
+> ou par un système qui demande moins de mouvement (`prefers-reduced-motion` —
+> un réglage souvent posé pour raison médicale), tout reste en place et
+> simplement immobile. Une animation ne doit jamais être ce qui rend une chose
+> visible, et un balayage navigateur vérifie les deux états.
+
 ### Photos et vidéos d'une fiche produit
 
 Chaque produit porte une galerie : jusqu'à **huit médias**, photos et vidéos

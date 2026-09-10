@@ -83,6 +83,13 @@
 
 <p class="closed" id="closedBanner" hidden></p>
 
+<!-- État de la boutique, avec le décompte jusqu'au prochain basculement. -->
+<div class="statut" id="statutBar" hidden>
+  <span class="statut__pastille" aria-hidden="true"></span>
+  <span class="statut__texte" id="statutTexte"></span>
+  <span class="statut__compte" id="statutCompte"></span>
+</div>
+
 <main class="page">
 
   <!-- ══ Bannière ══ -->
@@ -213,6 +220,16 @@
         <p class="promo__status" id="promoStatus" hidden role="status"></p>
       </div>
       <p class="cart__hint" id="cartHint" hidden></p>
+
+      <!-- Progression vers la livraison offerte ou le prochain palier. -->
+      <div class="jauge" id="jauge" hidden>
+        <div class="jauge__texte">
+          <span id="jaugeTexte"></span>
+          <span id="jaugeReste"></span>
+        </div>
+        <div class="jauge__piste"><div class="jauge__barre" id="jaugeBarre"></div></div>
+      </div>
+
       <label class="field" id="noteField">
         <span>Un mot pour la commande ? (optionnel)</span>
         <textarea id="orderNote" rows="2" maxlength="500" placeholder="Créneau souhaité, point de retrait, question…"></textarea>

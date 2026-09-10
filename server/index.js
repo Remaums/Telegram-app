@@ -19,7 +19,7 @@ import { createOrder, listOrders, slotCounts, STATUSES } from './orders.js';
 import { getSettings, isBlocked } from './settings.js';
 import { buildChallenge, solveChallenge, passIsValid } from './captcha.js';
 import { getVerification, isApproved } from './verification.js';
-import { isOpenNow } from './opening.js';
+import { isOpenNow, nextChange } from './opening.js';
 import { resolveFileUrl } from './photos.js';
 import { waitlistKey, subscribe, isSubscribed } from './waitlist.js';
 import { bestDiscount, releasePromo } from './promos.js';
@@ -134,7 +134,13 @@ app.get('/api/catalog', async (req, res, next) => {
       },
       // La Mini App masque ce qui est éteint ; le serveur, lui, refuse.
       features: settings.features,
-      opening: { ...isOpenNow(settings.opening), message: settings.opening.message },
+      // `nextChange` alimente le bandeau qui décompte : un client qui remplit
+      // son panier a besoin de savoir s'il a le temps de finir.
+      opening: {
+        ...isOpenNow(settings.opening),
+        message: settings.opening.message,
+        prochain: nextChange(settings.opening),
+      },
       fulfillment: settings.fulfillment,
       // Les paliers sont publics : c'est une promesse d'affichage (« −10 %
       // dès 100 € »), pas un secret. Les codes, eux, ne sortent jamais d'ici.

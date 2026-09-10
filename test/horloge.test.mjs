@@ -10,7 +10,7 @@
  *
  * Usage :  node test/horloge.test.mjs
  */
-import { isOpenNow, normalizeHours, DAYS } from '../server/opening.js';
+import { isOpenNow, nextChange, normalizeHours, DAYS } from '../server/opening.js';
 import { availableSlots, normalizeSlots, slotLabel } from '../server/delivery.js';
 
 let failures = 0;
@@ -147,6 +147,46 @@ console.log('\n=== Délai de préparation ===');
 
   const demain = liste.filter((s) => s.date === '2026-09-13').map((s) => s.from);
   dit(demain.includes('10:00'), 'le délai ne s applique pas aux jours suivants', demain.join(' '));
+}
+
+console.log('\n=== Le décompte jusqu au prochain basculement ===');
+{
+  // Ce que lit le bandeau de la boutique : « ferme dans 2 h 15 ». Se tromper
+  // ici, c'est promettre à un client qu'il a le temps de finir son panier.
+  const tous = (from, to) => horaires(tousLesJours(from, to));
+
+  const cas = [
+    ['ouvert à 14 h, ferme à 22 h', tous('10:00', '22:00'), '2026-09-12T12:00:00Z', true, 8 * 60],
+    ['fermé à 23 h, ouvre à 10 h', tous('10:00', '22:00'), '2026-09-12T21:00:00Z', false, 11 * 60],
+    ['une minute avant la fermeture', tous('10:00', '22:00'), '2026-09-12T19:59:00Z', true, 1],
+    // Une plage qui franchit minuit : le basculement est le lendemain matin.
+    ['ouvert à 23 h sur 22h–02h', tous('22:00', '02:00'), '2026-09-12T21:00:00Z', true, 3 * 60],
+    ['fermé à 3 h sur 22h–02h', tous('22:00', '02:00'), '2026-09-13T01:00:00Z', false, 19 * 60],
+  ];
+
+  for (const [label, o, instant, ouvert, minutes] of cas) {
+    const r = nextChange(o, new Date(instant));
+    dit(r?.open === ouvert && r?.minutes === minutes, label,
+      r ? `${r.open ? 'ferme' : 'ouvre'} dans ${r.minutes} min, attendu ${minutes}` : 'aucun changement');
+  }
+
+  // Trois cas où il n'y a rien à décompter : le bandeau doit alors se taire
+  // plutôt que d'afficher un compteur qui ne veut rien dire.
+  dit(nextChange({ open: false }, new Date()) === null, 'fermeture manuelle : aucun décompte');
+  dit(nextChange({ open: true, hours: { enabled: false } }, new Date()) === null,
+    'horaires coupés : aucun décompte');
+
+  const ferme = Object.fromEntries(DAYS.map((j) => [j, { closed: true, from: '10:00', to: '22:00' }]));
+  const r = nextChange(horaires(ferme), new Date('2026-09-12T12:00:00Z'));
+  dit(r === null, 'tous les jours fermés : aucun décompte', JSON.stringify(r));
+
+  // Un jour unique d'ouverture : le décompte doit traverser toute la semaine.
+  const rare = Object.fromEntries(DAYS.map((j) => [j, { closed: true, from: '10:00', to: '22:00' }]));
+  rare.mer = { closed: false, from: '14:00', to: '15:00' };
+  const loin = nextChange(horaires(rare), new Date('2026-09-12T12:00:00Z'));
+  dit(loin?.open === false && loin.minutes > 24 * 60,
+    'une ouverture lointaine se décompte quand même',
+    loin ? `ouvre dans ${Math.round(loin.minutes / 60)} h` : 'aucun changement');
 }
 
 console.log(`\n${failures ? `${failures} test(s) en échec` : 'Horloge et calendrier : OK'}`);

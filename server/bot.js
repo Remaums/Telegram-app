@@ -510,11 +510,22 @@ export async function notifyOrderPlaced(order) {
  */
 export async function sendFileToAdmin(chatId, filename, contenu, legende) {
   const donnees = Buffer.isBuffer(contenu) ? contenu : Buffer.from(contenu, 'utf8');
-  await bot.api.sendDocument(chatId, new InputFile(donnees, filename), {
-    caption: legende?.slice(0, 1000),
-  });
+  await bot.api.sendDocument(
+    chatId,
+    new InputFile(donnees, filename),
+    { caption: legende?.slice(0, 1000) },
+    // grammY attend 500 secondes par défaut — il le faut pour le long polling,
+    // qui tient la connexion ouverte exprès. Mais cet envoi-ci répond à une
+    // requête HTTP : quelqu'un attend devant son écran. Sans cette borne, un
+    // réseau coupé laissait l'admin sur un bouton grisé pendant huit minutes,
+    // sans un mot.
+    AbortSignal.timeout(DELAI_ENVOI),
+  );
   return { filename, octets: donnees.length };
 }
+
+/** Au-delà, on rend la main : personne n'attend deux fois ça devant un écran. */
+const DELAI_ENVOI = 25000;
 
 /**
  * Envoie une annonce, doucement.

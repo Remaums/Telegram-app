@@ -50,6 +50,15 @@ export const FEATURES = [
     default: false,
   },
   {
+    key: 'animations',
+    label: 'Animations et widgets',
+    hint:
+      "Les cartes qui apparaissent en cascade, l'article qui s'envole vers le panier, " +
+      "le bandeau qui décompte jusqu'à la fermeture, la barre de progression vers la " +
+      'livraison offerte. Coupé, tout reste en place, mais sans mouvement.',
+    default: true,
+  },
+  {
     key: 'search',
     label: 'Recherche au catalogue',
     hint: 'Une barre de recherche et un tri (prix, nouveautés) au-dessus de la grille.',

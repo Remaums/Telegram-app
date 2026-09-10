@@ -38,6 +38,8 @@ const state = {
   current: null, // produit ouvert dans la fiche
   currentVariant: null,
   currentQty: 1,
+  bascule: 0,       // instant du prochain changement d'état de la boutique
+  decompte: null,   // minuterie du bandeau
 };
 
 const $ = (id) => document.getElementById(id);
@@ -62,6 +64,7 @@ async function init() {
 
   bindStaticHandlers();
   gateAge();
+  montrerLeSquelette();
 
   try {
     const res = await fetch('/api/catalog');
@@ -84,6 +87,7 @@ async function init() {
     state.tiers = data.discounts?.tiers ?? [];
     state.zones = data.zones ?? [];
     state.slotsEnabled = Boolean(data.slots?.enabled);
+    appliquerLesAnimations();
     applyFeatures();
     state.mode = state.fulfillment.pickup ? 'pickup' : 'delivery';
   } catch (err) {
@@ -106,6 +110,7 @@ async function init() {
   $('footLegal').textContent = legal;
 
   renderClosedBanner();
+  renderStatut();
   renderModes();
   renderCategories();
   renderGrid();
@@ -153,6 +158,44 @@ function montrerPanne(err) {
   zone.append(titre, texte, detail, reessayer);
   toast("Catalogue indisponible, réessaie dans un instant.");
 }
+
+/**
+ * Pose des cartes vides le temps que le catalogue arrive.
+ *
+ * Mieux qu'un écran vide : la grille montre sa forme, l'attente paraît plus
+ * courte, et l'écran ne saute pas au moment où les vraies cartes arrivent —
+ * elles occupent déjà la place.
+ */
+function montrerLeSquelette() {
+  const grille = $('grid');
+  if (grille.childElementCount) return;
+  grille.replaceChildren(
+    ...Array.from({ length: 6 }, () => {
+      const faux = document.createElement('div');
+      faux.className = 'squelette';
+      faux.setAttribute('aria-hidden', 'true');
+      return faux;
+    })
+  );
+}
+
+/**
+ * Suspend ou rétablit tout le mouvement de la boutique.
+ *
+ * Deux raisons de le couper : le vendeur a éteint la fonctionnalité, ou le
+ * système du client demande moins de mouvement — un réglage qu'on ne discute
+ * pas, souvent posé pour raison médicale. Le CSS fait le reste ; rien ne
+ * disparaît, tout devient simplement immobile.
+ */
+function appliquerLesAnimations() {
+  const sobre = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const coupe = state.features.animations === false || sobre;
+  document.documentElement.dataset.anim = coupe ? 'off' : 'on';
+  return !coupe;
+}
+
+/** Vrai si la boutique a le droit de bouger. */
+const anime = () => document.documentElement.dataset.anim !== 'off';
 
 function bindStaticHandlers() {
   $('ageYes').addEventListener('click', () => {
@@ -506,6 +549,132 @@ function revalidatePromo() {
   }, 400);
 }
 
+/**
+ * Le bandeau d'état, avec le décompte jusqu'au prochain basculement.
+ *
+ * « Ouvert » tout seul ne dit rien d'utile : un client qui remplit son panier
+ * veut savoir s'il a le temps de finir. Le décompte est relatif — rendu en
+ * minutes par le serveur — parce que le téléphone du client peut être à
+ * l'heure d'un autre fuseau, et qu'un « ferme dans 20 min » reste juste
+ * partout.
+ */
+function renderStatut() {
+  const bandeau = $('statutBar');
+
+  // Sans horaires, l'état ne change pas : un bandeau qui répète « ouvert »
+  // n'apprend rien et prend de la place.
+  const prochain = state.opening.prochain;
+  if (state.features.animations === false || state.blocked || !prochain) {
+    bandeau.hidden = true;
+    arreterLeDecompte();
+    return;
+  }
+
+  bandeau.hidden = false;
+  bandeau.classList.toggle('statut--ferme', !state.opening.open);
+  $('statutTexte').textContent = state.opening.open ? 'Boutique ouverte' : 'Boutique fermée';
+
+  // On retient l'instant du basculement plutôt que le nombre de minutes :
+  // une Mini App reste ouverte des heures, et un compteur figé à l'arrivée
+  // mentirait très vite.
+  state.bascule = Date.now() + prochain.minutes * 60000;
+  rafraichirLeDecompte();
+  arreterLeDecompte();
+  // Une fois par minute suffit : on n'affiche pas les secondes.
+  state.decompte = setInterval(rafraichirLeDecompte, 30000);
+}
+
+function arreterLeDecompte() {
+  if (state.decompte) clearInterval(state.decompte);
+  state.decompte = null;
+}
+
+function rafraichirLeDecompte() {
+  const reste = Math.round((state.bascule - Date.now()) / 60000);
+  const verbe = state.opening.open ? 'ferme' : 'ouvre';
+
+  if (reste <= 0) {
+    // L'heure du basculement est passée : c'est au serveur de trancher, pas
+    // à nous de deviner. On recharge le catalogue, qui porte l'état réel.
+    $('statutCompte').textContent = '';
+    arreterLeDecompte();
+    refreshCatalog();
+    return;
+  }
+
+  const heures = Math.floor(reste / 60);
+  const minutes = reste % 60;
+  $('statutCompte').textContent = heures
+    ? `${verbe} dans ${heures} h${minutes ? ` ${minutes}` : ''}`
+    : `${verbe} dans ${minutes} min`;
+}
+
+/**
+ * La jauge de progression vers le prochain avantage.
+ *
+ * @returns {boolean} vrai si elle s'affiche — la phrase des paliers s'efface
+ *   alors, pour ne pas dire deux fois la même chose.
+ *
+ * Un client à qui il manque cinq euros pour la livraison offerte les ajoute
+ * presque toujours — encore faut-il qu'il le sache, et qu'il voie de combien
+ * il s'en approche. La barre dit d'un coup d'œil ce qu'une phrase dit moins
+ * vite.
+ */
+function renderJauge(subtotal) {
+  const jauge = $('jauge');
+  if (state.features.animations === false) {
+    jauge.hidden = true;
+    return false;
+  }
+
+  const objectif = prochainObjectif(subtotal);
+  if (!objectif) {
+    jauge.hidden = true;
+    return false;
+  }
+
+  jauge.hidden = false;
+  jauge.classList.toggle('jauge--atteint', objectif.atteint);
+  $('jaugeTexte').textContent = objectif.texte;
+  $('jaugeReste').textContent = objectif.atteint
+    ? '✓'
+    : `plus que ${formatPrice(objectif.seuil - subtotal)}`;
+  // La largeur est bornée : au-delà du seuil, la barre est pleine, pas plus.
+  const part = Math.max(4, Math.min(100, Math.round((subtotal / objectif.seuil) * 100)));
+  $('jaugeBarre').style.width = `${objectif.atteint ? 100 : part}%`;
+  return true;
+}
+
+/**
+ * Le prochain avantage à atteindre, ou celui qu'on vient d'obtenir.
+ *
+ * La livraison offerte passe devant les paliers de remise quand elle est plus
+ * proche : c'est celle qui parle le plus, et deux jauges à la fois ne diraient
+ * plus rien du tout.
+ */
+function prochainObjectif(subtotal) {
+  const candidats = [];
+
+  const franco = state.fulfillment.freeDeliveryFrom;
+  if (state.mode === 'delivery' && franco) {
+    candidats.push({ seuil: franco, texte: 'Livraison offerte', atteint: subtotal >= franco });
+  }
+  for (const palier of state.tiers) {
+    candidats.push({
+      seuil: palier.from,
+      texte: `−${palier.percent} % sur la commande`,
+      atteint: subtotal >= palier.from,
+    });
+  }
+  if (!candidats.length) return null;
+
+  // Celui qu'on n'a pas encore atteint et qui est le plus proche ; à défaut,
+  // le dernier obtenu, pour que la barre pleine reste une bonne nouvelle.
+  const devant = candidats.filter((c) => !c.atteint).sort((a, b) => a.seuil - b.seuil)[0];
+  if (devant) return devant;
+  return candidats.sort((a, b) => b.seuil - a.seuil)[0];
+}
+
 /** Boutique fermée : on le dit, et on empêche la commande. */
 function renderClosedBanner() {
   const banner = $('closedBanner');
@@ -805,7 +974,19 @@ function renderGrid() {
     ? `Rien ne correspond à « ${state.query.trim()} ».`
     : 'Rien dans cette catégorie pour le moment.';
 
-  grid.replaceChildren(...list.map(productCard));
+  const cartes = list.map(productCard);
+
+  // Chaque carte porte son rang : le CSS en tire le décalage de la cascade.
+  // Le rang est plafonné, sinon la trentième carte d'un gros catalogue
+  // attendrait plus d'une seconde avant de paraître.
+  if (anime()) {
+    cartes.forEach((carte, rang) => {
+      carte.style.setProperty('--rang', String(Math.min(rang, 12)));
+      carte.classList.add('card--entre');
+    });
+  }
+
+  grid.replaceChildren(...cartes);
 }
 
 /**
@@ -1202,14 +1383,83 @@ function addCurrentToCart() {
   saveCart();
   renderCart();
   revalidatePromo();
+
+  // La vignette part vers le panier AVANT la fermeture de la fiche : c'est
+  // d'elle qu'on relève la position de départ, et une feuille refermée n'a
+  // plus de position.
+  const decollage = volVersLePanier();
   closeSheets();
   haptic('success');
   toast(`${product.name} ajouté au panier 🛒`);
 
-  const badge = $('cartCount');
-  badge.classList.remove('pop');
-  void badge.offsetWidth; // force le redémarrage de l'animation
-  badge.classList.add('pop');
+  // La pastille saute quand la vignette la rejoint, pas avant : les deux
+  // gestes racontent alors la même chose au même moment.
+  const sauter = () => {
+    const badge = $('cartCount');
+    badge.classList.remove('pop');
+    void badge.offsetWidth; // force le redémarrage de l'animation
+    badge.classList.add('pop');
+  };
+  decollage ? decollage.then(sauter) : sauter();
+}
+
+/**
+ * Fait voler la vignette du produit jusqu'au bouton du panier.
+ *
+ * Une copie posée par-dessus la page le temps du trajet : l'original ne bouge
+ * pas, et la copie ne bloque aucun appui puisqu'elle ne reçoit pas les clics.
+ * Rien de tout ça n'est nécessaire au fonctionnement — sans animation, la
+ * fonction rend `null` et le panier se remplit pareil.
+ *
+ * @returns {Promise<void>|null} tenue jusqu'à l'arrivée, ou null si immobile.
+ */
+function volVersLePanier() {
+  if (!anime()) return null;
+
+  const source = $('pGallery').hidden
+    ? $('pImage')
+    : $('pGalleryTrack').querySelector('img');
+  const cible = $('cartBtn');
+  if (!source || !cible) return null;
+
+  const depart = source.getBoundingClientRect();
+  const arrivee = cible.getBoundingClientRect();
+  if (!depart.width || !arrivee.width) return null;
+
+  const copie = document.createElement('div');
+  copie.className = 'vol';
+  copie.style.left = `${depart.left}px`;
+  copie.style.top = `${depart.top}px`;
+  copie.style.width = `${depart.width}px`;
+  copie.style.height = `${depart.height}px`;
+
+  const image = document.createElement('img');
+  image.src = source.currentSrc || source.src;
+  image.alt = '';
+  copie.append(image);
+  document.body.append(copie);
+
+  const dx = arrivee.left + arrivee.width / 2 - (depart.left + depart.width / 2);
+  const dy = arrivee.top + arrivee.height / 2 - (depart.top + depart.height / 2);
+  const echelle = Math.max(0.12, arrivee.width / Math.max(1, depart.width));
+
+  return new Promise((fini) => {
+    requestAnimationFrame(() => {
+      copie.style.transform = `translate(${dx}px, ${dy}px) scale(${echelle})`;
+      copie.style.opacity = '0.35';
+    });
+    // `transitionend` peut ne jamais venir — onglet en arrière-plan, animation
+    // interrompue : le délai de secours garantit qu'on retire toujours la copie.
+    let retire = false;
+    const nettoyer = () => {
+      if (retire) return;
+      retire = true;
+      copie.remove();
+      fini();
+    };
+    copie.addEventListener('transitionend', nettoyer, { once: true });
+    setTimeout(nettoyer, 700);
+  });
 }
 
 /** Enrichit les lignes du panier avec les données produit à jour. */
@@ -1305,6 +1555,10 @@ function renderCart() {
   strike.hidden = remise.discount === 0;
   strike.textContent = remise.discount ? formatPrice(subtotal + fee) : '';
 
+  // La jauge se calcule avant l'affichage des remises : c'est elle qui décide
+  // si la phrase des paliers a encore quelque chose à ajouter.
+  const jaugeVisible = renderJauge(subtotal);
+
   if (promoError) {
     showPromoStatus(promoError, false);
   } else if (remise.discount && remise.label) {
@@ -1315,7 +1569,9 @@ function renderCart() {
       true
     );
   } else if (!state.promo && !$('promoCode').value.trim()) {
-    showPromoStatus(nextTierHint(subtotal), null);
+    // La jauge dit déjà ce qui manque, et mieux : répéter la phrase
+    // juste au-dessus d'elle ferait lire deux fois la même chose.
+    showPromoStatus(jaugeVisible ? '' : nextTierHint(subtotal), null);
   }
 
   const hint = $('cartHint');

@@ -802,6 +802,118 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: linear-gradient(180deg, rgb(var(--ink-rgb) / .55), transparent);
 }
 
+/* ══ Animations et widgets ═══════════════════════════════════
+   Tout ce bloc est suspendu par `[data-anim='off']`, que pose la boutique
+   quand la fonctionnalité est éteinte ou que le système demande moins de
+   mouvement. Rien ne disparaît alors : les éléments sont simplement là,
+   immobiles. Une animation ne doit jamais être ce qui rend une chose
+   visible. */
+
+/* ── Apparition des cartes, en cascade ───────────────────── */
+
+/* Le décalage vient d'une variable posée par le script : une règle par carte
+   serait ingérable, et `nth-child` figerait le nombre de produits. */
+.card--entre {
+  animation: carte-entre .34s cubic-bezier(.22, .9, .3, 1) backwards;
+  animation-delay: calc(var(--rang, 0) * 42ms);
+}
+@keyframes carte-entre {
+  from { opacity: 0; transform: translateY(14px) scale(.97); }
+}
+
+/* ── L'article qui s'envole vers le panier ───────────────── */
+
+/* Une copie de la vignette, posée en `fixed` le temps du vol, puis retirée.
+   `pointer-events: none` : elle traverse l'écran, elle ne doit rien bloquer. */
+.vol {
+  position: fixed; z-index: 95; pointer-events: none;
+  border-radius: 12px; overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: transform .55s cubic-bezier(.5, -0.2, .7, 1), opacity .55s ease-in;
+}
+.vol img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* La pastille du panier a déjà son `pop` : on ne l'empile pas, on la laisse
+   dire « c'est arrivé » au moment où la vignette la rejoint. */
+
+/* ── Squelette de chargement ─────────────────────────────── */
+
+/* Mieux qu'un écran vide : la grille montre sa forme pendant que le catalogue
+   arrive, donc l'attente paraît courte et l'écran ne saute pas au moment où
+   les vraies cartes remplacent les fausses. */
+.squelette {
+  border-radius: var(--radius); border: 1px solid var(--line-soft);
+  background: rgb(var(--panel-rgb) / .35);
+  aspect-ratio: 3 / 4; position: relative; overflow: hidden;
+}
+.squelette::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgb(var(--cream-rgb) / .07) 50%, transparent 80%);
+  animation: luire 1.4s linear infinite;
+}
+@keyframes luire { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+/* ── Widget : l'état de la boutique ──────────────────────── */
+
+.statut {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 14px 10px; padding: 8px 12px; border-radius: 999px;
+  border: 1px solid var(--line-soft); background: rgb(var(--panel-rgb) / .5);
+  font-size: 12.5px; font-weight: 800;
+}
+.statut__pastille {
+  flex: none; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--neon); box-shadow: 0 0 0 0 rgb(var(--neon-rgb) / .6);
+  animation: pulse-statut 2.4s ease-out infinite;
+}
+.statut--ferme .statut__pastille { background: rgb(var(--red-rgb)); animation: none; }
+.statut--ferme { border-color: rgb(var(--red-rgb) / .45); }
+@keyframes pulse-statut {
+  0%   { box-shadow: 0 0 0 0 rgb(var(--neon-rgb) / .55); }
+  70%  { box-shadow: 0 0 0 7px rgb(var(--neon-rgb) / 0); }
+  100% { box-shadow: 0 0 0 0 rgb(var(--neon-rgb) / 0); }
+}
+.statut__texte { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statut__compte { color: var(--muted); font-weight: 700; }
+
+/* ── Widget : la progression vers un palier ──────────────── */
+
+.jauge { margin: 10px 0 2px; }
+.jauge__texte {
+  display: flex; justify-content: space-between; gap: 10px;
+  font-size: 12px; font-weight: 800; margin-bottom: 6px;
+}
+.jauge__texte span:last-child { color: var(--muted); font-weight: 700; white-space: nowrap; }
+.jauge__piste {
+  height: 7px; border-radius: 999px; overflow: hidden;
+  background: rgb(var(--ink-rgb) / .55);
+}
+.jauge__barre {
+  height: 100%; border-radius: 999px; width: 0;
+  background: linear-gradient(90deg, var(--neon-deep), var(--neon));
+  box-shadow: 0 0 10px rgb(var(--neon-rgb) / .5);
+  transition: width .5s cubic-bezier(.22, .9, .3, 1);
+}
+.jauge--atteint .jauge__barre { background: linear-gradient(90deg, var(--gold-lo), var(--gold)); }
+.jauge--atteint .jauge__texte span:first-child { color: var(--gold); }
+
+/* ── Quand le mouvement n'est pas souhaité ───────────────── */
+
+/* Deux raisons de tout suspendre : le vendeur a coupé la fonctionnalité, ou
+   le système du client demande moins de mouvement — un réglage qu'on ne
+   discute pas, il est souvent posé pour raison médicale. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important; scroll-behavior: auto !important;
+  }
+}
+[data-anim='off'] .card--entre { animation: none; }
+[data-anim='off'] .statut__pastille { animation: none; }
+[data-anim='off'] .squelette::after { animation: none; }
+[data-anim='off'] .jauge__barre { transition: none; }
+[data-anim='off'] .cartbtn__count.pop { animation: none; }
+
 /* ── Galerie de la fiche produit ─────────────────────────── */
 
 /* Un défilement horizontal aimanté plutôt qu'un carrousel en JavaScript : le

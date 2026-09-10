@@ -40,6 +40,50 @@ export function isOpenNow(opening, now = new Date()) {
   return { open: false, reason: 'horaires' };
 }
 
+/**
+ * Dans combien de minutes la boutique change-t-elle d'état ?
+ *
+ * Sert au bandeau qui décompte : « ferme dans 2 h 15 » vaut mieux qu'un
+ * « ouvert » nu, parce qu'un client qui remplit son panier a besoin de savoir
+ * s'il a le temps. On rend des minutes plutôt qu'une heure absolue : le
+ * téléphone du client peut être à l'heure d'un autre fuseau, et un décompte
+ * relatif reste juste de toute façon.
+ *
+ * Rend `null` quand rien ne changera — horaires coupés, boutique fermée à la
+ * main, ou ouverte sans interruption.
+ *
+ * @returns {{open: boolean, minutes: number}|null}
+ */
+export function nextChange(opening, now = new Date()) {
+  if (!opening?.open) return null;            // fermeture manuelle : rien à décompter
+  if (!opening.hours?.enabled) return null;   // sans horaires, l'état ne bouge pas
+
+  const etat = isOpenNow(opening, now);
+  const { minutes } = localTime(now, opening.hours.timezone);
+  const jours = opening.hours.days ?? {};
+
+  // On avance minute par minute jusqu'au basculement, au plus une semaine.
+  // Une semaine de minutes, c'est dix mille tours de boucle sur des nombres :
+  // trop peu pour qu'une formule plus savante en vaille la complexité, et
+  // impossible à prendre en défaut sur les plages qui franchissent minuit.
+  const depart = DAYS.indexOf(localTime(now, opening.hours.timezone).day);
+  if (depart < 0) return null;
+
+  for (let delta = 1; delta <= 7 * 24 * 60; delta++) {
+    const total = minutes + delta;
+    const jour = DAYS[(depart + Math.floor(total / (24 * 60))) % 7];
+    const dansLeJour = total % (24 * 60);
+
+    const veille = DAYS[(DAYS.indexOf(jour) + 6) % 7];
+    const ouvert =
+      covers(jours[jour], dansLeJour) ||
+      (wrapsPastMidnight(jours[veille]) && covers(jours[veille], dansLeJour + 24 * 60));
+
+    if (ouvert !== etat.open) return { open: etat.open, minutes: delta };
+  }
+  return null; // ouverte en continu
+}
+
 /** Le créneau couvre-t-il cette minute ? (les minutes peuvent dépasser 24 h) */
 function covers(slot, minutes) {
   if (!slot || slot.closed) return false;
