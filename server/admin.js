@@ -18,7 +18,8 @@ import {
   saveCategories,
   restoreStock,
 } from './catalog.js';
-import { STATUSES, listOrders, getOrder, setStatus, stats } from './orders.js';
+import { STATUSES, listOrders, allOrders, getOrder, setStatus, stats } from './orders.js';
+import { bilan } from './bilan.js';
 import { getSettings, saveSettings, blockClient, unblockClient } from './settings.js';
 import { listVerifications, decideVerification, resetVerification } from './verification.js';
 import {
@@ -86,6 +87,26 @@ adminRouter.get(
 );
 
 /* ── Catalogue ───────────────────────────────────────────── */
+
+/**
+ * Le bilan de la période : ce que les commandes disent quand on les regroupe.
+ *
+ * Le fuseau de la boutique est passé au calcul, pas celui du serveur : un VPS
+ * réglé sur UTC couperait ses journées à deux heures du matin, en plein milieu
+ * du coup de feu du samedi soir.
+ */
+adminRouter.get(
+  '/bilan',
+  route(async (req, res) => {
+    const settings = await getSettings();
+    res.json(
+      bilan(await allOrders(), {
+        jours: Number(req.query.jours) || 30,
+        timezone: settings.opening?.hours?.timezone,
+      })
+    );
+  })
+);
 
 adminRouter.get(
   '/catalog',

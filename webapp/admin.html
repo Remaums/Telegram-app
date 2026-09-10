@@ -39,11 +39,27 @@
 
 <main class="a-main">
 
-  <!-- ══ Tableau de bord ══ -->
+  <!-- ══ Tableau de bord ══ ═══════════════════════════════════
+       Une seule rangée de filtres, en haut, qui commande tout ce
+       qui suit : une période par graphique donnerait quatre
+       lectures différentes du même magasin. -->
   <section class="a-panel" id="panel-board">
+    <div class="a-periode" id="periode" role="group" aria-label="Période observée"></div>
+
+    <div class="a-hero" id="hero"></div>
     <div class="a-kpis" id="kpis"></div>
+
+    <h2 class="a-h2">Ventes par jour</h2>
+    <figure class="a-viz" id="vizJours"></figure>
+
     <h2 class="a-h2">Meilleures ventes</h2>
-    <ul class="a-list" id="topProducts"></ul>
+    <figure class="a-viz" id="vizProduits"></figure>
+    <ul class="a-list" id="topProducts" hidden></ul>
+
+    <h2 class="a-h2">Quand on commande</h2>
+    <figure class="a-viz" id="vizHeures"></figure>
+    <figure class="a-viz" id="vizSemaine"></figure>
+
     <h2 class="a-h2">Alertes stock</h2>
     <ul class="a-list" id="lowStock"></ul>
   </section>

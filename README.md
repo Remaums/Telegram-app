@@ -563,6 +563,54 @@ choisit — le reste du serveur ignore lequel tourne.
 
 ## Exploitation au quotidien
 
+### Le tableau de bord
+
+L'onglet **Tableau** répond à quatre questions : combien ça rapporte, est-ce
+que ça monte, qu'est-ce qui se vend, et quand.
+
+Une seule rangée de boutons en haut — **7, 30 ou 90 jours** — commande tout le
+panneau : une période par graphique donnerait quatre lectures différentes du
+même magasin.
+
+- **Le chiffre de la période, en tête**, avec la comparaison à la période
+  précédente de même longueur. « 1 240 € » ne dit pas si la boutique monte ;
+  « ▲ 20 % vs les 30 jours d'avant » si.
+- **Ventes par jour** — une colonne par jour, le jour du bout souligné et sa
+  valeur écrite dessus. Au-delà de six semaines, on regroupe par semaine :
+  quatre-vingt-dix colonnes de deux pixels ne se lisent pas. Un jour sans vente
+  garde son trait, en gris : sans lui, la rangée a des trous et on ne sait plus
+  quel jour on regarde.
+- **Meilleures ventes** — chiffre par produit, six au plus, le reste réuni.
+- **Quand on commande** — par tranche de deux heures et par jour de la semaine.
+  C'est ce qui décide des horaires d'ouverture et du jour de réassort.
+
+Trois précautions valent d'être connues, parce qu'un tableau de bord faux est
+pire qu'aucun tableau de bord — on y croit, et on décide dessus :
+
+1. **Le fuseau de la boutique fait foi**, pas celui du serveur. Un VPS réglé sur
+   UTC couperait ses journées à deux heures du matin, c'est-à-dire en plein
+   coup de feu du samedi soir : la moitié d'une soirée serait comptée le
+   lendemain.
+2. **Une commande annulée ne rapporte rien** — elle sort du chiffre, du panier
+   moyen et des ventes par produit — **mais elle compte dans le taux
+   d'annulation**, qui a sa propre tuile.
+3. **Un nouveau client est un client dont la toute première commande** tombe
+   dans la période. Sans ça, chaque habitué redeviendrait un nouveau client à
+   chaque changement de mois.
+
+> **Chaque graphique porte son tableau de valeurs**, replié dessous (« Voir les
+> chiffres »). Une bulle de survol n'existe pas au doigt et ne se lit pas au
+> lecteur d'écran : aucune valeur n'est enfermée dedans.
+
+Côté dessin : une seule teinte de remplissage pour tout le panneau, et le néon
+de la maison réservé à **une marque à la fois** — le jour d'aujourd'hui, l'heure
+de pointe. Deux couleurs à distinguer obligeraient à apprendre une légende pour
+lire ses ventes du mardi, alors que la longueur des barres dit déjà tout. Les
+graphiques sont écrits à la main en SVG : quatre courbes ne valent pas cinquante
+kilo-octets de bibliothèque chargés sur le réseau d'un téléphone.
+
+### Réglages
+
 Tout se règle depuis l'onglet **Réglages** de l'espace admin, sans redéployer.
 
 ### Fonctionnalités

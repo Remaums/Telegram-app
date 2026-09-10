@@ -103,6 +103,17 @@ export async function listOrders({ userId, status, limit = 50 } = {}) {
 }
 
 /**
+ * Toutes les commandes, pour un calcul d'ensemble.
+ *
+ * Le bilan a besoin de l'historique complet, pas des cinquante dernières : la
+ * première commande d'un client est ce qui le distingue d'un nouveau, et elle
+ * peut dater de l'an dernier.
+ */
+export async function allOrders() {
+  return [...(await store.read())];
+}
+
+/**
  * Nombre de commandes passées par un client depuis un instant donné.
  *
  * Compté sur les commandes elles-mêmes plutôt que sur un compteur en mémoire :

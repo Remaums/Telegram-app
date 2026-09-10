@@ -112,6 +112,7 @@ body.admin {
 .a-kpi { border-radius: 16px; padding: 13px 14px; box-shadow: var(--shadow-sm); }
 .a-kpi__label { display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
 .a-kpi__value { display: block; font-size: 27px; line-height: 1.2; margin-top: 3px; overflow-wrap: anywhere; }
+.a-kpi__note { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); margin-top: 2px; }
 .a-kpi--accent {
   background: linear-gradient(180deg, rgb(var(--neon-rgb) / .22), rgb(var(--neon-rgb) / .1));
   border-color: rgb(var(--neon-rgb) / .5); box-shadow: var(--glow-neon);
@@ -531,4 +532,88 @@ body.admin {
   padding: 5px 10px; border-radius: 999px; text-decoration: none;
   font-size: 12px; font-weight: 800; color: var(--cream);
   background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .14);
+}
+
+/* ══ Tableau de bord ═══════════════════════════════════════
+   Les marques portent la couleur, jamais le texte : un vert clair
+   en lettres sur ce fond ne se lit pas. D'où deux tons seulement —
+   un vert de remplissage, tenu dans la bande de clarté qui reste
+   lisible sur une surface sombre, et le néon de la maison réservé
+   à ce qu'on veut souligner (aujourd'hui, le meilleur jour). */
+.a-viz {
+  --viz: #7fa327;          /* remplissage : une seule teinte, tout le tableau */
+  --viz-accent: #c6ff3d;   /* l'emphase, sur une marque à la fois */
+  --viz-grille: rgb(var(--cream-rgb) / .12);
+  --viz-piste: rgb(var(--cream-rgb) / .1);
+  margin: 0 0 14px;
+  padding: 14px 12px 10px;
+  border-radius: 16px;
+  background: rgb(var(--panel-rgb) / .6);
+  border: 1px solid var(--line-soft);
+}
+.a-viz__titre { font-size: 12px; font-weight: 800; color: var(--muted); margin: 0 2px 10px; }
+.a-viz svg { display: block; width: 100%; height: auto; overflow: visible; }
+.a-viz__vide { color: var(--muted); font-size: 13px; padding: 18px 2px; text-align: center; }
+
+/* Une colonne : bout arrondi côté valeur, carré sur la ligne de base. */
+.a-col { fill: var(--viz); transition: fill .12s ease; }
+.a-col--accent { fill: var(--viz-accent); }
+.a-col--vide { fill: var(--viz-piste); }
+.a-col__zone { fill: transparent; cursor: pointer; }
+.a-col__zone:hover + .a-col, .a-col__zone:focus-visible + .a-col { fill: var(--viz-accent); }
+.a-axe { fill: var(--muted); font-size: 9.5px; font-weight: 700; }
+.a-grille { stroke: var(--viz-grille); stroke-width: 1; }
+
+/* Barres horizontales : le nom au-dessus, la valeur au bout. */
+.a-barres { display: flex; flex-direction: column; gap: 9px; margin: 0; }
+.a-barre__tete { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; font-weight: 700; }
+.a-barre__tete b { font-weight: 800; }
+.a-barre__valeur { color: var(--muted); white-space: nowrap; }
+.a-barre__piste { height: 10px; border-radius: 999px; background: var(--viz-piste); overflow: hidden; }
+.a-barre__part { height: 100%; border-radius: 0 999px 999px 0; background: var(--viz); }
+
+/* Jauge : une part sur son total, sans deuxième teinte à distinguer. */
+.a-jauges { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.a-jauge__valeur { font-size: 22px; font-weight: 800; }
+
+.a-hero {
+  padding: 16px 14px 14px; border-radius: 18px; margin-bottom: 10px;
+  background: linear-gradient(180deg, rgb(var(--neon-rgb) / .18), rgb(var(--neon-rgb) / .06));
+  border: 1px solid rgb(var(--neon-rgb) / .4);
+}
+.a-hero__label { font-size: 11.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+/* Chiffres proportionnels : à cette taille, des chiffres de largeur fixe
+   donnent l'air d'être espacés au hasard. */
+.a-hero__valeur { display: block; font-size: 40px; line-height: 1.05; margin: 4px 0 2px; font-variant-numeric: proportional-nums; }
+.a-hero__delta { font-size: 13px; font-weight: 700; color: var(--muted); }
+.a-hero__delta b { font-weight: 800; }
+.a-hero__delta--haut b { color: var(--neon); }
+.a-hero__delta--bas b { color: var(--red); }
+
+/* La rangée de périodes : elle commande tout le panneau. */
+.a-periode { display: flex; gap: 8px; margin-bottom: 12px; }
+.a-periode button {
+  flex: 1; padding: 9px 4px; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 800;
+  background: rgb(var(--panel-rgb) / .6); border: 1px solid var(--line-soft); color: var(--cream);
+}
+.a-periode button[aria-pressed='true'] {
+  background: linear-gradient(180deg, rgb(var(--neon-rgb) / .3), rgb(var(--neon-rgb) / .12));
+  border-color: rgb(var(--neon-rgb) / .55); color: var(--neon);
+}
+
+/* Le tableau des valeurs, replié : aucune valeur n'est enfermée dans une
+   bulle qui n'existe pas au doigt. */
+.a-viz details { margin-top: 10px; }
+.a-viz summary { font-size: 12px; font-weight: 800; color: var(--muted); cursor: pointer; }
+.a-viz table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12.5px; }
+.a-viz th, .a-viz td { text-align: right; padding: 4px 2px; border-bottom: 1px solid var(--viz-grille); font-variant-numeric: tabular-nums; }
+.a-viz th:first-child, .a-viz td:first-child { text-align: left; font-variant-numeric: normal; }
+.a-viz thead th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+
+/* La bulle de survol : elle complète, elle ne détient rien. */
+.a-bulle {
+  position: fixed; z-index: 60; pointer-events: none;
+  padding: 7px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;
+  background: rgb(var(--void-rgb) / .95); border: 1px solid var(--line-soft);
+  color: var(--cream); box-shadow: var(--shadow-sm); white-space: nowrap;
 }

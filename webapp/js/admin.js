@@ -12,6 +12,8 @@ const state = {
   categories: [],
   orders: [],
   stats: null,
+  bilan: null,       // le regroupement des commandes sur la période choisie
+  periode: 30,       // en jours ; commande tout le tableau de bord
   settings: null,
   verifications: [],
   promos: [],
@@ -139,13 +141,14 @@ function bindHandlers() {
 }
 
 async function refreshAll() {
-  const [catalog, orders, stats, settings, verifications, promos] = await Promise.all([
+  const [catalog, orders, stats, settings, verifications, promos, bilan] = await Promise.all([
     api('/catalog'),
     api('/orders'),
     api('/stats'),
     api('/settings'),
     api('/verifications'),
     api('/promos'),
+    api(`/bilan?jours=${state.periode}`),
   ]);
   state.settings = settings;
   state.verifications = verifications;
@@ -155,6 +158,7 @@ async function refreshAll() {
   state.categories = catalog.categories.filter((c) => c.id !== 'all');
   state.orders = orders;
   state.stats = stats;
+  state.bilan = bilan;
 
   renderBoard();
   renderOrderFilters();
@@ -183,44 +187,330 @@ function selectTab(name) {
 
 /* ── Tableau de bord ─────────────────────────────────────── */
 
+/**
+ * Le tableau de bord : ce que les commandes disent quand on les regroupe.
+ *
+ * Une seule teinte de remplissage dans tout le panneau, et le néon de la
+ * maison réservé à une marque à la fois. Deux couleurs à distinguer
+ * demanderaient au vendeur d'apprendre une légende pour lire ses ventes du
+ * mardi ; la longueur des barres dit déjà tout.
+ */
 function renderBoard() {
-  const s = state.stats;
-  const kpis = [
-    { label: "Chiffre d'affaires", value: formatPrice(s.revenue), cls: 'a-kpi--accent' },
-    { label: "Aujourd'hui", value: formatPrice(s.revenueToday) },
-    { label: 'Commandes', value: s.ordersTotal },
-    { label: 'À traiter', value: s.pending, cls: s.pending ? 'a-kpi--warn' : '' },
-  ];
+  renderPeriode();
 
+  const b = state.bilan;
+  if (!b) return;
+  const r = b.resume;
+
+  // Le chiffre de la période, en tête, avec la comparaison qui lui donne un
+  // sens : « 1 240 € » ne dit pas si la boutique monte ou descend.
+  const sens = r.evolution === null ? '' : r.evolution >= 0 ? 'haut' : 'bas';
+  $('hero').innerHTML =
+    `<span class="a-hero__label">Chiffre d'affaires · ${b.periode.jours} jours</span>` +
+    `<span class="a-hero__valeur goldtext">${escapeHtml(formatPrice(r.chiffre))}</span>` +
+    (r.evolution === null
+      ? '<span class="a-hero__delta">Pas encore de période précédente à comparer</span>'
+      : `<span class="a-hero__delta a-hero__delta--${sens}">` +
+        `<b>${r.evolution >= 0 ? '▲' : '▼'} ${Math.abs(r.evolution)} %</b> ` +
+        `vs les ${b.periode.jours} jours d'avant (${escapeHtml(formatPrice(r.chiffreAvant))})</span>`);
+
+  const kpis = [
+    { label: 'Commandes', value: r.commandes },
+    { label: 'Panier moyen', value: formatPrice(r.panierMoyen) },
+    { label: 'À traiter', value: state.stats.pending, cls: state.stats.pending ? 'a-kpi--warn' : '' },
+    { label: 'Clients servis', value: r.clients, note: r.nouveaux ? `dont ${r.nouveaux} nouveau${r.nouveaux > 1 ? 'x' : ''}` : 'aucun nouveau' },
+    { label: 'Livraisons', value: `${r.partLivraison} %` },
+    { label: 'Annulations', value: `${r.tauxAnnulation} %`, cls: r.tauxAnnulation >= 20 ? 'a-kpi--warn' : '' },
+  ];
   $('kpis').replaceChildren(
     ...kpis.map((k) => {
       const div = document.createElement('div');
       div.className = `a-kpi ${k.cls ?? ''}`.trim();
-      div.innerHTML = `<span class="a-kpi__label">${escapeHtml(k.label)}</span>
-        <span class="a-kpi__value">${escapeHtml(String(k.value))}</span>`;
+      div.innerHTML =
+        `<span class="a-kpi__label">${escapeHtml(k.label)}</span>` +
+        `<span class="a-kpi__value">${escapeHtml(String(k.value))}</span>` +
+        (k.note ? `<span class="a-kpi__note">${escapeHtml(k.note)}</span>` : '');
       return div;
     })
   );
 
-  $('topProducts').replaceChildren(
-    ...(s.topProducts.length
-      ? s.topProducts.map((p) =>
-          listRow(p.name, `${p.quantity} vendu${p.quantity > 1 ? 's' : ''} · ${formatPrice(p.revenue)}`)
-        )
-      : [emptyRow('Aucune vente pour le moment.')])
-  );
+  // Au-delà de six semaines, un jour ne fait plus qu'un trait de deux pixels :
+  // on regroupe par semaine plutôt que de dessiner un peigne illisible.
+  const jours = b.periode.jours > 45 ? parSemaine(b.parJour) : b.parJour;
+  colonnes($('vizJours'), {
+    titre: b.periode.jours > 45 ? 'Chiffre par semaine' : 'Chiffre par jour',
+    points: jours.map((j) => ({ etiquette: j.etiquette, valeur: j.chiffre, detail: `${j.commandes} commande${j.commandes > 1 ? 's' : ''}` })),
+    format: formatPrice,
+    accent: jours.length - 1,
+    colonnesTableau: ['Jour', 'Chiffre', 'Commandes'],
+    lignesTableau: jours.map((j) => [j.etiquette, formatPrice(j.chiffre), String(j.commandes)]),
+  });
+
+  // Six produits au plus, le reste réuni : au-delà, on lit une liste, pas un
+  // graphique — et la liste complète est juste en dessous, dépliable.
+  const tete = b.produits.slice(0, 6);
+  const reste = b.produits.slice(6);
+  const total = reste.reduce((somme, p) => somme + p.chiffre, 0);
+  const lignes = [...tete];
+  if (reste.length) lignes.push({ nom: `${reste.length} autres`, chiffre: total, quantite: reste.reduce((s2, p) => s2 + p.quantite, 0) });
+
+  barres($('vizProduits'), {
+    titre: 'Chiffre par produit',
+    lignes: lignes.map((p) => ({ nom: p.nom, valeur: p.chiffre, texte: `${p.quantite} vendu${p.quantite > 1 ? 's' : ''} · ${formatPrice(p.chiffre)}` })),
+    colonnesTableau: ['Produit', 'Vendus', 'Chiffre'],
+    lignesTableau: b.produits.map((p) => [p.nom, String(p.quantite), formatPrice(p.chiffre)]),
+  });
+
+  colonnes($('vizHeures'), {
+    titre: "Commandes par tranche de 2 h",
+    points: b.heures.map((h) => ({ etiquette: h.tranche, valeur: h.commandes, detail: 'commandes' })),
+    format: (v) => String(v),
+    accent: indiceDuMax(b.heures.map((h) => h.commandes)),
+    pasDeLibelle: 2,
+    colonnesTableau: ['Tranche', 'Commandes'],
+    lignesTableau: b.heures.map((h) => [h.tranche, String(h.commandes)]),
+  });
+
+  colonnes($('vizSemaine'), {
+    titre: 'Commandes par jour de la semaine',
+    points: b.semaine.map((j) => ({ etiquette: j.jour.slice(0, 3), valeur: j.commandes, detail: formatPrice(j.chiffre) })),
+    format: (v) => String(v),
+    accent: indiceDuMax(b.semaine.map((j) => j.commandes)),
+    colonnesTableau: ['Jour', 'Commandes', 'Chiffre'],
+    lignesTableau: b.semaine.map((j) => [j.jour, String(j.commandes), formatPrice(j.chiffre)]),
+  });
 
   const low = lowStockRows();
   $('lowStock').replaceChildren(
     ...(low.length
-      ? low.map((r) =>
-          listRow(r.label, r.stock === 0 ? 'Épuisé' : `Plus que ${r.stock}`)
-        )
+      ? low.map((r2) => listRow(r2.label, r2.stock === 0 ? 'Épuisé' : `Plus que ${r2.stock}`))
       : [emptyRow('Tous les stocks sont corrects.')])
   );
 }
 
-/** Lignes de stock au niveau ou en dessous du seuil d'alerte. */
+/** Les boutons de période : ils commandent tout le panneau, d'où leur place. */
+function renderPeriode() {
+  const choix = [
+    [7, '7 jours'],
+    [30, '30 jours'],
+    [90, '90 jours'],
+  ];
+  $('periode').replaceChildren(
+    ...choix.map(([jours, label]) => {
+      const bouton = document.createElement('button');
+      bouton.type = 'button';
+      bouton.textContent = label;
+      bouton.setAttribute('aria-pressed', String(jours === state.periode));
+      bouton.addEventListener('click', async () => {
+        if (jours === state.periode) return;
+        state.periode = jours;
+        renderPeriode();
+        haptic('light');
+        // On garde le rendu précédent en attendant : un squelette qui clignote
+        // à chaque changement de période fait sauter la page.
+        $('panel-board').style.opacity = '.55';
+        try {
+          state.bilan = await api(`/bilan?jours=${jours}`);
+          renderBoard();
+        } catch (err) {
+          toast(err.message);
+        } finally {
+          $('panel-board').style.opacity = '';
+        }
+      });
+      return bouton;
+    })
+  );
+}
+
+/** Regroupe des jours en semaines, la dernière semaine en tête de son lundi. */
+function parSemaine(parJour) {
+  const semaines = [];
+  for (const jour of parJour) {
+    const dernier = semaines[semaines.length - 1];
+    if (!dernier || dernier.compte === 7) {
+      semaines.push({ etiquette: jour.etiquette, chiffre: 0, commandes: 0, compte: 0 });
+    }
+    const courante = semaines[semaines.length - 1];
+    courante.chiffre += jour.chiffre;
+    courante.commandes += jour.commandes;
+    courante.compte++;
+  }
+  return semaines;
+}
+
+const indiceDuMax = (valeurs) => valeurs.indexOf(Math.max(...valeurs));
+
+/* ── Les graphiques ──────────────────────────────────────── */
+
+/**
+ * Un histogramme, en SVG écrit à la main.
+ *
+ * Pas de bibliothèque : quatre graphiques ne valent pas cinquante kilo-octets
+ * chargés à l'ouverture de l'espace admin, souvent sur le réseau d'un
+ * téléphone. Les marques sont fines, le bout arrondi côté valeur et carré sur
+ * la ligne de base, et deux pixels de fond les séparent — c'est ce vide qui
+ * fait la séparation, pas un contour.
+ */
+function colonnes(figure, { titre, points, format, accent = -1, pasDeLibelle, colonnesTableau, lignesTableau }) {
+  // Sept étiquettes au plus : trente dates côte à côte se chevauchent et ne se
+  // lisent plus du tout — mieux vaut une date sur cinq, lisible.
+  const pas = pasDeLibelle ?? Math.max(1, Math.ceil(points.length / 7));
+  const L = 340;
+  const H = 132;      // la zone tracée
+  const BAS = 148;    // la bande des étiquettes, incluse dans la boîte
+  const GAUCHE = 30;  // la gouttière de l'échelle
+
+  const valeurs = points.map((p) => p.valeur);
+  const max = Math.max(...valeurs, 0);
+  if (!points.length || max === 0) {
+    figure.innerHTML =
+      `<p class="a-viz__titre">${escapeHtml(titre)}</p>` +
+      '<p class="a-viz__vide">Rien à montrer sur cette période.</p>';
+    return;
+  }
+
+  const bande = (L - GAUCHE) / points.length;
+  const largeur = Math.max(2, Math.min(24, bande - 2)); // les 2 px de vide
+  const hauteur = (v) => Math.round((v / max) * (H - 14));
+
+  const marques = points
+    .map((p, i) => {
+      const x = GAUCHE + i * bande + (bande - largeur) / 2;
+      // Un jour sans vente garde son trait, en gris de piste : sans lui, la
+      // rangée de jours a des trous, on ne sait plus lequel on regarde, et le
+      // jour souligné disparaîtrait avec sa valeur les jours creux.
+      const h = p.valeur > 0 ? Math.max(3, hauteur(p.valeur)) : 2;
+      const y = H - h;
+      const r = Math.min(4, largeur / 2, h);
+      const classe = p.valeur > 0 ? (i === accent ? 'a-col a-col--accent' : 'a-col') : 'a-col a-col--vide';
+      const forme =
+        `<path class="${classe}" d="M${x} ${y + r} a${r} ${r} 0 0 1 ${r} -${r} h${largeur - 2 * r} a${r} ${r} 0 0 1 ${r} ${r} V${H} H${x} Z"></path>`;
+      // La zone de survol couvre toute la bande : viser une colonne de six
+      // pixels au doigt est un jeu d'adresse, pas une lecture.
+      return (
+        `<rect class="a-col__zone" x="${GAUCHE + i * bande}" y="0" width="${bande}" height="${H}" ` +
+        `tabindex="0" role="button" aria-label="${escapeHtml(`${p.etiquette} : ${format(p.valeur)}`)}" ` +
+        `data-bulle="${escapeHtml(`${p.etiquette} · ${format(p.valeur)}${p.detail ? ` · ${p.detail}` : ''}`)}"></rect>${forme}`
+      );
+    })
+    .join('');
+
+  const etiquettes = points
+    .map((p, i) =>
+      i % pas === 0 || i === points.length - 1
+        ? `<text class="a-axe" x="${GAUCHE + i * bande + bande / 2}" y="${BAS}" text-anchor="middle">${escapeHtml(p.etiquette)}</text>`
+        : ''
+    )
+    .join('');
+
+  // Une valeur posée sur une seule cap — celle qu'on souligne. Un nombre sur
+  // chaque colonne ne se lit plus.
+  // Rien à écrire au-dessus d'un jour sans vente : « 0 € » suspendu au bord
+  // encombre l'axe et n'apprend rien que la colonne vide ne dise déjà.
+  const pointe =
+    accent >= 0 && points[accent]?.valeur > 0
+      ? `<text class="a-axe" x="${GAUCHE + accent * bande + bande / 2}" y="${H - hauteur(points[accent].valeur) - 5}" ` +
+        `text-anchor="middle">${escapeHtml(format(points[accent].valeur))}</text>`
+      : '';
+
+  figure.innerHTML =
+    `<p class="a-viz__titre">${escapeHtml(titre)}</p>` +
+    `<svg viewBox="0 0 ${L} ${BAS + 4}" role="img" aria-label="${escapeHtml(titre)}">` +
+    `<line class="a-grille" x1="${GAUCHE}" y1="0.5" x2="${L}" y2="0.5"></line>` +
+    `<line class="a-grille" x1="${GAUCHE}" y1="${H + 0.5}" x2="${L}" y2="${H + 0.5}"></line>` +
+    `<text class="a-axe" x="0" y="9">${escapeHtml(format(max))}</text>` +
+    `<text class="a-axe" x="0" y="${H + 3}">0</text>` +
+    `${marques}${pointe}${etiquettes}</svg>` +
+    tableauDeValeurs(colonnesTableau, lignesTableau);
+
+  brancherLaBulle(figure);
+}
+
+/**
+ * Des barres horizontales, en HTML.
+ *
+ * Un nom de produit tient rarement dans une colonne verticale : ici il a toute
+ * la largeur, la barre est en dessous, et la valeur au bout de la ligne.
+ */
+function barres(figure, { titre, lignes, colonnesTableau, lignesTableau }) {
+  const max = Math.max(...lignes.map((l) => l.valeur), 0);
+  if (!lignes.length || max === 0) {
+    figure.innerHTML =
+      `<p class="a-viz__titre">${escapeHtml(titre)}</p>` +
+      '<p class="a-viz__vide">Aucune vente sur cette période.</p>';
+    return;
+  }
+
+  figure.innerHTML =
+    `<p class="a-viz__titre">${escapeHtml(titre)}</p>` +
+    '<div class="a-barres">' +
+    lignes
+      .map(
+        (l) =>
+          '<div class="a-barre">' +
+          `<div class="a-barre__tete"><b>${escapeHtml(l.nom)}</b>` +
+          `<span class="a-barre__valeur">${escapeHtml(l.texte)}</span></div>` +
+          `<div class="a-barre__piste"><div class="a-barre__part" style="width:${Math.max(2, Math.round((l.valeur / max) * 100))}%"></div></div>` +
+          '</div>'
+      )
+      .join('') +
+    '</div>' +
+    tableauDeValeurs(colonnesTableau, lignesTableau);
+}
+
+/**
+ * Le même contenu, en tableau, replié sous le graphique.
+ *
+ * Une bulle de survol n'existe pas au doigt et ne se lit pas au lecteur
+ * d'écran : aucune valeur ne doit n'être accessible que par elle.
+ */
+function tableauDeValeurs(colonnes_, lignes) {
+  if (!colonnes_?.length || !lignes?.length) return '';
+  return (
+    '<details><summary>Voir les chiffres</summary><table><thead><tr>' +
+    colonnes_.map((c) => `<th>${escapeHtml(c)}</th>`).join('') +
+    '</tr></thead><tbody>' +
+    lignes
+      .map((ligne) => `<tr>${ligne.map((c) => `<td>${escapeHtml(String(c))}</td>`).join('')}</tr>`)
+      .join('') +
+    '</tbody></table></details>'
+  );
+}
+
+/** Une bulle unique, posée près du doigt, qui ne retient jamais l'information. */
+function brancherLaBulle(figure) {
+  const montrer = (zone, x, y) => {
+    let bulle = document.getElementById('bulleViz');
+    if (!bulle) {
+      bulle = document.createElement('div');
+      bulle.id = 'bulleViz';
+      bulle.className = 'a-bulle';
+      document.body.append(bulle);
+    }
+    bulle.textContent = zone.dataset.bulle ?? '';
+    bulle.style.left = `${Math.min(window.innerWidth - 12, Math.max(12, x))}px`;
+    bulle.style.top = `${Math.max(8, y - 44)}px`;
+    bulle.style.transform = 'translateX(-50%)';
+    bulle.hidden = false;
+  };
+  const cacher = () => {
+    const bulle = document.getElementById('bulleViz');
+    if (bulle) bulle.hidden = true;
+  };
+
+  for (const zone of figure.querySelectorAll('.a-col__zone')) {
+    zone.addEventListener('pointerenter', (e) => montrer(zone, e.clientX, e.clientY));
+    zone.addEventListener('pointerdown', (e) => montrer(zone, e.clientX, e.clientY));
+    zone.addEventListener('pointerleave', cacher);
+    zone.addEventListener('focus', () => {
+      const boite = zone.getBoundingClientRect();
+      montrer(zone, boite.left + boite.width / 2, boite.top);
+    });
+    zone.addEventListener('blur', cacher);
+  }
+}
+
 function lowStockRows() {
   const rows = [];
   for (const product of state.products) {
