@@ -656,6 +656,17 @@ app.use((err, req, res, next) => {
     return res.status(err.status).json({ error: err.expose ? err.message : 'Requête refusée.' });
   }
 
+  // Une panne de stockage n'est pas un bogue : c'est une installation à
+  // corriger, et son message dit comment. Le taire derrière « Erreur
+  // interne » oblige le vendeur à aller lire les journaux — quand il sait
+  // qu'ils existent.
+  if (err.fichier || ['EACCES', 'EPERM', 'EROFS', 'ENOSPC'].includes(err.code)) {
+    console.error('Stockage inaccessible :', err.message);
+    return res.status(503).json({
+      error: `Les données de la boutique sont inaccessibles.\n\n${err.message}`,
+    });
+  }
+
   console.error('Erreur serveur :', err);
   res.status(500).json({ error: 'Erreur interne.' });
 });

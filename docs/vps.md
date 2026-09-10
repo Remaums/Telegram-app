@@ -461,6 +461,7 @@ Une ligne pour une sauvegarde quotidienne, gardée 30 jours :
 | `EADDRINUSE` | le port 3000 est déjà pris | `sudo lsof -i :3000`, ou change `PORT` dans `.env` |
 | `sudo : commande introuvable` ou `shop n'est pas dans le fichier sudoers` | l'utilisateur a été créé sans les droits | depuis root : `usermod -aG sudo shop`, puis reconnecte-toi |
 | `bash: cd: /home/shop/Telegram-app : Aucun fichier` | le dépôt a été cloné ailleurs, souvent dans `/root` | voir « Si tu as déjà tout cloné en root », étape 2 |
+| « Catalogue indisponible » et « Erreur interne » sur tout | le dossier de données n'appartient pas à l'utilisateur du service — typiquement un dépôt cloné en `root` et un service lancé sous `shop` | la boutique nomme maintenant le fichier, l'utilisateur et le remède, à l'écran comme au journal. En résumé : `sudo chown -R shop /home/shop/Telegram-app/server/data` |
 | `EACCES` sur `server/data` | le service n'écrit pas dans son dossier | `sudo chown -R shop:shop ~/Telegram-app` |
 | Commande passée, rien reçu | `ADMIN_CHAT_ID` absent ou faux | corrige `.env` et redémarre |
 | L'espace admin refuse l'accès | ton ID n'est pas dans `ADMIN_IDS` | `/start` pour le relire, corrige, redémarre |

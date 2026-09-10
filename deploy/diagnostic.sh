@@ -198,6 +198,49 @@ for f in catalog.json orders.json settings.json; do
 done
 [ -f server/data/.lock ] && ligne ".lock" "présent (PID $(cat server/data/.lock 2>/dev/null | head -c 20)) — deux instances ?"
 
+titre "L'utilisateur du service peut-il écrire ?"
+# La panne d'installation numéro un : le dépôt cloné en root, le service
+# lancé sous un autre compte. Le dossier paraît lisible depuis ce shell, et
+# ne l'est pas pour la boutique — d'où des « erreur interne » sur tout.
+UTILISATEUR=$(systemctl show -p User --value "$SERVICE" 2>/dev/null)
+UTILISATEUR=${UTILISATEUR:-$(id -un)}
+DOSSIER=$(systemctl show -p WorkingDirectory --value "$SERVICE" 2>/dev/null)
+
+ligne "Service lancé sous" "$UTILISATEUR"
+ligne "Dossier du service" "${DOSSIER:-(non déclaré)}"
+if [ -n "$DOSSIER" ] && [ "$DOSSIER" != "$RACINE" ]; then
+  ligne "→ DÉSACCORD" "le service pointe ailleurs que ce dépôt ($RACINE)"
+  ligne "→ REMÈDE" "relance bash deploy/installer.sh depuis le bon dossier"
+fi
+
+ligne "server/data appartient à" "$(stat -c '%U:%G (%a)' server/data 2>/dev/null || echo '?')"
+for f in catalog.json orders.json settings.json; do
+  [ -f "server/data/$f" ] && ligne "  $f" "$(stat -c '%U:%G (%a)' "server/data/$f")"
+done
+
+# Le test qui compte : on se met à la place du service.
+if [ "$UTILISATEUR" = "$(id -un)" ]; then
+  [ -w server/data ] \
+    && ligne "Écriture dans server/data" "possible" \
+    || ligne "Écriture dans server/data" "IMPOSSIBLE — c'est la panne"
+elif command -v sudo >/dev/null; then
+  if sudo -n -u "$UTILISATEUR" test -w server/data 2>/dev/null; then
+    ligne "Écriture par $UTILISATEUR" "possible"
+    for f in catalog.json orders.json settings.json; do
+      [ -f "server/data/$f" ] || continue
+      sudo -n -u "$UTILISATEUR" test -r "server/data/$f" 2>/dev/null \
+        && ligne "  $f lisible par lui" "oui" \
+        || { ligne "  $f lisible par lui" "NON — c'est la panne"
+             ligne "  → REMÈDE" "sudo chown -R $UTILISATEUR $RACINE/server/data"; }
+    done
+  else
+    ligne "Écriture par $UTILISATEUR" "IMPOSSIBLE — c'est très probablement la panne"
+    ligne "→ REMÈDE" "sudo chown -R $UTILISATEUR $RACINE/server/data"
+  fi
+else
+  ligne "Vérification des droits" "impossible sans sudo"
+fi
+
 titre "Journal, 30 dernières lignes"
 if command -v journalctl >/dev/null; then
   journalctl -u "$SERVICE" -n 30 --no-pager 2>/dev/null | masquer | sed 's/^/  /' \

@@ -65,7 +65,13 @@ async function init() {
 
   try {
     const res = await fetch('/api/catalog');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      // Le serveur explique souvent la panne dans le corps — un dossier de
+      // données mal attribué, par exemple. Le remplacer par « HTTP 503 »
+      // jetterait précisément ce qui sert à la réparer.
+      const dit = await res.json().catch(() => ({}));
+      throw new Error(dit.error ?? `HTTP ${res.status}`);
+    }
     const data = await res.json();
     state.shop = data.shop;
     state.categories = data.categories;

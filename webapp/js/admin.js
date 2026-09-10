@@ -51,11 +51,22 @@ async function init() {
     return;
   }
 
-  await refreshAll();
+  // Sans ce rattrapage, une panne de stockage laissait l'espace admin sur un
+  // écran à moitié peint, sans un mot : le seul endroit où l'explication
+  // aurait servi était justement celui qui ne l'affichait pas.
+  try {
+    await refreshAll();
+  } catch (err) {
+    denyAccess(err.message);
+  }
 }
 
 function denyAccess(message) {
   const gate = $('gate');
+  // Le rideau est déjà levé quand la session a été acceptée : une panne
+  // survenue après — le stockage, par exemple — écrivait alors son message
+  // dans un élément masqué, et l'écran restait à moitié peint sans un mot.
+  gate.hidden = false;
   gate.classList.add('a-gate--denied');
   $('gateSpinner').hidden = true;
   $('gateText').textContent = message;
