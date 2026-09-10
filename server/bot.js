@@ -5,6 +5,7 @@ import { restoreStock, getCatalog, setProductPhoto } from './catalog.js';
 import { matchProduct } from './photos.js';
 import { getSettings, saveSettings } from './settings.js';
 import { requestVerification, decideVerification } from './verification.js';
+import { desabonner, reabonner, estDesabonne, consignerResultat } from './annonces.js';
 
 /**
  * Le bot, construit même sans jeton.
@@ -60,6 +61,24 @@ bot.command('commandes', async (ctx) => {
       `  ${new Date(o.createdAt).toLocaleDateString('fr-FR')}`
   );
   await ctx.reply(`Tes dernières commandes :\n\n${lines.join('\n')}`);
+});
+
+bot.command('stop', async (ctx) => {
+  await desabonner(ctx.from.id);
+  await ctx.reply(
+    '🔕 C\'est noté : tu ne recevras plus d\'annonce.\n\n' +
+      'Les messages sur tes propres commandes continuent, eux : ce sont des ' +
+      'réponses, pas de la publicité. Écris /annonces pour revenir en arrière.'
+  );
+});
+
+bot.command('annonces', async (ctx) => {
+  const coupe = await estDesabonne(ctx.from.id);
+  if (!coupe) {
+    return ctx.reply('🔔 Tu reçois déjà les annonces. Écris /stop pour ne plus en recevoir.');
+  }
+  await reabonner(ctx.from.id);
+  await ctx.reply('🔔 C\'est reparti : tu recevras de nouveau les annonces.');
 });
 
 bot.command('admin', async (ctx) => {
@@ -277,6 +296,7 @@ bot.command('aide', (ctx) =>
     'Commandes disponibles :\n' +
       '/boutique — ouvrir le catalogue\n' +
       '/commandes — voir tes commandes\n' +
+      '/stop — ne plus recevoir d\'annonces\n' +
       '/aide — ce message' +
       (isAdmin(ctx.from.id)
         ? '\n/admin — espace administrateur' +
@@ -368,6 +388,57 @@ export async function sendFileToAdmin(chatId, filename, contenu, legende) {
     caption: legende?.slice(0, 1000),
   });
   return { filename, octets: donnees.length };
+}
+
+/**
+ * Envoie une annonce, doucement.
+ *
+ * Telegram coupe au-delà d'une trentaine de messages par seconde et bloque le
+ * bot qui insiste. On envoie donc par petits paquets, avec une pause entre
+ * chacun : mille clients prennent une minute, ce qui n'a aucune importance
+ * pour une annonce, et le bot reste en vie.
+ *
+ * Un client qui a bloqué le bot fait échouer son envoi sans que le reste en
+ * souffre — et il est désabonné au passage, puisqu'il a dit non à sa manière.
+ */
+export async function diffuser(envoi, clients, { paquet = 20, pause = 1200 } = {}) {
+  let recus = 0;
+  let echecs = 0;
+
+  const texte =
+    `${envoi.texte}\n\n` +
+    '— — —\n' +
+    'Tu reçois ce message parce que tu as déjà commandé ici. ' +
+    'Écris /stop pour ne plus en recevoir.';
+
+  for (let i = 0; i < clients.length; i += paquet) {
+    const tranche = clients.slice(i, i + paquet);
+    const resultats = await Promise.allSettled(
+      tranche.map((c) =>
+        bot.api.sendMessage(c.id, texte, {
+          reply_markup: config.webappUrl ? shopKeyboard() : undefined,
+        })
+      )
+    );
+
+    for (const [index, r] of resultats.entries()) {
+      if (r.status === 'fulfilled') {
+        recus++;
+        continue;
+      }
+      echecs++;
+      // 403 : le client a bloqué le bot ou supprimé la conversation. Insister
+      // à chaque annonce ne servirait qu'à refaire échouer les prochaines.
+      if (r.reason?.error_code === 403) {
+        await desabonner(tranche[index].id).catch(() => {});
+      }
+    }
+
+    if (i + paquet < clients.length) await new Promise((r) => setTimeout(r, pause));
+  }
+
+  await consignerResultat(envoi.id, { recus, echecs }).catch(() => {});
+  return { recus, echecs };
 }
 
 /** Récapitulatif d'une commande, tel que le vendeur le lit dans Telegram. */

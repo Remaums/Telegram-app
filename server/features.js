@@ -68,6 +68,12 @@ export const FEATURES = [
     default: true,
   },
   {
+    key: 'announcements',
+    label: 'Annonces aux clients',
+    hint: 'Écrire à ceux qui ont déjà commandé — nouveauté, promo, fermeture exceptionnelle.',
+    default: false,
+  },
+  {
     key: 'waitlist',
     label: "Liste d'attente",
     hint: 'Sur un article épuisé, le client demande à être prévenu du retour.',

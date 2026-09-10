@@ -16,11 +16,14 @@ import {
 import { STATUSES, listOrders, getOrder, setStatus, stats } from './orders.js';
 import { getSettings, saveSettings, blockClient, unblockClient } from './settings.js';
 import { listVerifications, decideVerification, resetVerification } from './verification.js';
-import { notifyCustomer, notifyBackInStock, sendFileToAdmin } from './bot.js';
+import { notifyCustomer, notifyBackInStock, sendFileToAdmin, diffuser } from './bot.js';
 import { waitlistKey, takeSubscribers } from './waitlist.js';
 import { listPromos, savePromo, deletePromo } from './promos.js';
 import { FEATURES } from './features.js';
 import { buildBackup, restoreBackup, inspectBackup, ordersToCsv } from './backup.js';
+import {
+  destinataires, reserverEnvoi, annulerEnvoi, historique, reabonner, desabonner, estDesabonne,
+} from './annonces.js';
 
 export const adminRouter = express.Router();
 
@@ -264,6 +267,85 @@ adminRouter.post(
     if (status === 'none') return res.json(await resetVerification(req.params.id));
     res.json(await decideVerification(req.params.id, status, req.telegramUser.id));
   })
+);
+
+/* ── Annonces ────────────────────────────────────────────── */
+
+/** Qui recevrait l'annonce, avant de l'écrire. */
+adminRouter.get(
+  '/announcements/audience',
+  route(async (req, res) => {
+    const clients = await destinataires({
+      depuisJours: req.query.depuisJours ? Number(req.query.depuisJours) : undefined,
+      minCommandes: req.query.minCommandes ? Number(req.query.minCommandes) : 1,
+    });
+    res.json({ total: clients.length, apercu: clients.slice(0, 5).map((c) => c.prenom ?? `#${c.id}`) });
+  })
+);
+
+adminRouter.get(
+  '/announcements',
+  route(async (req, res) => res.json(await historique(10)))
+);
+
+/**
+ * Envoie l'annonce.
+ *
+ * Le créneau est réservé avant le premier message : deux appuis sur
+ * « Envoyer » ne doivent pas produire deux annonces. La réponse part sans
+ * attendre la fin de la diffusion — mille clients prennent une minute, et
+ * l'écran d'admin n'a pas à rester bloqué pendant ce temps.
+ */
+adminRouter.post(
+  '/announcements',
+  route(async (req, res) => {
+    const settings = await getSettings();
+    if (!settings.features.announcements) {
+      throw new HttpError(403, 'Les annonces ne sont pas activées.');
+    }
+
+    const { texte, depuisJours, minCommandes, force } = req.body ?? {};
+    const clients = await destinataires({
+      depuisJours: depuisJours ? Number(depuisJours) : undefined,
+      minCommandes: minCommandes ? Number(minCommandes) : 1,
+    });
+    if (!clients.length) throw new HttpError(400, 'Personne à qui écrire avec ces critères.');
+
+    const envoi = await reserverEnvoi({
+      texte,
+      cibles: clients.length,
+      force: force === true,
+    });
+
+    diffuser(envoi, clients).catch(async (err) => {
+      console.error('Diffusion interrompue :', err.message);
+      await annulerEnvoi(envoi.id).catch(() => {});
+    });
+
+    res.status(202).json({ id: envoi.id, cibles: clients.length });
+  })
+);
+
+/**
+ * Sortir ou remettre un client de la liste à sa demande.
+ *
+ * Un client dit « ne m'écris plus » de vive voix aussi souvent que par
+ * `/stop` : sans ces deux boutons, le vendeur n'aurait aucun moyen de
+ * respecter ce qu'on lui a demandé en face.
+ */
+adminRouter.post(
+  '/announcements/unsubscribe/:id',
+  route(async (req, res) => res.json(await desabonner(req.params.id)))
+);
+
+adminRouter.post(
+  '/announcements/resubscribe/:id',
+  route(async (req, res) => res.json(await reabonner(req.params.id)))
+);
+
+adminRouter.get(
+  '/announcements/subscription/:id',
+  route(async (req, res) => res.json({ desabonne: await estDesabonne(req.params.id) }))
 );
 
 /* ── Export et sauvegarde ────────────────────────────────── */

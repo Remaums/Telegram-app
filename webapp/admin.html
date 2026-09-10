@@ -225,6 +225,36 @@
     <button class="a-btn a-btn--primary a-btn--block" id="savePromo" type="button">Enregistrer le code</button>
     <ul class="a-list" id="promosList"></ul>
 
+    <h2 class="a-h2">Annonces</h2>
+    <p class="a-hint">
+      Un message à ceux qui ont <b>déjà commandé</b> — eux seuls, car Telegram
+      interdit d'écrire à qui n'a jamais parlé au bot. Chaque annonce se
+      termine par la façon de s'en désabonner, et un client qui écrit
+      <code>/stop</code> ne reçoit plus rien. Les messages sur ses propres
+      commandes, eux, continuent : ce sont des réponses, pas de la publicité.
+    </p>
+    <label class="a-field">
+      <span>Ton message</span>
+      <textarea id="fAnnounce" rows="4" maxlength="3000"
+                placeholder="Arrivage du jour : Plasma Static Bubble Gum, en quantité limitée."></textarea>
+    </label>
+    <div class="a-row">
+      <label class="a-field">
+        <span>Commandé depuis (jours)</span>
+        <input id="fAnnounceDays" type="number" min="1" max="3650" inputmode="numeric" placeholder="tous">
+      </label>
+      <label class="a-field">
+        <span>Au moins N commandes</span>
+        <input id="fAnnounceMin" type="number" min="1" max="99" inputmode="numeric" placeholder="1">
+      </label>
+    </div>
+    <p class="a-hint" id="announceAudience">—</p>
+    <div class="a-toggle">
+      <label><input type="checkbox" id="fAnnounceForce"> Envoyer même si la dernière annonce est récente</label>
+    </div>
+    <button class="a-btn a-btn--primary a-btn--block" id="sendAnnounce" type="button">Envoyer l'annonce</button>
+    <ul class="a-list" id="announceHistory"></ul>
+
     <h2 class="a-h2">Export et sauvegarde</h2>
     <p class="a-hint">
       Les deux fichiers arrivent <b>dans la conversation du bot</b> : un

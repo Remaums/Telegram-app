@@ -316,6 +316,8 @@ dans ton bot.
 | `/boutique` | Rouvre la Mini App |
 | `/commandes` | Les 5 dernières commandes du client |
 | `/aide` | Liste des commandes |
+| `/stop` | ne plus recevoir d'annonces |
+| `/annonces` | les recevoir de nouveau |
 | `/admin` | Espace d'administration (réservé aux `ADMIN_IDS`) |
 | `/ouvrir` `/fermer` | Ouvre ou ferme la boutique (réservé) |
 | `/verification on\|off` | Allume ou coupe la vérification d'identité (réservé) |
@@ -407,6 +409,7 @@ car une case cochée mais pas encore enregistrée est un piège.
 | Zones de livraison | on livre partout aux conditions générales |
 | Créneaux | plus de plage horaire à choisir |
 | Recherche au catalogue | la barre de recherche et le tri |
+| Annonces aux clients | plus moyen d'écrire à ceux qui ont commandé |
 | Remises par palier | plus de remise automatique |
 | Codes promo | le champ « code promo » du panier |
 | Liste d'attente | le bouton « préviens-moi du retour » |
@@ -527,6 +530,33 @@ Le minimum de commande et le franco de livraison se jugent sur le panier
 minimum qu'elle venait d'atteindre. Le code n'est décompté qu'une fois la
 commande écrite, et le montant de la remise est recalculé côté serveur — celui
 envoyé par le client est ignoré.
+
+### Annonces
+
+Un message à ceux qui ont **déjà commandé** — eux seuls, parce que Telegram
+interdit d'écrire à qui n'a jamais parlé au bot, et c'est très bien ainsi.
+L'écran chiffre l'audience avant que tu n'écrives : on ne parle pas de la même
+façon à trois personnes qu'à trois cents.
+
+Trois garde-fous, parce qu'un bot qui envoie trop finit bloqué par ses propres
+clients et parfois par Telegram :
+
+| Garde-fou | Ce qu'il empêche |
+|---|---|
+| Désabonnement respecté d'abord | écrire à quelqu'un qui a dit stop |
+| Cadence de 12 h entre deux annonces | envoyer trois fois le même jour |
+| Envoi étalé, par paquets de 20 | dépasser la limite de Telegram et se faire couper |
+
+Chaque annonce se termine par la façon de s'en désabonner. Un client qui écrit
+`/stop` ne reçoit plus rien, `/annonces` le remet dans la liste, et le vendeur
+dispose des deux boutons pour ceux qui le lui demandent de vive voix. **Les
+messages sur ses propres commandes continuent** : ce sont des réponses, pas de
+la publicité.
+
+Un client qui a bloqué le bot fait échouer son envoi sans que le reste en
+souffre, et il est désabonné au passage — il a dit non à sa manière. Une panne
+réseau, elle, ne désabonne personne : seul un refus explicite de Telegram
+compte.
 
 ### Export et sauvegarde
 

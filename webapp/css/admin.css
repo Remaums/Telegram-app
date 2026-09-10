@@ -383,8 +383,13 @@ body.admin {
 .a-field input:focus, .a-field select:focus, .a-field textarea:focus {
   outline: none; border-color: var(--neon); box-shadow: var(--glow-neon);
 }
-.a-row { display: flex; gap: 10px; }
-.a-row .a-field { flex: 1; }
+/* `flex: 1` ne descend pas sous la largeur du contenu : un libellé un peu long
+   poussait le champ hors de sa rangée sur un petit écran. `min-width: 0` le
+   laisse rétrécir, et la rangée passe à la ligne quand il n'y a vraiment plus
+   la place. */
+.a-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.a-row .a-field { flex: 1 1 8rem; min-width: 0; }
+.a-row .a-field > span { overflow-wrap: anywhere; }
 
 .a-toggle { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 14px; font-size: 14px; font-weight: 700; }
 .a-toggle label { display: flex; align-items: center; gap: 7px; }

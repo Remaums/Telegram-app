@@ -16,6 +16,7 @@ const state = {
   verifications: [],
   promos: [],
   featureList: [],   // catalogue des interrupteurs, servi par le serveur
+  annonces: [],      // historique des annonces envoyées
   tab: 'board',
   orderFilter: '',
   editing: null, // produit en cours d'édition, null = création
@@ -82,6 +83,10 @@ function bindHandlers() {
   $('addTier').addEventListener('click', () => addTierRow());
   $('saveTiers').addEventListener('click', saveTiers);
   $('savePromo').addEventListener('click', savePromo);
+  $('sendAnnounce').addEventListener('click', envoyerAnnonce);
+  for (const id of ['fAnnounceDays', 'fAnnounceMin']) {
+    $(id).addEventListener('input', compterAudience);
+  }
   $('exportCsv').addEventListener('click', exporterCommandes);
   $('downloadBackup').addEventListener('click', envoyerSauvegarde);
   $('pickBackup').addEventListener('click', () => $('restoreFile').click());
@@ -114,6 +119,7 @@ async function refreshAll() {
   state.settings = settings;
   state.verifications = verifications;
   state.promos = promos;
+  state.annonces = await api('/announcements').catch(() => []);
   state.products = catalog.products;
   state.categories = catalog.categories.filter((c) => c.id !== 'all');
   state.orders = orders;
@@ -664,6 +670,8 @@ function renderSettings() {
     : (fulfillment.freeDeliveryFrom / 100).toFixed(2);
   $('fMinimum').value = ((fulfillment.minimumOrder ?? 0) / 100).toFixed(2);
 
+  renderAnnonces();
+  compterAudience();
   renderZones(settings.zones ?? []);
   renderSlots(settings.slots ?? {});
   renderTiers(settings.discounts?.tiers ?? []);
@@ -806,6 +814,104 @@ async function saveGuards() {
   } finally {
     button.disabled = false;
   }
+}
+
+/* ── Annonces ────────────────────────────────────────────── */
+
+/**
+ * Combien de clients recevraient l'annonce, avec les critères courants.
+ *
+ * Affiché avant d'écrire : le vendeur doit savoir s'il parle à trois personnes
+ * ou à trois cents avant de choisir son ton — et avant d'appuyer.
+ */
+let audienceTimer;
+function compterAudience() {
+  clearTimeout(audienceTimer);
+  audienceTimer = setTimeout(async () => {
+    const zone = $('announceAudience');
+    const params = new URLSearchParams();
+    if ($('fAnnounceDays').value) params.set('depuisJours', $('fAnnounceDays').value);
+    if ($('fAnnounceMin').value) params.set('minCommandes', $('fAnnounceMin').value);
+
+    try {
+      const r = await api(`/announcements/audience?${params}`);
+      zone.textContent = r.total
+        ? `${r.total} client(s) recevraient ce message${r.apercu.length ? ` — ${r.apercu.join(', ')}${r.total > r.apercu.length ? '…' : ''}` : ''}.`
+        : 'Personne ne correspond à ces critères pour le moment.';
+    } catch (err) {
+      zone.textContent = err.message;
+    }
+  }, 350);
+}
+
+async function envoyerAnnonce() {
+  const texte = $('fAnnounce').value.trim();
+  if (texte.length < 10) return toast('Une annonce fait au moins dix caractères.');
+
+  const cibles = $('announceAudience').textContent;
+  if (!confirm(`Envoyer cette annonce ?\n\n${cibles}`)) return;
+
+  const bouton = $('sendAnnounce');
+  bouton.disabled = true;
+  try {
+    const r = await api('/announcements', {
+      method: 'POST',
+      body: {
+        texte,
+        depuisJours: $('fAnnounceDays').value || undefined,
+        minCommandes: $('fAnnounceMin').value || undefined,
+        force: $('fAnnounceForce').checked,
+      },
+    });
+    $('fAnnounce').value = '';
+    $('fAnnounceForce').checked = false;
+    toast(`Annonce partie vers ${r.cibles} client(s)`);
+    haptic('success');
+    // L'envoi continue en arrière-plan : on relit l'historique un peu plus
+    // tard pour afficher le nombre réellement reçu.
+    setTimeout(async () => {
+      state.annonces = await api('/announcements').catch(() => state.annonces);
+      renderAnnonces();
+    }, 4000);
+    state.annonces = await api('/announcements').catch(() => state.annonces);
+    renderAnnonces();
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    bouton.disabled = false;
+  }
+}
+
+function renderAnnonces() {
+  const liste = $('announceHistory');
+  const envois = state.annonces ?? [];
+
+  if (!envois.length) {
+    liste.replaceChildren(Object.assign(document.createElement('li'), {
+      className: 'a-empty', textContent: 'Aucune annonce envoyée.',
+    }));
+    return;
+  }
+
+  liste.replaceChildren(
+    ...envois.map((envoi) => {
+      const li = document.createElement('li');
+      const quand = new Date(envoi.envoyeLe).toLocaleString('fr-FR', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+      });
+      const resultat = envoi.recus === null
+        ? `envoi en cours vers ${envoi.cibles}`
+        : `${envoi.recus} reçue(s)${envoi.echecs ? `, ${envoi.echecs} échec(s)` : ''}`;
+
+      const info = document.createElement('span');
+      info.className = 'a-promo';
+      info.innerHTML =
+        `<span class="a-promo__meta">${escapeHtml(quand)} · ${escapeHtml(resultat)}</span>` +
+        `<span>${escapeHtml(envoi.texte.slice(0, 90))}${envoi.texte.length > 90 ? '…' : ''}</span>`;
+      li.append(info);
+      return li;
+    })
+  );
 }
 
 /* ── Export et sauvegarde ────────────────────────────────── */
