@@ -431,6 +431,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 .card__badge {
   position: absolute; top: 9px; left: 9px;
+  /* Une pastille de vingt caractères sortait de la vignette : on la borne
+     à la largeur disponible et on coupe proprement. */
+  max-width: calc(100% - 18px); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
   background: linear-gradient(180deg, var(--pink), rgb(var(--halo-rgb)));
   color: #fff; font-size: 10.5px; font-weight: 800;
   letter-spacing: .05em; padding: 4px 9px; border: 1px solid rgb(var(--ink-rgb) / .6);
@@ -487,7 +491,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .sheet__scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 8px; }
 
 .sheet__bar {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 12px 14px calc(12px + var(--safe-bottom));
   background: rgb(var(--ink-rgb) / .72);
   backdrop-filter: blur(10px);
@@ -546,6 +550,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cart__title { font-size: 32px; padding: 20px 16px 4px; }
 .cart__list { list-style: none; margin: 0; padding: 10px 14px 0; display: flex; flex-direction: column; gap: 10px; }
 
+/* Un nom de produit sans espace ne doit pas sortir de sa carte : le
+   débordement était masqué par la page, donc invisible à la mesure, mais bien
+   là à l'écran. */
+.card__name, .card__short, .cart-item__name, .cart-item__meta,
+.pdetail__name, .pdetail__desc, .order__items li, .toast,
+.done__lines li, .promo__status, .cart__hint {
+  overflow-wrap: anywhere;
+}
+
 .cart-item {
   display: flex; align-items: center; gap: 11px;
   background: linear-gradient(180deg, var(--panel), var(--panel-2));
@@ -593,10 +606,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .field select option { background: var(--night-2); color: var(--cream); }
 .field select option:disabled { color: rgb(var(--cream-rgb) / .4); }
 
-.cart__total { flex: none; line-height: 1.05; }
+.cart__total { flex: 1 1 auto; min-width: 0; line-height: 1.05; }
 .cart__total span { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); }
 .cart__total strong { font-size: 28px; }
-.sheet__bar--cart { gap: 14px; }
+/* Sur un écran étroit, un libellé de total un peu long poussait le bouton
+   Commander hors de la barre. La barre passe à la ligne plutôt que d'expulser
+   ce sur quoi il faut appuyer. */
+.sheet__bar--cart { gap: 10px 14px; }
+.sheet__bar--cart .btn--grow { min-width: 9rem; }
+@media (max-width: 380px) {
+  .sheet__bar--cart .btn--grow { flex-basis: 100%; }
+}
 
 .modes { display: flex; gap: 9px; }
 .mode {
@@ -696,10 +716,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
   transform: translateX(-50%);
   background: rgb(var(--ink-rgb) / .92); color: var(--cream);
   border: 1px solid rgb(var(--neon-rgb) / .55);
-  border-radius: 999px; padding: 11px 20px; font-weight: 800; font-size: 14px;
+  /* Le rayon en pilule ne vaut que sur une ligne : avec un nom de produit à
+     rallonge, il transformait le message en disque géant qui masquait tout
+     le panier. On borne le texte à trois lignes et on arrondit sobrement. */
+  border-radius: 16px; padding: 11px 18px; font-weight: 800; font-size: 14px;
   box-shadow: var(--glow-neon), var(--shadow); animation: rise-fade .3s ease;
-  max-width: 88vw; text-align: center; backdrop-filter: blur(8px);
+  max-width: min(88vw, 22rem); text-align: center; backdrop-filter: blur(8px);
+  line-height: 1.35; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
+/* `display: -webkit-box` l'emporterait sur le display:none de [hidden]. */
+.toast[hidden] { display: none !important; }
 @keyframes rise-fade { from { transform: translate(-50%, -14px); opacity: 0 } }
 
 @media (prefers-reduced-motion: reduce) {

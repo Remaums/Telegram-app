@@ -97,10 +97,12 @@ body.admin {
 .a-h2 { font-size: 21px; letter-spacing: .02em; margin: 24px 0 10px; }
 
 /* ── Indicateurs ─────────────────────────────────────────── */
-.a-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+/* `1fr` ne descend pas sous la largeur du contenu : un chiffre d'affaires à
+   quatre chiffres poussait les tuiles hors de la grille sur un petit écran. */
+.a-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .a-kpi { border-radius: 16px; padding: 13px 14px; box-shadow: var(--shadow-sm); }
 .a-kpi__label { display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
-.a-kpi__value { display: block; font-size: 27px; line-height: 1.2; margin-top: 3px; }
+.a-kpi__value { display: block; font-size: 27px; line-height: 1.2; margin-top: 3px; overflow-wrap: anywhere; }
 .a-kpi--accent {
   background: linear-gradient(180deg, rgb(var(--neon-rgb) / .22), rgb(var(--neon-rgb) / .1));
   border-color: rgb(var(--neon-rgb) / .5); box-shadow: var(--glow-neon);
@@ -133,6 +135,16 @@ body.admin {
 }
 
 /* ── Carte commande ──────────────────────────────────────── */
+/* Un nom de produit sans espace — ça existe — poussait la page de trois
+   mille pixels vers la droite sur un petit écran. On coupe où il faut. */
+.a-order, .a-stock, .a-product, .a-list li, .a-promo, .a-zone {
+  overflow-wrap: anywhere;
+}
+.a-order__items li, .a-order__note, .a-order__meta, .a-order__ship li,
+.a-stock__name, .a-stock__label, .a-product__name, .a-product__meta {
+  min-width: 0;
+}
+
 .a-order { border-radius: 16px; padding: 13px 14px; margin-bottom: 10px; box-shadow: var(--shadow-sm); }
 .a-order__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .a-order__ref { font-size: 19px; letter-spacing: .03em; color: var(--neon); }
