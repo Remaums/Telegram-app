@@ -135,6 +135,57 @@ if [ -n "$URL" ]; then
   [ -n "$cert" ] && ligne "Certificat jusqu'au" "$cert"
 fi
 
+titre "Le bot répond-il à Telegram ?"
+# C'est la question qu'on se pose quand /start reste sans réponse, et elle se
+# tranche en deux appels. Le token sert à les faire mais n'est jamais affiché.
+JETON=$(grep -E '^BOT_TOKEN=' .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d ' "' || true)
+if [ -z "$JETON" ]; then
+  ligne "BOT_TOKEN" "vide — le bot ne peut pas démarrer"
+else
+  # Sans `-f` : sur un token invalide Telegram répond 401 avec un corps qui
+  # l'explique, et `-f` le jetterait — on confondrait alors « token refusé »
+  # avec « Telegram injoignable », deux pannes aux remèdes opposés.
+  moi=$(curl -sS --max-time 10 "https://api.telegram.org/bot$JETON/getMe" 2>/dev/null || true)
+  case "$moi" in
+    *'"ok":true'*)
+      nom=$(printf '%s' "$moi" | grep -oE '"username":"[^"]+"' | head -1 | cut -d'"' -f4)
+      ligne "Token" "valide — le bot est @$nom"
+      ;;
+    '') ligne "Token" "Telegram injoignable depuis ce VPS (réseau ? DNS ?)" ;;
+    *'"ok":false'*)
+      motif=$(printf '%s' "$moi" | grep -oE '"description":"[^"]*"' | cut -d'"' -f4)
+      ligne "Token" "REFUSÉ par Telegram — ${motif:-raison inconnue}"
+      ligne "→ REMÈDE" "recopie le token depuis BotFather, sans espace ni retour à la ligne"
+      ;;
+    *)  ligne "Token" "réponse inattendue de Telegram" ;;
+  esac
+
+  # Le piège numéro un : un webhook resté déclaré. Telegram livre alors les
+  # mises à jour à une URL au lieu de les laisser prendre en long polling, et
+  # le bot ne reçoit plus rien — sans qu'aucun message d'erreur n'apparaisse
+  # côté Telegram. Le long polling, lui, se fait répondre 409.
+  crochet=$(curl -sS --max-time 10 "https://api.telegram.org/bot$JETON/getWebhookInfo" 2>/dev/null || true)
+  adresse_crochet=$(printf '%s' "$crochet" | grep -oE '"url":"[^"]*"' | head -1 | cut -d'"' -f4)
+  attente=$(printf '%s' "$crochet" | grep -oE '"pending_update_count":[0-9]+' | head -1 | cut -d: -f2)
+  if [ -n "$adresse_crochet" ]; then
+    ligne "Webhook déclaré" "$adresse_crochet"
+    ligne "→ CONSÉQUENCE" "le long polling ne reçoit RIEN (409). C'est très probablement ta panne."
+    ligne "→ REMÈDE" "node tools/set-webhook.mjs --delete  puis  sudo systemctl restart $SERVICE"
+  else
+    ligne "Webhook déclaré" "aucun — c'est ce qu'il faut en long polling"
+  fi
+  [ -n "$attente" ] && ligne "Mises à jour en attente" "$attente"
+fi
+
+# Ce que le journal dit du démarrage du bot : c'est la ligne qui tranche.
+demarrage=$(journalctl -u "$SERVICE" -n 400 --no-pager 2>/dev/null \
+  | grep -E 'Bot @.* démarré|Bot non démarré|Configuration incomplète' | tail -1 | masquer || true)
+ligne "Au journal" "${demarrage:-(rien sur le démarrage du bot — le service tourne-t-il ?)}"
+
+conflit=$(journalctl -u "$SERVICE" --since '1 hour ago' --no-pager 2>/dev/null \
+  | grep -ciE '409|conflict|terminated by other getUpdates' || true)
+[ "${conflit:-0}" -gt 0 ] && ligne "Conflits 409 (1 h)" "$conflit — deux choses lisent le même bot, ou un webhook traîne"
+
 titre "Données"
 for f in catalog.json orders.json settings.json; do
   chemin="server/data/$f"
