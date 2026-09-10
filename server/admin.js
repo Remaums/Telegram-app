@@ -18,7 +18,9 @@ import {
   saveCategories,
   restoreStock,
 } from './catalog.js';
-import { STATUSES, listOrders, allOrders, getOrder, setStatus, stats } from './orders.js';
+import {
+  STATUSES, listOrders, allOrders, getOrder, setStatus, stats, purgerCommandes,
+} from './orders.js';
 import { bilan } from './bilan.js';
 import { ficheClients, chercherClients } from './clients.js';
 import { servirMedia } from './media-cache.js';
@@ -837,6 +839,54 @@ adminRouter.post(
         'Garde-la ailleurs que sur le serveur.'
     );
     res.json({ ...envoi, counts: backup.counts });
+  })
+);
+
+/**
+ * Effacer des commandes, ou leur faire oublier qui les a passées.
+ *
+ * L'opération ne se rattrape pas : c'est pour ça qu'une sauvegarde part dans
+ * la conversation du vendeur **avant** de toucher au magasin, et que
+ * l'effacement est refusé si elle n'a pas pu partir. Un « ça n'a pas marché »
+ * après un effacement réussi n'est plus une erreur, c'est une perte.
+ *
+ * Le mot de confirmation est demandé côté serveur aussi : une interface peut
+ * être contournée, une commande curl part sans écran de confirmation.
+ */
+adminRouter.post(
+  '/orders/purge',
+  route(async (req, res) => {
+    const { mode, avant, confirmation, sauvegarde = true } = req.body ?? {};
+
+    if (String(confirmation).trim().toUpperCase() !== 'EFFACER') {
+      throw new HttpError(400, 'Écris EFFACER pour confirmer : cette opération ne se rattrape pas.');
+    }
+
+    let envoi = null;
+    if (sauvegarde !== false) {
+      const copie = await buildBackup();
+      const jour = new Date().toISOString().slice(0, 10);
+      try {
+        envoi = await envoyerDansLaConversation(
+          req.telegramUser.id,
+          `avant-effacement-${jour}.json`,
+          JSON.stringify(copie, null, 2),
+          `💾 Sauvegarde prise avant effacement : ${copie.counts.orders} commandes.\n` +
+            "Garde ce fichier : c'est le seul retour en arrière possible."
+        );
+      } catch (err) {
+        throw new HttpError(
+          409,
+          "La sauvegarde n'a pas pu partir dans ta conversation, donc rien n'a été effacé.\n\n" +
+            `Raison : ${err?.description ?? err.message}\n\n` +
+            'Ouvre la conversation du bot, envoie-lui /start, puis recommence. ' +
+            "Tu peux aussi décocher la sauvegarde — mais alors il n'y aura pas de retour en arrière."
+        );
+      }
+    }
+
+    const fait = await purgerCommandes({ mode, avant });
+    res.json({ ...fait, sauvegarde: envoi ? true : false });
   })
 );
 

@@ -333,6 +333,34 @@
       <button class="a-btn a-btn--danger a-btn--block" id="doRestore" type="button">Remplacer la boutique par ce fichier</button>
     </div>
 
+    <h2 class="a-h2">Effacer des commandes</h2>
+    <p class="a-hint">
+      Trois façons de repartir, et elles ne se valent pas. <b>Oublier qui a
+      commandé</b> garde les montants — ton bilan ne bouge pas — mais efface le
+      nom, l'identifiant, l'adresse, le téléphone et la note : c'est presque
+      toujours le bon choix, on garde sa comptabilité sans garder le domicile de
+      ses clients de l'an dernier. <b>Effacer avant une date</b> supprime les
+      commandes et leur chiffre. <b>Tout effacer</b> remet le magasin à zéro —
+      pour une boutique qu'on ouvre vraiment après l'avoir essayée.
+      <b>Aucune des trois ne se rattrape</b> : une sauvegarde part dans ta
+      conversation avant, et l'effacement est refusé si elle n'a pas pu partir.
+    </p>
+    <div class="a-row">
+      <label class="a-field"><span>Que faire</span>
+        <select id="fPurgeMode">
+          <option value="anonymiser">Oublier qui a commandé</option>
+          <option value="avant">Effacer les commandes</option>
+          <option value="tout">Tout effacer (remise à zéro)</option>
+        </select>
+      </label>
+      <label class="a-field" id="fPurgeDateField"><span>Avant le</span><input id="fPurgeDate" type="date"></label>
+    </div>
+    <label><input type="checkbox" id="fPurgeBackup" checked> M'envoyer une sauvegarde d'abord</label>
+    <label class="a-field"><span>Écris EFFACER pour confirmer</span>
+      <input id="fPurgeConfirm" type="text" autocomplete="off" spellcheck="false" placeholder="EFFACER">
+    </label>
+    <button class="a-btn a-btn--danger a-btn--block" id="doPurge" type="button">Effacer</button>
+
     <h2 class="a-h2">Vérifications</h2>
     <ul class="a-list" id="verificationsList"></ul>
 

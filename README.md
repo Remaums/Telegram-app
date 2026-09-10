@@ -609,6 +609,34 @@ lire ses ventes du mardi, alors que la longueur des barres dit déjà tout. Les
 graphiques sont écrits à la main en SVG : quatre courbes ne valent pas cinquante
 kilo-octets de bibliothèque chargés sur le réseau d'un téléphone.
 
+### Effacer des commandes, ou les faire oublier
+
+Trois façons de repartir, dans **Réglages → Effacer des commandes**, et elles ne
+se valent pas :
+
+| Ce qu'on fait | Ce qui reste |
+|---|---|
+| **Oublier qui a commandé** (avant une date) | les montants, les articles, le mode, le secteur — le bilan ne bouge pas |
+| **Effacer les commandes** (avant une date) | rien de ces commandes : leur chiffre disparaît du bilan |
+| **Tout effacer** | un magasin vide, comme au premier jour |
+
+**Oublier est presque toujours le bon choix** : on garde sa comptabilité sans
+garder le domicile de ses clients de l'an dernier. Le nom, l'identifiant
+Telegram, l'adresse, le téléphone et la note s'en vont ; le montant reste, parce
+qu'une comptabilité ne se réécrit pas. Le secteur de livraison reste aussi — il
+désigne une commune, pas une porte.
+
+> ⚠️ **Aucune des trois ne se rattrape.** Une sauvegarde part donc dans ta
+> conversation Telegram **avant** que le magasin ne soit touché, et
+> **l'effacement est refusé si elle n'a pas pu partir** : un « ça n'a pas
+> marché » après un effacement réussi n'est plus une erreur, c'est une perte.
+> Il faut aussi écrire `EFFACER` à la main — et le serveur le redemande de son
+> côté, parce qu'une interface se contourne et qu'une commande `curl` n'a pas
+> d'écran de confirmation.
+
+La date est une frontière : **le jour de la limite est le premier qu'on garde**.
+Recommencer une anonymisation ne recompte pas ce qui est déjà oublié.
+
 ### Les clients
 
 L'onglet **Clients** reconstitue une fiche par personne **à partir des

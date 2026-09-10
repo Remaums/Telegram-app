@@ -154,6 +154,74 @@ export async function slotCounts() {
   return counts;
 }
 
+/* ══ Effacer, ou oublier ═════════════════════════════════════ */
+
+/**
+ * Ce que devient le magasin après un effacement. Fonction pure : elle décide,
+ * `purgerCommandes` écrit.
+ *
+ * Trois façons de repartir, et elles ne se valent pas :
+ *
+ * - `tout` : le magasin est vidé. C'est la remise à zéro d'une boutique qu'on
+ *   ouvre pour de bon après l'avoir essayée.
+ * - `avant` : les commandes antérieures à une date s'en vont, les récentes
+ *   restent. Le chiffre d'affaires de l'an dernier disparaît avec elles.
+ * - `anonymiser` : les commandes restent avec leurs montants — le bilan ne
+ *   bouge pas — mais perdent ce qui désigne quelqu'un : nom, identifiant,
+ *   adresse, téléphone, note. C'est presque toujours le bon choix : on garde sa
+ *   comptabilité sans garder le domicile de ses clients de l'an dernier.
+ *
+ * La date se compare en date civile : une commande du jour même de la limite
+ * est conservée, la limite est le premier jour qu'on garde.
+ */
+export function trierPourPurge(orders, { mode, avant } = {}) {
+  const liste = Array.isArray(orders) ? orders : [];
+  if (mode === 'tout') return { gardees: [], effacees: liste.length, anonymisees: 0 };
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(avant ?? ''))) {
+    throw new HttpError(400, 'Donne une date, au format AAAA-MM-JJ.');
+  }
+  const vieille = (o) => String(o?.createdAt ?? '').slice(0, 10) < avant;
+
+  if (mode === 'avant') {
+    const gardees = liste.filter((o) => !vieille(o));
+    return { gardees, effacees: liste.length - gardees.length, anonymisees: 0 };
+  }
+
+  if (mode === 'anonymiser') {
+    let anonymisees = 0;
+    const gardees = liste.map((o) => {
+      if (!vieille(o) || o.anonymise) return o;
+      anonymisees++;
+      return {
+        ...o,
+        // Ce qui désigne quelqu'un s'en va. Ce qui fait une comptabilité reste :
+        // montants, articles, mode, créneau — et le secteur, qui désigne une
+        // commune, pas une porte.
+        user: { id: null, username: null, firstName: null },
+        address: null,
+        phone: null,
+        contact: null,
+        note: null,
+        anonymise: true,
+      };
+    });
+    return { gardees, effacees: 0, anonymisees };
+  }
+
+  throw new HttpError(400, `Effacement inconnu : ${mode}`);
+}
+
+/** Applique l'effacement. Rien n'est récupérable ensuite, d'où la sauvegarde. */
+export async function purgerCommandes({ mode, avant } = {}) {
+  return store.update((orders) => {
+    const { gardees, effacees, anonymisees } = trierPourPurge(orders, { mode, avant });
+    orders.length = 0;
+    orders.push(...gardees);
+    return { effacees, anonymisees, restantes: gardees.length };
+  });
+}
+
 /**
  * Remplace toutes les commandes.
  *

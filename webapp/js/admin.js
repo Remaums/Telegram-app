@@ -129,6 +129,8 @@ function bindHandlers() {
   // tout de suite une adresse qui ne charge pas.
   $('fImagePath').addEventListener('input', syncImageField);
   $('clientSearch').addEventListener('input', chercherDesClients);
+  $('fPurgeMode').addEventListener('change', syncPurgeMode);
+  $('doPurge').addEventListener('click', purgerLesCommandes);
   $('addMedia').addEventListener('click', ajouterMedia);
   $('pickMedia').addEventListener('click', () => $('mediaFile').click());
   $('mediaFile').addEventListener('change', envoyerDepuisLaGalerie);
@@ -1267,6 +1269,11 @@ function renderSettings() {
   renderVerifications();
   $('fOrdersPerHour').value = settings.limits.ordersPerHour;
   $('fLowStock').value = settings.alerts?.lowStock ?? 3;
+  if (!$('fPurgeDate').value) {
+    const troisMois = new Date(Date.now() - 90 * 86400000);
+    $('fPurgeDate').value = troisMois.toISOString().slice(0, 10);
+  }
+  syncPurgeMode();
   $('fUnitsPerOrder').value = settings.limits.unitsPerOrder;
 
   const list = $('blockedList');
@@ -2416,6 +2423,76 @@ async function decideVerification(id, status, button) {
   } catch (err) {
     toast(err.message);
     button.disabled = false;
+  }
+}
+
+/* ── Effacer des commandes ───────────────────────────────── */
+
+/** « Tout effacer » n'a pas de date : le champ disparaît plutôt que mentir. */
+function syncPurgeMode() {
+  $('fPurgeDateField').hidden = $('fPurgeMode').value === 'tout';
+}
+
+/**
+ * Efface, ou fait oublier.
+ *
+ * Trois garde-fous avant d'écrire quoi que ce soit : le mot tapé à la main, la
+ * question posée en clair avec le nombre de commandes concernées, et la
+ * sauvegarde qui part dans la conversation. Le serveur redemande le mot de son
+ * côté — une interface se contourne, une commande curl n'a pas d'écran de
+ * confirmation.
+ */
+async function purgerLesCommandes() {
+  const mode = $('fPurgeMode').value;
+  const avant = $('fPurgeDate').value;
+  const sauvegarde = $('fPurgeBackup').checked;
+
+  if (mode !== 'tout' && !avant) {
+    toast('Choisis une date.');
+    return $('fPurgeDate').focus();
+  }
+  if ($('fPurgeConfirm').value.trim().toUpperCase() !== 'EFFACER') {
+    toast('Écris EFFACER pour confirmer.');
+    return $('fPurgeConfirm').focus();
+  }
+
+  // Combien de commandes sont concernées : « ça ne se rattrape pas » compte
+  // moins qu'un nombre. On le calcule sur ce qu'on a sous la main.
+  const concernees =
+    mode === 'tout'
+      ? state.orders.length
+      : state.orders.filter((o) => String(o.createdAt).slice(0, 10) < avant).length;
+  const geste = mode === 'anonymiser' ? 'anonymiser' : 'effacer';
+  const phrase =
+    mode === 'tout'
+      ? 'Tout effacer : toutes les commandes de la boutique disparaissent. Continuer ?'
+      : `${geste === 'anonymiser' ? 'Anonymiser' : 'Effacer'} les commandes d'avant le ${avant} ` +
+        `(au moins ${concernees} sur les ${state.orders.length} affichées). Continuer ?`;
+  if (!confirm(phrase)) return;
+
+  const bouton = $('doPurge');
+  bouton.disabled = true;
+  bouton.textContent = sauvegarde ? 'Sauvegarde…' : 'Effacement…';
+  try {
+    // `api()` sérialise lui-même : lui passer du texte déjà sérialisé enverrait
+    // une chaîne JSON là où le serveur attend un objet, et il refuserait.
+    const fait = await api('/orders/purge', {
+      method: 'POST',
+      body: { mode, avant, sauvegarde, confirmation: 'EFFACER' },
+    });
+    $('fPurgeConfirm').value = '';
+    await refreshAll();
+    toast(
+      fait.anonymisees
+        ? `${fait.anonymisees} commande(s) anonymisée(s)`
+        : `${fait.effacees} commande(s) effacée(s) · ${fait.restantes} restante(s)`
+    );
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    bouton.disabled = false;
+    bouton.textContent = 'Effacer';
   }
 }
 
