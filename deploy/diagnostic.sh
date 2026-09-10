@@ -120,6 +120,15 @@ PORT=${PORT:-3000}
 # refused » se lirait comme si la boutique avait répondu quelque chose.
 if sante=$(curl -fsS --max-time 8 "http://127.0.0.1:$PORT/api/health" 2>/dev/null); then
   printf '  %s\n' "$(printf '%s' "$sante" | masquer | cut -c1-300)"
+  # La copie locale des médias : c'est la première chose à regarder quand une
+  # vidéo se fait attendre à chaque affichage.
+  if printf '%s' "$sante" | grep -q '"medias":{"actif":true'; then
+    fichiers=$(printf '%s' "$sante" | sed -n 's/.*"entrees":\([0-9]*\).*/\1/p')
+    mo=$(printf '%s' "$sante" | sed -n 's/.*"mo":\([0-9.]*\).*/\1/p')
+    ligne "Copie locale des médias" "active — ${fichiers:-0} fichier(s), ${mo:-0} Mo"
+  else
+    ligne "Copie locale des médias" "éteinte — chaque première vue repasse par Telegram"
+  fi
 else
   ligne "http://127.0.0.1:$PORT" "AUCUNE RÉPONSE — la boutique ne tourne pas"
   occupant=$( (ss -ltnp 2>/dev/null || true) | grep ":$PORT " | head -1 | sed 's/^ *//')

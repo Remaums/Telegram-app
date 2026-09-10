@@ -271,6 +271,24 @@ le vendeur est une décision.
 > `data:` et les remontées de dossier sont refusés, et des tests le vérifient à
 > chaque exécution.
 
+**Une copie locale évite de refaire le trajet.** Le catalogue ne stocke que la
+référence Telegram : sans rien d'autre, chaque première vue ferait
+client → boutique → Telegram → boutique → client, et l'entrepôt de fichiers de
+Telegram n'est pas un réseau de diffusion — une vidéo de quinze mégaoctets se
+fait attendre, et la bande passante du serveur la paie deux fois. La boutique
+garde donc une copie dans `server/data/media-cache/` : **seul le premier
+visiteur paie le trajet**, les suivants sont servis en local, avec les plages
+d'octets (se déplacer dans une vidéo) et un cache navigateur d'un jour.
+
+Le dossier est borné — `MEDIA_CACHE_MB=500` par défaut, `MEDIA_CACHE_DIR` pour
+le ranger ailleurs, `0` pour tout éteindre — et se vide tout seul, du plus
+anciennement servi au plus récent. Une copie n'est jamais rangée avant d'être
+complète : un client qui coupe ou un téléchargement écourté ne laissent rien,
+parce qu'une demi-vidéo serait ensuite servie telle quelle à tout le monde. Là
+où le disque est en lecture seule (serverless), la copie s'éteint d'elle-même
+en le disant au démarrage, et la boutique relaie comme avant. `/api/health` et
+`deploy/diagnostic.sh` disent où elle en est.
+
 Côté client, une vidéo ne démarre **jamais toute seule** et garde ses contrôles.
 Refermer la fiche coupe la lecture et détache la source — sinon le son
 continuerait par-dessus le catalogue, sans que le client sache d'où il vient.

@@ -21,7 +21,7 @@ export async function resolveFileUrl(fileId) {
   const cached = cache.get(fileId);
   if (cached && cached.expiresAt > Date.now()) return cached.url;
 
-  const res = await fetch(`https://api.telegram.org/bot${config.botToken}/getFile`, {
+  const res = await fetch(`${config.telegramApiRoot}/bot${config.botToken}/getFile`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ file_id: fileId }),
@@ -29,7 +29,7 @@ export async function resolveFileUrl(fileId) {
   const data = await res.json().catch(() => ({}));
   if (!data.ok) throw new Error(data.description ?? 'fichier introuvable chez Telegram');
 
-  const url = `https://api.telegram.org/file/bot${config.botToken}/${data.result.file_path}`;
+  const url = `${config.telegramApiRoot}/file/bot${config.botToken}/${data.result.file_path}`;
   cache.set(fileId, { url, expiresAt: Date.now() + PATH_TTL });
   return url;
 }

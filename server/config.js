@@ -64,6 +64,22 @@ export const config = {
   webhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET ?? '',
   currency: process.env.CURRENCY ?? 'EUR',
   shopName: process.env.SHOP_NAME ?? 'COFFEE SHOP 68',
+  // Racine de l'API Telegram. On ne la change que pour tester en local ou
+  // pour viser un serveur Bot API auto-hébergé.
+  telegramApiRoot: (process.env.TELEGRAM_API_ROOT ?? 'https://api.telegram.org').replace(/\/$/, ''),
+  // Copie locale des médias relayés depuis Telegram.
+  //
+  // Sans elle, chaque première vue d'une photo ou d'une vidéo fait le trajet
+  // VPS → Telegram → VPS → client, et une vidéo de quinze mégaoctets se fait
+  // attendre. Avec elle, seul le premier visiteur le paie.
+  //
+  // `MEDIA_CACHE_MB=0` l'éteint. Elle s'éteint aussi d'elle-même là où le
+  // disque est en lecture seule (serverless), sans rien casser : la boutique
+  // relaie alors comme avant.
+  mediaCache: {
+    dir: process.env.MEDIA_CACHE_DIR || '',
+    maxBytes: Math.max(0, Number(process.env.MEDIA_CACHE_MB ?? 500)) * 1024 * 1024,
+  },
 };
 
 /** Ce que la Mini App a le droit de connaître (jamais le token, jamais l'admin chat). */

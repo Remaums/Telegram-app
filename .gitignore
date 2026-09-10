@@ -10,3 +10,4 @@ server/data/promos.json
 server/data/annonces.json
 server/data/.lock
 .DS_Store
+server/data/media-cache/

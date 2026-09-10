@@ -1,6 +1,4 @@
 import path from 'node:path';
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { webhookCallback } from 'grammy';
@@ -20,7 +18,7 @@ import { getSettings, isBlocked } from './settings.js';
 import { buildChallenge, solveChallenge, passIsValid } from './captcha.js';
 import { getVerification, isApproved } from './verification.js';
 import { isOpenNow, nextChange } from './opening.js';
-import { resolveFileUrl } from './photos.js';
+import { servirMedia, etatDuCache } from './media-cache.js';
 import { waitlistKey, subscribe, isSubscribed } from './waitlist.js';
 import { bestDiscount, releasePromo } from './promos.js';
 import { findZone, findSlot, availableSlots, slotLabel } from './delivery.js';
@@ -113,6 +111,7 @@ app.get('/api/health', async (req, res) => {
     health.products = products.length;
     health.open = isOpenNow(settings.opening).open;
     health.orders = Array.isArray(commandes);
+    health.medias = await etatDuCache();
   } catch (err) {
     health.ok = false;
     health.error = `Stockage injoignable : ${err.message}`;
@@ -553,10 +552,11 @@ app.get('/api/waitlist', authenticate, async (req, res, next) => {
 /**
  * Sert la photo d'un produit depuis Telegram.
  *
- * Le fichier n'est pas recopié chez nous : cette route va le chercher et le
- * relaie, en laissant le navigateur le garder en cache. L'URL porte un
- * paramètre de version, changé à chaque nouvelle photo, ce qui permet un
- * cache long sans jamais servir l'ancienne image.
+ * Le catalogue ne stocke que la référence Telegram : cette route va chercher
+ * le fichier, en garde une copie locale (voir `media-cache.js`) et laisse le
+ * navigateur la garder à son tour. L'URL porte un paramètre de version, changé
+ * à chaque nouvelle photo, ce qui permet un cache long sans jamais servir
+ * l'ancienne image.
  */
 app.get('/api/photo/:id', async (req, res, next) => {
   try {
@@ -566,14 +566,9 @@ app.get('/api/photo/:id', async (req, res, next) => {
     const product = await getProduct(req.params.id);
     if (!product?.photoFileId) return res.status(404).json({ error: 'Pas de photo pour ce produit.' });
 
-    const url = await resolveFileUrl(product.photoFileId);
-    const upstream = await fetch(url);
-    if (!upstream.ok) return res.status(502).json({ error: 'Photo indisponible.' });
-
-    res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
-    res.send(Buffer.from(await upstream.arrayBuffer()));
+    await servirMedia(req, res, { fileId: product.photoFileId, kind: 'photo' });
   } catch (err) {
+    if (err?.code === 'ERR_STREAM_PREMATURE_CLOSE' || res.writableEnded) return;
     console.error('Photo produit indisponible :', err.message);
     if (!res.headersSent) res.status(502).json({ error: 'Photo indisponible.' });
     else next(err);
@@ -583,12 +578,11 @@ app.get('/api/photo/:id', async (req, res, next) => {
 /**
  * Sert un média de la galerie d'un produit.
  *
- * Même principe que la photo : le fichier reste chez Telegram, on relaie. Deux
- * différences pour la vidéo. Elle se diffuse en flux plutôt qu'en un bloc —
+ * Même chemin que la photo. La vidéo se diffuse en flux plutôt qu'en un bloc —
  * charger vingt mégaoctets en mémoire avant d'envoyer le premier octet ferait
- * tousser un petit VPS et attendre le client. Et on répercute les en-têtes de
- * plage : sans elles, impossible de se déplacer dans la vidéo, le lecteur ne
- * sait que la rejouer depuis le début.
+ * tousser un petit VPS et attendre le client — et les en-têtes de plage sont
+ * répercutées : sans elles, impossible de se déplacer dans la vidéo, le
+ * lecteur ne sait que la rejouer depuis le début.
  */
 app.get('/api/media/:id/:index', async (req, res, next) => {
   try {
@@ -602,27 +596,7 @@ app.get('/api/media/:id/:index', async (req, res, next) => {
     // Un média hébergé ailleurs n'a pas à passer par nous.
     if (!media.fileId) return res.redirect(302, media.url);
 
-    const url = await resolveFileUrl(media.fileId);
-    const upstream = await fetch(url, {
-      headers: req.headers.range ? { Range: req.headers.range } : undefined,
-    });
-    if (!upstream.ok && upstream.status !== 206) {
-      return res.status(502).json({ error: 'Média indisponible.' });
-    }
-
-    res.status(upstream.status === 206 ? 206 : 200);
-    for (const entete of ['content-type', 'content-length', 'content-range', 'accept-ranges']) {
-      const valeur = upstream.headers.get(entete);
-      if (valeur) res.setHeader(entete, valeur);
-    }
-    if (!upstream.headers.get('content-type')) {
-      res.setHeader('Content-Type', media.kind === 'video' ? 'video/mp4' : 'image/jpeg');
-    }
-    // Le contenu d'un fileId ne change jamais : on le laisse en cache un jour.
-    res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
-
-    if (!upstream.body) return res.end();
-    await pipeline(Readable.fromWeb(upstream.body), res);
+    await servirMedia(req, res, media);
   } catch (err) {
     // Une coupure du client en pleine vidéo est normale : ce n'est pas un
     // incident à consigner, et la réponse est déjà partie.
