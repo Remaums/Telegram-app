@@ -406,6 +406,7 @@ car une case cochée mais pas encore enregistrée est un piège.
 | Horaires automatiques | la fermeture programmée (l'interrupteur manuel reste) |
 | Zones de livraison | on livre partout aux conditions générales |
 | Créneaux | plus de plage horaire à choisir |
+| Recherche au catalogue | la barre de recherche et le tri |
 | Remises par palier | plus de remise automatique |
 | Codes promo | le champ « code promo » du panier |
 | Liste d'attente | le bouton « préviens-moi du retour » |
@@ -488,6 +489,22 @@ Une commande annulée **libère sa place** : compter les annulations reviendrait
 revalidé au moment de commander contre la liste que la boutique proposerait à
 cet instant — une page restée ouverte toute la nuit ne peut donc pas réserver
 un créneau d'hier.
+
+### Recherche au catalogue
+
+Une barre de recherche et un tri au-dessus de la grille, dès que le catalogue
+dépasse la poignée de produits qu'on embrasse d'un coup d'œil.
+
+La recherche ignore les accents et la casse — personne ne tape « Néon » avec
+l'accent sur un clavier de téléphone — et accepte les mots dans le désordre :
+« gum bubble » trouve « Bubble Gum ». Elle regarde le nom, l'accroche, les
+étiquettes et la description, si bien que « banane » ramène la Banana Kush
+même si le mot n'est pas dans son nom.
+
+Quatre tris : par défaut (l'ordre du catalogue, les articles épuisés glissant
+en fin de liste), nouveautés, prix croissant, prix décroissant, alphabétique.
+Chaque produit porte sa date d'entrée au catalogue, posée une fois et
+conservée : modifier un prix ne rajeunit pas le produit.
 
 ### Remises et codes promo
 

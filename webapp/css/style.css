@@ -108,6 +108,35 @@ body {
 
 ::selection { background: var(--neon); color: var(--ink); }
 
+/* ── Recherche et tri ────────────────────────────────────── */
+.find { display: flex; gap: 8px; padding: 0 14px 4px; }
+.find__box {
+  position: relative; flex: 1; min-width: 0; display: flex; align-items: center;
+}
+.find__icon { position: absolute; left: 12px; font-size: 14px; pointer-events: none; opacity: .75; }
+.find__box input {
+  width: 100%; font: inherit; font-size: 14px; font-weight: 600; color: var(--cream);
+  background: rgb(var(--ink-rgb) / .55); border: var(--line) solid var(--line-soft);
+  border-radius: 999px; padding: 10px 34px 10px 34px;
+  -webkit-appearance: none; appearance: none;
+}
+.find__box input::placeholder { color: rgb(var(--cream-rgb) / .42); }
+.find__box input:focus { outline: none; border-color: var(--neon); box-shadow: var(--glow-neon); }
+/* La croix native des champs de recherche varie d'un moteur à l'autre : on
+   pose la nôtre pour qu'elle soit toujours là et toujours assez grande. */
+.find__box input::-webkit-search-cancel-button { display: none; }
+.find__clear {
+  position: absolute; right: 4px; width: 28px; height: 28px; border: 0; border-radius: 50%;
+  background: rgb(var(--cream-rgb) / .12); color: var(--cream); font-size: 12px; line-height: 1;
+}
+.find select {
+  flex: 0 1 auto; max-width: 42%; font: inherit; font-size: 13px; font-weight: 700;
+  color: var(--cream); background: rgb(var(--ink-rgb) / .55);
+  border: var(--line) solid var(--line-soft); border-radius: 999px; padding: 10px 12px;
+}
+.find select:focus { outline: none; border-color: var(--neon); box-shadow: var(--glow-neon); }
+.find select option { background: var(--night-2); color: var(--cream); }
+
 /* ── Décor de fond ───────────────────────────────────────── */
 /* Feuilles « sprayées » et voile de fumée, purement décoratifs. */
 .fx { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }

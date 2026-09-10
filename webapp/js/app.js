@@ -15,6 +15,8 @@ const state = {
   products: [],
   statuses: {},
   category: 'all',
+  query: '',           // ce que le client cherche
+  sort: 'default',     // et dans quel ordre il veut voir
   gates: {},
   features: {},       // ce que la boutique propose en ce moment
   opening: { open: true },
@@ -123,6 +125,20 @@ function bindStaticHandlers() {
   });
   $('promoApply').addEventListener('click', applyPromo);
   $('promoCode').addEventListener('keydown', (e) => e.key === 'Enter' && applyPromo());
+  $('findInput').addEventListener('input', () => {
+    state.query = $('findInput').value;
+    renderGrid();
+  });
+  $('findClear').addEventListener('click', () => {
+    state.query = '';
+    $('findInput').value = '';
+    $('findInput').focus();
+    renderGrid();
+  });
+  $('findSort').addEventListener('change', () => {
+    state.sort = $('findSort').value;
+    renderGrid();
+  });
   $('orderPostal').addEventListener('input', () => {
     state.zone = findZone($('orderPostal').value);
     renderCart();
@@ -186,6 +202,7 @@ function renderModes() {
 function applyFeatures() {
   $('ordersBtn').hidden = state.features.orderHistory === false;
   $('promoField').hidden = state.features.promos === false;
+  $('findBar').hidden = state.features.search === false;
 }
 
 /* ── Zones et créneaux ───────────────────────────────────── */
@@ -670,13 +687,67 @@ function renderCategories() {
 
 function renderGrid() {
   const grid = $('grid');
-  const list =
-    state.category === 'all'
-      ? state.products
-      : state.products.filter((p) => p.category === state.category);
+  const cherche = state.features.search !== false;
+  const list = trier(
+    state.products
+      .filter((p) => state.category === 'all' || p.category === state.category)
+      .filter((p) => !cherche || correspond(p, state.query))
+  );
 
+  $('findClear').hidden = !state.query;
   $('empty').hidden = list.length > 0;
+  // Le message d'absence doit dire de quoi il parle : « rien dans cette
+  // catégorie » quand on cherche « banane » enverrait chercher au mauvais endroit.
+  $('empty').textContent = state.query
+    ? `Rien ne correspond à « ${state.query.trim()} ».`
+    : 'Rien dans cette catégorie pour le moment.';
+
   grid.replaceChildren(...list.map(productCard));
+}
+
+/**
+ * Le produit répond-il à la recherche ?
+ *
+ * On cherche dans le nom, l'accroche, les étiquettes et la description, sans
+ * accents ni casse : personne ne tape « Néon » avec l'accent sur un clavier de
+ * téléphone. Chaque mot doit se retrouver quelque part, dans n'importe quel
+ * ordre — « kush banane » et « banane kush » trouvent la même chose.
+ */
+function correspond(produit, requete) {
+  const mots = normaliser(requete).split(/\s+/).filter(Boolean);
+  if (!mots.length) return true;
+
+  const foin = normaliser(
+    [produit.name, produit.short, produit.description, produit.badge, ...(produit.tags ?? [])].join(' ')
+  );
+  return mots.every((mot) => foin.includes(mot));
+}
+
+function normaliser(texte) {
+  return String(texte ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function trier(produits) {
+  const copie = [...produits];
+  switch (state.sort) {
+    case 'price-asc':
+      return copie.sort((a, b) => a.price - b.price);
+    case 'price-desc':
+      return copie.sort((a, b) => b.price - a.price);
+    case 'name':
+      return copie.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+    case 'new':
+      // Sans date, un produit passe pour ancien : mieux vaut le laisser en bas
+      // que le faire remonter en tête des nouveautés.
+      return copie.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
+    default:
+      // Ordre du catalogue, mais les articles épuisés glissent en fin de liste :
+      // ils ne doivent pas occuper le haut de la vitrine.
+      return copie.sort((a, b) => Number(isSoldOut(a)) - Number(isSoldOut(b)));
+  }
 }
 
 function productCard(product) {

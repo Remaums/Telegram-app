@@ -8,10 +8,16 @@ import { products as seedProducts, categories as seedCategories } from './data/p
  * d'exemple de `data/products.js`. Ensuite, c'est le fichier JSON qui fait foi :
  * le module d'exemple ne sert plus que de graine.
  */
-const store = createStore('catalog.json', () => ({
-  products: structuredClone(seedProducts).map((p) => ({ visible: true, ...p })),
-  categories: structuredClone(seedCategories),
-}));
+const store = createStore('catalog.json', () => {
+  // Les produits d'exemple reçoivent tous la date d'installation : le tri
+  // « nouveautés » les laisse donc dans l'ordre du catalogue, et le premier
+  // produit que le vendeur ajoute passe naturellement devant.
+  const installe = new Date().toISOString();
+  return {
+    products: structuredClone(seedProducts).map((p) => ({ visible: true, createdAt: installe, ...p })),
+    categories: structuredClone(seedCategories),
+  };
+});
 
 /* ── Lecture ─────────────────────────────────────────────── */
 
@@ -258,6 +264,10 @@ function normalizeProduct(input) {
 
   return {
     id,
+    // Date d'entrée au catalogue, posée une fois puis conservée : sans elle,
+    // « nouveautés » ne voudrait rien dire. Un produit déjà présent avant
+    // cette version prend la date du jour où on le touche, faute de mieux.
+    createdAt: input.createdAt ?? new Date().toISOString(),
     name: name.slice(0, 60),
     category: slug(input.category ?? 'all') || 'all',
     // Sans variante, le prix de la fiche fait foi ; avec variantes, on affiche

@@ -50,6 +50,12 @@ export const FEATURES = [
     default: false,
   },
   {
+    key: 'search',
+    label: 'Recherche au catalogue',
+    hint: 'Une barre de recherche et un tri (prix, nouveautés) au-dessus de la grille.',
+    default: true,
+  },
+  {
     key: 'tiers',
     label: 'Remises par palier',
     hint: 'Une remise automatique au-delà d\'un montant de panier.',

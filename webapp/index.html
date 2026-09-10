@@ -101,6 +101,23 @@
     <span class="badge-chip">🌿 Sélection testée</span>
   </div>
 
+  <!-- ══ Recherche et tri ══ -->
+  <div class="find" id="findBar" hidden>
+    <div class="find__box">
+      <span class="find__icon" aria-hidden="true">🔎</span>
+      <input id="findInput" type="search" autocomplete="off" placeholder="Chercher un produit…"
+             aria-label="Chercher un produit">
+      <button class="find__clear" id="findClear" type="button" aria-label="Effacer la recherche" hidden>✕</button>
+    </div>
+    <select id="findSort" aria-label="Trier les produits">
+      <option value="default">Tri : par défaut</option>
+      <option value="new">Nouveautés d'abord</option>
+      <option value="price-asc">Prix croissant</option>
+      <option value="price-desc">Prix décroissant</option>
+      <option value="name">Ordre alphabétique</option>
+    </select>
+  </div>
+
   <!-- ══ Catégories ══ -->
   <nav class="cats" id="cats" aria-label="Catégories"></nav>
 
