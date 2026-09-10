@@ -112,6 +112,7 @@ app.get('/api/catalog', async (req, res, next) => {
         verification: settings.verification.enabled,
       },
       opening: { ...isOpenNow(settings.opening), message: settings.opening.message },
+      fulfillment: settings.fulfillment,
     });
   } catch (err) {
     next(err);
@@ -130,7 +131,7 @@ function authenticate(req, res, next) {
 
 app.post('/api/orders', authenticate, async (req, res, next) => {
   try {
-    const { items, contact, note } = req.body ?? {};
+    const { items, contact, note, mode } = req.body ?? {};
     const settings = await getSettings();
 
     if (isBlocked(settings, req.telegramUser.id)) {
@@ -205,12 +206,38 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       });
     }
 
+    // Retrait ou livraison : le mode décide des frais et de l'adresse exigée.
+    const fulfillment = settings.fulfillment;
+    const chosen = mode === 'delivery' || mode === 'pickup' ? mode : fulfillment.pickup ? 'pickup' : 'delivery';
+    if (!fulfillment[chosen]) {
+      throw new HttpError(400, chosen === 'delivery' ? "La livraison n'est pas proposée." : "Le retrait n'est pas proposé.");
+    }
+
+    const address = typeof contact === 'string' ? contact.trim().slice(0, 200) : '';
+    if (chosen === 'delivery' && address.length < 5) {
+      throw new HttpError(400, 'Indique une adresse de livraison.');
+    }
+
     if (units > settings.limits.unitsPerOrder) {
       throw new HttpError(
         400,
         `Commande trop grosse : ${settings.limits.unitsPerOrder} articles au maximum. Contacte-nous pour une commande en gros.`
       );
     }
+
+    // Les montants sont recalculés ici, jamais repris du client : frais de
+    // livraison, franco et minimum compris.
+    const subtotal = resolved.reduce((sum, i) => sum + i.lineTotal, 0);
+    if (subtotal < fulfillment.minimumOrder) {
+      throw new HttpError(
+        400,
+        `Commande minimum : ${(fulfillment.minimumOrder / 100).toFixed(2)} €. Il manque ${((fulfillment.minimumOrder - subtotal) / 100).toFixed(2)} €.`
+      );
+    }
+
+    const francoAtteint =
+      fulfillment.freeDeliveryFrom !== null && subtotal >= fulfillment.freeDeliveryFrom;
+    const deliveryFee = chosen === 'delivery' && !francoAtteint ? fulfillment.deliveryFee : 0;
 
     // Réservation tout-ou-rien : deux clients ne peuvent pas emporter
     // le dernier article en même temps.
@@ -221,8 +248,11 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       order = await createOrder({
         user: req.telegramUser,
         items: resolved,
-        total: resolved.reduce((sum, i) => sum + i.lineTotal, 0),
-        contact: typeof contact === 'string' ? contact.slice(0, 200) : null,
+        mode: chosen,
+        subtotal,
+        deliveryFee,
+        total: subtotal + deliveryFee,
+        contact: address || null,
         note: typeof note === 'string' ? note.slice(0, 500) : null,
       });
     } catch (err) {
@@ -236,7 +266,14 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       console.warn('Confirmation client impossible :', err.message)
     );
 
-    res.status(201).json({ reference: order.reference, total: order.total, items: order.items });
+    res.status(201).json({
+      reference: order.reference,
+      mode: order.mode,
+      subtotal: order.subtotal,
+      deliveryFee: order.deliveryFee,
+      total: order.total,
+      items: order.items,
+    });
   } catch (err) {
     next(err);
   }

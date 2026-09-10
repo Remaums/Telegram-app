@@ -247,12 +247,21 @@ export function orderMessage(order) {
     .map((i) => `• ${i.quantity} × ${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ''}`)
     .join('\n');
 
+  const livraison = order.mode === 'delivery';
+  const frais = order.deliveryFee
+    ? `Livraison : ${formatPrice(order.deliveryFee)}\n`
+    : livraison
+      ? 'Livraison : offerte\n'
+      : '';
+
   return (
     `🧾 COMMANDE ${order.reference} — ${status?.emoji ?? ''} ${status?.label ?? order.status}\n\n` +
     `Client : ${who} (id ${order.user.id})\n` +
+    `Mode : ${livraison ? '🛵 livraison' : '🏠 retrait'}\n` +
     `${items}\n\n` +
+    frais +
     `Total : ${formatPrice(order.total)}\n` +
-    (order.contact ? `Contact : ${order.contact}\n` : '') +
+    (order.contact ? `${livraison ? 'Adresse' : 'Contact'} : ${order.contact}\n` : '') +
     (order.note ? `Note : ${order.note}` : '')
   );
 }

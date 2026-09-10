@@ -590,6 +590,28 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cart__total strong { font-size: 28px; }
 .sheet__bar--cart { gap: 14px; }
 
+.modes { display: flex; gap: 9px; }
+.mode {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 11px 8px; font-weight: 800; font-size: 14px; color: var(--cream);
+  background: rgba(255, 255, 255, .06);
+  border: var(--line) solid var(--line-soft); border-radius: 14px;
+  transition: background .16s ease, color .16s ease, box-shadow .16s ease;
+}
+.mode small { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.mode[aria-pressed="true"] {
+  color: var(--ink); background: linear-gradient(180deg, var(--neon-hi), var(--neon));
+  border-color: rgb(var(--ink-rgb) / .5); box-shadow: var(--glow-neon);
+}
+.mode[aria-pressed="true"] small { color: rgb(var(--ink-rgb) / .75); }
+
+.cart__hint {
+  margin: 12px 14px 0; padding: 10px 12px; border-radius: 12px;
+  font-size: 13px; font-weight: 700; line-height: 1.4;
+  color: var(--gold); background: rgb(var(--gold-rgb) / .12);
+  border: 1px solid rgb(var(--gold-rgb) / .4);
+}
+
 /* ── Mes commandes ───────────────────────────────────────── */
 .orders { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 20px; }
 .orders__empty { text-align: center; padding: 30px 24px; color: var(--muted); font-weight: 700; }

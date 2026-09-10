@@ -72,6 +72,7 @@ function bindHandlers() {
   $('saveCategories').addEventListener('click', saveCategoryList);
   $('saveSettings').addEventListener('click', saveGuards);
   $('saveOpening').addEventListener('click', saveOpening);
+  $('saveFulfillment').addEventListener('click', saveFulfillment);
   $('fHours').addEventListener('change', () => {
     $('hoursBlock').hidden = !$('fHours').checked;
   });
@@ -602,6 +603,15 @@ function renderSettings() {
   $('hoursBlock').hidden = !$('fHours').checked;
   renderHours(opening.hours?.days ?? {});
 
+  const fulfillment = settings.fulfillment ?? {};
+  $('fPickup').checked = Boolean(fulfillment.pickup);
+  $('fDelivery').checked = Boolean(fulfillment.delivery);
+  $('fDeliveryFee').value = ((fulfillment.deliveryFee ?? 0) / 100).toFixed(2);
+  $('fFreeFrom').value = fulfillment.freeDeliveryFrom === null || fulfillment.freeDeliveryFrom === undefined
+    ? ''
+    : (fulfillment.freeDeliveryFrom / 100).toFixed(2);
+  $('fMinimum').value = ((fulfillment.minimumOrder ?? 0) / 100).toFixed(2);
+
   $('fCaptcha').checked = Boolean(settings.captcha?.enabled);
   $('fVerification').checked = Boolean(settings.verification?.enabled);
   renderVerifications();
@@ -681,6 +691,35 @@ async function saveOpening() {
     });
     renderSettings();
     toast($('fOpen').checked ? 'Boutique ouverte' : 'Boutique fermée');
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function saveFulfillment() {
+  const button = $('saveFulfillment');
+  button.disabled = true;
+  try {
+    const franco = $('fFreeFrom').value.trim();
+    state.settings = await api('/settings', {
+      method: 'PUT',
+      body: {
+        fulfillment: {
+          pickup: $('fPickup').checked,
+          delivery: $('fDelivery').checked,
+          deliveryFee: toCents($('fDeliveryFee').value),
+          // Champ vide : pas de franco du tout, ce qui n'est pas la même
+          // chose qu'un franco à 0 € (livraison toujours offerte).
+          freeDeliveryFrom: franco === '' ? null : toCents(franco),
+          minimumOrder: toCents($('fMinimum').value),
+        },
+      },
+    });
+    renderSettings();
+    toast('Livraison enregistrée');
     haptic('success');
   } catch (err) {
     toast(err.message);

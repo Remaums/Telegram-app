@@ -15,6 +15,8 @@ const state = {
   category: 'all',
   gates: {},
   opening: { open: true },
+  fulfillment: { pickup: true, delivery: false, deliveryFee: 0, freeDeliveryFrom: null, minimumOrder: 0 },
+  mode: 'pickup',
   captcha: null,      // épreuve en cours
   selection: [],      // tuiles touchées
   cart: loadCart(),
@@ -54,6 +56,8 @@ async function init() {
     state.statuses = data.statuses ?? {};
     state.gates = data.gates ?? {};
     state.opening = data.opening ?? { open: true };
+    state.fulfillment = data.fulfillment ?? state.fulfillment;
+    state.mode = state.fulfillment.pickup ? 'pickup' : 'delivery';
   } catch (err) {
     console.error(err);
     toast("Catalogue indisponible, réessaie dans un instant.");
@@ -69,6 +73,7 @@ async function init() {
   $('footLegal').textContent = legal;
 
   renderClosedBanner();
+  renderModes();
   renderCategories();
   renderGrid();
   renderCart();
@@ -100,6 +105,45 @@ function bindStaticHandlers() {
     el.addEventListener('click', closeSheets);
   }
   document.addEventListener('keydown', (e) => e.key === 'Escape' && closeSheets());
+}
+
+/* ── Retrait ou livraison ────────────────────────────────── */
+
+function renderModes() {
+  const { pickup, delivery, deliveryFee } = state.fulfillment;
+  // Un seul mode possible : inutile de faire choisir.
+  $('modeField').hidden = !(pickup && delivery);
+  if (!(pickup && delivery)) return;
+
+  const options = [
+    ['pickup', '🏠 Retrait', 'sur place'],
+    ['delivery', '🛵 Livraison', deliveryFee ? formatPrice(deliveryFee) : 'offerte'],
+  ];
+
+  $('modes').replaceChildren(
+    ...options.map(([value, label, detail]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mode';
+      btn.setAttribute('aria-pressed', String(state.mode === value));
+      btn.innerHTML = `${label}<small>${escapeHtml(detail)}</small>`;
+      btn.addEventListener('click', () => {
+        state.mode = value;
+        haptic('light');
+        renderModes();
+        renderCart();
+      });
+      return btn;
+    })
+  );
+}
+
+/** Frais réellement dus : le franco peut les annuler. */
+function deliveryFeeFor(subtotal) {
+  const { delivery, deliveryFee, freeDeliveryFrom } = state.fulfillment;
+  if (state.mode !== 'delivery' || !delivery) return 0;
+  if (freeDeliveryFrom !== null && subtotal >= freeDeliveryFrom) return 0;
+  return deliveryFee;
 }
 
 /** Boutique fermée : on le dit, et on empêche la commande. */
@@ -481,11 +525,37 @@ function renderCart() {
   badge.textContent = count;
   badge.hidden = count === 0;
 
+  const subtotal = cartTotal();
+  const fee = deliveryFeeFor(subtotal);
+  const { minimumOrder, freeDeliveryFrom } = state.fulfillment;
+  const manque = Math.max(0, minimumOrder - subtotal);
+
   $('cartEmpty').hidden = lines.length > 0;
   $('noteField').hidden = lines.length === 0;
-  $('checkout').disabled = lines.length === 0 || !state.opening.open;
+  $('modeField').hidden = lines.length === 0 || !(state.fulfillment.pickup && state.fulfillment.delivery);
+  $('contactField').hidden = lines.length === 0;
+
+  const livraison = state.mode === 'delivery';
+  $('contactLabel').textContent = livraison
+    ? 'Adresse de livraison (obligatoire)'
+    : 'Téléphone ou adresse (optionnel)';
+
+  $('checkout').disabled = lines.length === 0 || !state.opening.open || manque > 0;
   $('checkout').textContent = state.opening.open ? 'Commander' : 'Boutique fermée';
-  $('cartTotal').textContent = formatPrice(cartTotal());
+
+  $('cartTotalLabel').textContent = fee ? `Total · dont ${formatPrice(fee)} de livraison` : 'Total';
+  $('cartTotal').textContent = formatPrice(subtotal + fee);
+
+  const hint = $('cartHint');
+  if (manque > 0 && lines.length) {
+    hint.textContent = `Commande minimum ${formatPrice(minimumOrder)} : il manque ${formatPrice(manque)}.`;
+    hint.hidden = false;
+  } else if (livraison && fee && freeDeliveryFrom !== null && lines.length) {
+    hint.textContent = `Livraison offerte à partir de ${formatPrice(freeDeliveryFrom)} : il manque ${formatPrice(freeDeliveryFrom - subtotal)}.`;
+    hint.hidden = false;
+  } else {
+    hint.hidden = true;
+  }
 
   $('cartList').replaceChildren(...lines.map(cartRow));
   syncMainButton();
@@ -541,6 +611,12 @@ async function checkout() {
   const note = $('orderNote').value.trim();
   const contact = $('orderContact').value.trim();
 
+  if (state.mode === 'delivery' && contact.length < 5) {
+    toast('Indique ton adresse de livraison.');
+    $('orderContact').focus();
+    return;
+  }
+
   // On enregistre la commande côté serveur pour avoir une référence et une
   // trace. Si le serveur ne répond pas, on continue quand même : l'essentiel
   // est que le client arrive dans la conversation avec son récapitulatif.
@@ -555,6 +631,7 @@ async function checkout() {
       },
       body: JSON.stringify({
         items: lines.map((l) => ({ id: l.id, variantId: l.variantId, quantity: l.quantity })),
+        mode: state.mode,
         contact,
         note,
       }),
@@ -602,9 +679,12 @@ function buildOrderMessage(lines, note, reference, contact) {
     parts.push(`• ${line.quantity} × ${line.product.name}${variant} — ${formatPrice(line.lineTotal)}`);
   }
 
-  parts.push('', `Total : ${formatPrice(cartTotal())}`);
+  const fee = deliveryFeeFor(cartTotal());
+  parts.push('', state.mode === 'delivery' ? '🛵 Livraison' : '🏠 Retrait sur place');
+  if (fee) parts.push(`Frais de livraison : ${formatPrice(fee)}`);
+  parts.push(`Total : ${formatPrice(cartTotal() + fee)}`);
   if (reference) parts.push(`Réf : ${reference}`);
-  if (contact) parts.push(`Contact : ${contact}`);
+  if (contact) parts.push(`${state.mode === 'delivery' ? 'Adresse' : 'Contact'} : ${contact}`);
   if (note) parts.push('', `Note : ${note}`);
 
   return parts.join('\n');
@@ -722,7 +802,7 @@ function syncMainButton() {
   const main = tg?.MainButton;
   if (!main) return;
 
-  const total = cartTotal();
+  const total = cartTotal() + deliveryFeeFor(cartTotal());
   const sheetOpen = [...document.querySelectorAll('.sheet')].some((s) => !s.hidden);
 
   if (total > 0 && !sheetOpen) {

@@ -7,6 +7,15 @@ import { defaultHours, normalizeHours } from './opening.js';
  * code ni redéployer. Le fichier est créé au premier accès avec ces valeurs.
  */
 const DEFAULTS = {
+  // Retrait, livraison, frais et minimum de commande. Les montants sont en
+  // centimes, comme partout ailleurs dans le projet.
+  fulfillment: {
+    pickup: true,
+    delivery: false,
+    deliveryFee: 0,
+    freeDeliveryFrom: null,  // null = pas de franco
+    minimumOrder: 0,
+  },
   // Garde-fous contre les abus. Généreux par défaut : ils doivent gêner un
   // robot, pas un client qui commande deux fois dans la soirée.
   limits: {
@@ -40,6 +49,7 @@ export async function getSettings() {
     ...DEFAULTS,
     ...data,
     limits: { ...DEFAULTS.limits, ...(data.limits ?? {}) },
+    fulfillment: { ...DEFAULTS.fulfillment, ...(data.fulfillment ?? {}) },
     captcha: { ...DEFAULTS.captcha, ...(data.captcha ?? {}) },
     verification: { ...DEFAULTS.verification, ...(data.verification ?? {}) },
     opening: {
@@ -70,6 +80,26 @@ export async function saveSettings(patch) {
     }
     if (patch.verification) {
       data.verification = { enabled: Boolean(patch.verification.enabled) };
+    }
+    if (patch.fulfillment) {
+      const current = { ...DEFAULTS.fulfillment, ...(data.fulfillment ?? {}) };
+      const pickup = patch.fulfillment.pickup === undefined ? current.pickup : Boolean(patch.fulfillment.pickup);
+      const delivery = patch.fulfillment.delivery === undefined ? current.delivery : Boolean(patch.fulfillment.delivery);
+      if (!pickup && !delivery) {
+        throw new HttpError(400, 'Garde au moins un mode : retrait ou livraison.');
+      }
+
+      const franco = patch.fulfillment.freeDeliveryFrom;
+      data.fulfillment = {
+        pickup,
+        delivery,
+        deliveryFee: bounded(patch.fulfillment.deliveryFee ?? current.deliveryFee, 0, 100000, current.deliveryFee),
+        freeDeliveryFrom:
+          franco === undefined ? current.freeDeliveryFrom
+          : franco === null || franco === '' ? null
+          : bounded(franco, 0, 1000000, current.freeDeliveryFrom ?? 0),
+        minimumOrder: bounded(patch.fulfillment.minimumOrder ?? current.minimumOrder, 0, 1000000, current.minimumOrder),
+      };
     }
     if (patch.opening) {
       const current = data.opening ?? DEFAULTS.opening;

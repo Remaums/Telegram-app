@@ -153,10 +153,15 @@
         <img src="/assets/ui/leaf.svg" alt="" class="cart__empty-leaf">
         <p>Le panier est vide. On le remplit ?</p>
       </div>
+      <div class="field" id="modeField" hidden>
+        <span>Comment tu récupères</span>
+        <div class="modes" id="modes" role="group" aria-label="Mode de récupération"></div>
+      </div>
       <label class="field" id="contactField">
-        <span>Téléphone ou adresse (optionnel)</span>
+        <span id="contactLabel">Téléphone ou adresse (optionnel)</span>
         <input id="orderContact" type="text" maxlength="200" placeholder="Pour te joindre ou te livrer">
       </label>
+      <p class="cart__hint" id="cartHint" hidden></p>
       <label class="field" id="noteField">
         <span>Un mot pour la commande ? (optionnel)</span>
         <textarea id="orderNote" rows="2" maxlength="500" placeholder="Créneau souhaité, point de retrait, question…"></textarea>
@@ -164,7 +169,7 @@
     </div>
     <div class="sheet__bar sheet__bar--cart">
       <div class="cart__total">
-        <span>Total</span>
+        <span id="cartTotalLabel">Total</span>
         <strong class="goldtext" id="cartTotal">0 €</strong>
       </div>
       <button class="btn btn--primary btn--grow" id="checkout" type="button">Commander</button>

@@ -349,6 +349,36 @@ choisit — le reste du serveur ignore lequel tourne.
 
 ---
 
+## Exploitation au quotidien
+
+Tout se règle depuis l'onglet **Réglages** de l'espace admin, sans redéployer.
+
+### Ouverture
+
+Un interrupteur immédiat (`/ouvrir` et `/fermer` marchent aussi depuis la
+conversation) et, si tu veux, des **horaires hebdomadaires** avec ton fuseau :
+la boutique se ferme alors toute seule le soir. Une plage qui franchit minuit
+(22:00 → 02:00) est comprise des deux côtés.
+
+Fermée, la boutique reste consultable — le client prépare son panier et voit
+un bandeau — mais **le serveur refuse les commandes** : un bandeau seul
+n'empêcherait pas de valider un panier resté ouvert.
+
+### Retrait et livraison
+
+| Réglage | Effet |
+|---|---|
+| Retrait / Livraison | les modes proposés ; il en faut au moins un |
+| Frais de livraison | ajoutés au total, **recalculés côté serveur** |
+| Livraison offerte dès | franco : au-delà, les frais tombent à zéro |
+| Commande minimum | en dessous, le bouton Commander reste fermé |
+
+Une commande en livraison exige une adresse. Le mode, le sous-total et les
+frais sont enregistrés avec la commande, et repris dans le message envoyé au
+vendeur.
+
+---
+
 ## Contrôles à l'entrée
 
 Deux portes, indépendantes, activables depuis l'espace admin (onglet Réglages).

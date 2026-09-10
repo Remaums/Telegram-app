@@ -18,7 +18,7 @@ function makeReference() {
   return `CS68-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 }
 
-export async function createOrder({ user, items, total, contact, note }) {
+export async function createOrder({ user, items, subtotal, deliveryFee = 0, total, mode = 'pickup', contact, note }) {
   return store.update((orders) => {
     const order = {
       reference: makeReference(),
@@ -31,6 +31,9 @@ export async function createOrder({ user, items, total, contact, note }) {
         firstName: user.first_name ?? null,
       },
       items,
+      mode,
+      subtotal: subtotal ?? total,
+      deliveryFee,
       total,
       contact: contact ?? null,
       note: note || null,

@@ -99,6 +99,18 @@
     </div>
     <button class="a-btn a-btn--primary a-btn--block" id="saveOpening" type="button">Enregistrer l'ouverture</button>
 
+    <h2 class="a-h2">Retrait et livraison</h2>
+    <div class="a-toggle">
+      <label><input type="checkbox" id="fPickup"> Retrait sur place</label>
+      <label><input type="checkbox" id="fDelivery"> Livraison</label>
+    </div>
+    <div class="a-row">
+      <label class="a-field"><span>Frais de livraison (€)</span><input id="fDeliveryFee" type="number" step="0.01" min="0" inputmode="decimal"></label>
+      <label class="a-field"><span>Livraison offerte dès (€)</span><input id="fFreeFrom" type="number" step="0.01" min="0" inputmode="decimal" placeholder="jamais"></label>
+    </div>
+    <label class="a-field"><span>Commande minimum (€)</span><input id="fMinimum" type="number" step="0.01" min="0" inputmode="decimal"></label>
+    <button class="a-btn a-btn--primary a-btn--block" id="saveFulfillment" type="button">Enregistrer la livraison</button>
+
     <h2 class="a-h2">Entrée de la boutique</h2>
     <div class="a-toggle">
       <label><input type="checkbox" id="fCaptcha"> Épreuve anti-robot à l'ouverture</label>
