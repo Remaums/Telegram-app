@@ -85,9 +85,18 @@ app.get('/api/health', async (req, res) => {
     },
   };
 
+  // On touche chaque magasin, pas seulement le catalogue : un fichier de
+  // commandes illisible laissait la boutique se déclarer en bonne santé, et
+  // le vendeur ne l'apprenait qu'à la première commande perdue.
   try {
-    const { products } = await getCatalog();
+    const [{ products }, settings, commandes] = await Promise.all([
+      getCatalog(),
+      getSettings(),
+      listOrders({ limit: 1 }),
+    ]);
     health.products = products.length;
+    health.open = isOpenNow(settings.opening).open;
+    health.orders = Array.isArray(commandes);
   } catch (err) {
     health.ok = false;
     health.error = `Stockage injoignable : ${err.message}`;

@@ -6,7 +6,18 @@ import { matchProduct } from './photos.js';
 import { getSettings, saveSettings } from './settings.js';
 import { requestVerification, decideVerification } from './verification.js';
 
-export const bot = new Bot(config.botToken);
+/**
+ * Le bot, construit même sans jeton.
+ *
+ * grammY refuse un token vide en levant « Empty token! » — et comme les
+ * imports d'un module ES sont évalués avant le corps du fichier, ce plantage
+ * arrivait *avant* le contrôle de configuration. Un nouvel utilisateur qui
+ * oubliait son BOT_TOKEN recevait donc une trace JavaScript au lieu du
+ * message qui lui dit quoi faire. Le jeton de remplacement ne sert jamais :
+ * en ligne de commande, le contrôle arrête le process juste après ; ailleurs,
+ * `bot.start()` échoue proprement et la boutique reste servie.
+ */
+export const bot = new Bot(config.botToken || '0:BOT_TOKEN-absent');
 
 const shopKeyboard = () =>
   new InlineKeyboard().webApp('🛒 Ouvrir la boutique', config.webappUrl);
