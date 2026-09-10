@@ -117,6 +117,37 @@ const PARIS = 'Europe/Paris';
     b.resume.nouveaux === 1, `${b.resume.nouveaux}`);
 }
 
+/* ── D'où viennent les commandes ─────────────────────────── */
+
+// La ville écrite par le client fait foi : c'est la seule exacte. Le secteur
+// prend le relais pour les commandes d'avant l'adresse découpée et pour celles
+// qu'on a anonymisées — elles gardent leur commune, pas leur porte.
+{
+  const b = bilan(
+    [
+      commande('2026-03-13T18:00:00Z', 5000, { address: { city: 'Mulhouse', postalCode: '68100' } }),
+      commande('2026-03-13T19:00:00Z', 3000, { address: { city: 'Mulhouse', postalCode: '68100' } }),
+      commande('2026-03-13T20:00:00Z', 4000, { zone: { name: 'Colmar', postalCode: '68000' } }),
+      commande('2026-03-12T20:00:00Z', 2000, { mode: 'pickup' }),
+      commande('2026-03-12T21:00:00Z', 1000, {}),
+    ],
+    { jours: 7, maintenant: MAINTENANT, timezone: PARIS }
+  );
+
+  check('Les communes sont classées par chiffre', b.lieux[0].lieu === 'Mulhouse (68100)' && b.lieux[0].chiffre === 8000,
+    JSON.stringify(b.lieux[0]));
+  check('Deux commandes au même endroit ne font qu une ligne', b.lieux[0].commandes === 2);
+  check('Un secteur remplace une adresse absente',
+    b.lieux.some((l) => l.lieu === 'Colmar (68000)'), b.lieux.map((l) => l.lieu).join(' · '));
+  check('Le retrait a sa propre ligne — sinon les totaux ne s additionnent plus',
+    b.lieux.some((l) => l.lieu === 'Retrait sur place'));
+  check("Une livraison sans lieu connu le dit plutôt que de disparaître",
+    b.lieux.some((l) => l.lieu === 'Livraison, lieu inconnu'));
+  check('Rien ne se perd en route',
+    b.lieux.reduce((s2, l) => s2 + l.chiffre, 0) === b.resume.chiffre,
+    `${b.lieux.reduce((s2, l) => s2 + l.chiffre, 0)} / ${b.resume.chiffre}`);
+}
+
 /* ── La comparaison à la période précédente ──────────────── */
 
 {

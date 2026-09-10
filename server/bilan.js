@@ -67,6 +67,25 @@ function etiquette(jourISO) {
 }
 
 /**
+ * D'où vient une commande, en une ligne.
+ *
+ * La ville que le client a écrite passe avant tout : c'est la seule exacte. Le
+ * secteur de livraison prend le relais pour les commandes d'avant l'adresse
+ * découpée, et pour celles qu'on a anonymisées — elles gardent leur commune,
+ * pas leur porte.
+ */
+function nomDuLieu(order) {
+  if (order.mode !== 'delivery') return 'Retrait sur place';
+
+  const ville = order.address?.city?.trim();
+  const code = order.address?.postalCode?.trim() || order.zone?.postalCode?.trim();
+  if (ville) return code ? `${ville} (${code})` : ville;
+  if (order.zone?.name) return code ? `${order.zone.name} (${code})` : order.zone.name;
+  if (code) return code;
+  return 'Livraison, lieu inconnu';
+}
+
+/**
  * @param {object[]} orders  toutes les commandes, dans n'importe quel ordre
  * @param {{jours?: number, maintenant?: Date, timezone?: string}} options
  */
@@ -113,6 +132,7 @@ export function bilan(orders, { jours = 30, maintenant = new Date(), timezone = 
     commandes: 0,
   }));
   const semaine = SEMAINE.map((nom) => ({ jour: nom, commandes: 0, chiffre: 0 }));
+  const lieux = new Map();
 
   let chiffre = 0;
   let annulees = 0;
@@ -140,6 +160,16 @@ export function bilan(orders, { jours = 30, maintenant = new Date(), timezone = 
     heures[Math.floor(d.heure / 2)].commandes++;
     semaine[d.semaine].commandes++;
     semaine[d.semaine].chiffre += o.total ?? 0;
+
+    // D'où viennent les commandes : la ville écrite par le client fait foi, le
+    // secteur de livraison la remplace pour les commandes d'avant l'adresse
+    // découpée, et le retrait a sa propre ligne — sinon les totaux ne
+    // s'additionnent plus.
+    const lieu = nomDuLieu(o);
+    const compte = lieux.get(lieu) ?? { lieu, commandes: 0, chiffre: 0 };
+    compte.commandes++;
+    compte.chiffre += o.total ?? 0;
+    lieux.set(lieu, compte);
 
     for (const item of o.items ?? []) {
       const nom = item.name ?? '?';
@@ -179,6 +209,7 @@ export function bilan(orders, { jours = 30, maintenant = new Date(), timezone = 
       chiffreAvant,
     },
     parJour: [...parJour.values()],
+    lieux: [...lieux.values()].sort((a, b) => b.chiffre - a.chiffre),
     produits: [...produits.values()].sort((a, b) => b.chiffre - a.chiffre),
     heures,
     semaine,

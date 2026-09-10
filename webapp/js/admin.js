@@ -290,6 +290,29 @@ function renderBoard() {
     lignesTableau: b.semaine.map((j) => [j.jour, String(j.commandes), formatPrice(j.chiffre)]),
   });
 
+  // Une liste ordonnée plutôt qu'une carte : une boutique dessert cinq à vingt
+  // communes, et un classement se lit d'un coup là où une carte demande de
+  // comparer des tailles de pastilles.
+  const villes = b.lieux.slice(0, 8);
+  const autresLieux = b.lieux.slice(8);
+  if (autresLieux.length) {
+    villes.push({
+      lieu: `${autresLieux.length} autres`,
+      commandes: autresLieux.reduce((s2, l) => s2 + l.commandes, 0),
+      chiffre: autresLieux.reduce((s2, l) => s2 + l.chiffre, 0),
+    });
+  }
+  barres($('vizLieux'), {
+    titre: 'Chiffre par commune',
+    lignes: villes.map((l) => ({
+      nom: l.lieu,
+      valeur: l.chiffre,
+      texte: `${l.commandes} commande${l.commandes > 1 ? 's' : ''} · ${formatPrice(l.chiffre)}`,
+    })),
+    colonnesTableau: ['Lieu', 'Commandes', 'Chiffre'],
+    lignesTableau: b.lieux.map((l) => [l.lieu, String(l.commandes), formatPrice(l.chiffre)]),
+  });
+
   const low = lowStockRows();
   $('lowStock').replaceChildren(
     ...(low.length

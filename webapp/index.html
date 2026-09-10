@@ -108,6 +108,18 @@
     <span class="badge-chip">🌿 Sélection testée</span>
   </div>
 
+  <!-- ══ « La même chose » ══ ══════════════════════════════════
+       N'apparaît que pour qui a déjà commandé ici : c'est le
+       raccourci d'un habitué, pas une réclame. -->
+  <button class="reprise" id="reprise" type="button" hidden>
+    <span class="reprise__icone" aria-hidden="true">🔁</span>
+    <span class="reprise__texte">
+      <b>La même chose</b>
+      <span id="repriseDetail"></span>
+    </span>
+    <span class="reprise__fleche" aria-hidden="true">›</span>
+  </button>
+
   <!-- ══ Recherche et tri ══ -->
   <div class="find" id="findBar" hidden>
     <div class="find__box">

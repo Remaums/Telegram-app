@@ -583,6 +583,13 @@ même magasin.
 - **Meilleures ventes** — chiffre par produit, six au plus, le reste réuni.
 - **Quand on commande** — par tranche de deux heures et par jour de la semaine.
   C'est ce qui décide des horaires d'ouverture et du jour de réassort.
+- **D'où viennent les commandes** — le chiffre par commune, retrait compris.
+  La ville écrite par le client fait foi ; le secteur de livraison prend le
+  relais pour les commandes d'avant l'adresse découpée et pour celles qu'on a
+  anonymisées. C'est un classement, pas une carte dessinée : une boutique
+  dessert cinq à vingt communes, et une liste ordonnée se lit d'un coup là où
+  une carte demande de comparer des tailles de pastilles — sans compter qu'un
+  fond de carte se charge chez un tiers, à qui on dirait alors où on livre.
 
 Trois précautions valent d'être connues, parce qu'un tableau de bord faux est
 pire qu'aucun tableau de bord — on y croit, et on décide dessus :
@@ -608,6 +615,23 @@ de pointe. Deux couleurs à distinguer obligeraient à apprendre une légende po
 lire ses ventes du mardi, alors que la longueur des barres dit déjà tout. Les
 graphiques sont écrits à la main en SVG : quatre courbes ne valent pas cinquante
 kilo-octets de bibliothèque chargés sur le réseau d'un téléphone.
+
+### « La même chose »
+
+Un client qui a déjà commandé trouve, sous la bannière d'accueil, un raccourci
+qui **remet sa dernière commande dans le panier** — sur une boutique de
+réassort, la plupart des commandes sont la précédente. La même chose se
+retrouve sur chaque ligne de « Mes commandes », pour revenir à une commande
+plus ancienne.
+
+Le catalogue bouge entre deux commandes, et le raccourci ne promet que ce qu'il
+peut tenir : un article retiré ou épuisé est **écarté et annoncé**, une
+quantité plus grande que le stock est **ramenée au stock et annoncée**, et si
+plus rien n'est disponible le raccourci **disparaît** au lieu d'ouvrir un
+panier vide. Un panier déjà rempli n'est jamais remplacé sans qu'on demande.
+
+Il suit l'interrupteur **« Mes commandes »** : sans historique, il n'y a rien à
+reprendre.
 
 ### Effacer des commandes, ou les faire oublier
 

@@ -29,6 +29,7 @@ const state = {
   slotId: '',         // celui que le client a choisi
   promo: null,        // remise en cours : { code, discount, label, source }
   lastMessage: '',    // récapitulatif de la dernière commande, pour le renvoyer
+  derniere: null,     // la dernière commande du client, pour « la même chose »
   blocked: false,     // compte privé de commande par le vendeur
   mode: 'pickup',
   captcha: null,      // épreuve en cours
@@ -116,6 +117,7 @@ async function init() {
   renderGrid();
   renderCart();
   loadSlots();
+  chargerLaDerniereCommande();
   runGates();
 }
 
@@ -236,6 +238,7 @@ function bindStaticHandlers() {
     state.sort = $('findSort').value;
     renderGrid();
   });
+  $('reprise').addEventListener('click', () => reprendreLaCommande());
   $('orderPostal').addEventListener('input', () => {
     state.zone = findZone($('orderPostal').value);
     renderCart();
@@ -1458,6 +1461,122 @@ function loadCart() {
   return [...parCle.values()].slice(0, CART_MAX_LINES);
 }
 
+/* ── « La même chose » ───────────────────────────────────── */
+
+/**
+ * Va chercher la dernière commande du client, s'il en a une.
+ *
+ * Sur une boutique de réassort, la plupart des commandes sont la précédente :
+ * la refaire article par article est un travail qu'on peut lui épargner. Le
+ * raccourci suit l'interrupteur « Mes commandes » — sans historique, il n'y a
+ * rien à reprendre.
+ */
+async function chargerLaDerniereCommande() {
+  const banniere = $('reprise');
+  banniere.hidden = true;
+  if (!tg?.initData || state.features.orderHistory === false) return;
+
+  try {
+    const res = await fetch('/api/orders', { headers: { 'X-Telegram-Init-Data': tg.initData } });
+    if (!res.ok) return;
+    const commandes = await res.json();
+    state.derniere = commandes.find((c) => c.status !== 'annulee') ?? null;
+    renderReprise();
+  } catch {
+    /* pas d'historique : le raccourci reste caché, la boutique fonctionne */
+  }
+}
+
+/** La bannière ne se montre que si elle mène quelque part. */
+function renderReprise() {
+  const banniere = $('reprise');
+  const commande = state.derniere;
+  if (!commande) return void (banniere.hidden = true);
+
+  // On regarde ce qui est encore commandable avant de proposer : promettre
+  // « la même chose » puis annoncer que rien n'est disponible est pire que se
+  // taire.
+  const lignes = reprendreLesLignes(commande);
+  if (!lignes.dispo.length) return void (banniere.hidden = true);
+
+  const combien = lignes.dispo.reduce((somme, l) => somme + l.quantity, 0);
+  $('repriseDetail').textContent =
+    `${lignes.dispo.map((l) => l.nom).slice(0, 2).join(', ')}` +
+    `${lignes.dispo.length > 2 ? '…' : ''} · ${combien} article${combien > 1 ? 's' : ''}`;
+  banniere.hidden = false;
+}
+
+/**
+ * Ce qu'on peut reprendre d'une commande, et ce qui manque.
+ *
+ * Le catalogue a pu bouger depuis : un produit retiré, un format supprimé, un
+ * stock descendu. On reprend ce qui existe encore, dans la limite du stock, et
+ * on dit ce qui manque plutôt que de laisser le client s'en apercevoir au
+ * moment de payer.
+ */
+function reprendreLesLignes(commande) {
+  const dispo = [];
+  const manquants = [];
+
+  for (const item of commande.items ?? []) {
+    const produit = state.products.find((p) => p.id === item.id);
+    const variante = produit?.variants?.find((v) => v.id === item.variantId) ?? null;
+
+    if (!produit || (item.variantId && !variante)) {
+      manquants.push(item.name);
+      continue;
+    }
+    const stock = stockOf(produit, variante?.id ?? null);
+    if (stock <= 0) {
+      manquants.push(`${produit.name}${variante ? ` (${variante.label})` : ''}`);
+      continue;
+    }
+    dispo.push({
+      key: `${produit.id}::${variante?.id ?? ''}`,
+      id: produit.id,
+      variantId: variante?.id ?? null,
+      quantity: Math.min(item.quantity, stock, 99),
+      nom: produit.name,
+      // Une quantité rabotée par le stock doit se dire : le client croirait
+      // sinon avoir commandé ce qu'il avait pris la fois d'avant.
+      rabote: Math.min(item.quantity, stock, 99) < item.quantity,
+    });
+  }
+  return { dispo, manquants };
+}
+
+/** Remet la dernière commande dans le panier, et dit ce qui a changé. */
+function reprendreLaCommande(commande) {
+  const { dispo, manquants } = reprendreLesLignes(commande ?? state.derniere ?? {});
+  if (!dispo.length) {
+    toast("Rien de cette commande n'est disponible en ce moment.");
+    return;
+  }
+
+  // Un panier déjà rempli ne se remplace pas dans le dos de celui qui l'a
+  // rempli : on demande.
+  if (state.cart.length && !confirm('Remplacer ton panier par ta dernière commande ?')) return;
+
+  state.cart = dispo.map(({ key, id, variantId, quantity }) => ({ key, id, variantId, quantity }));
+  saveCart();
+  renderCart();
+  revalidatePromo();
+  closeSheets();
+  openSheet('cartSheet');
+  haptic('success');
+
+  const rabotes = dispo.filter((l) => l.rabote).length;
+  toast(
+    [
+      `${dispo.length} article${dispo.length > 1 ? 's' : ''} remis au panier`,
+      manquants.length ? `${manquants.length} indisponible${manquants.length > 1 ? 's' : ''}` : '',
+      rabotes ? 'quantité ajustée au stock' : '',
+    ]
+      .filter(Boolean)
+      .join(' · ')
+  );
+}
+
 function saveCart() {
   try { localStorage.setItem(CART_KEY, JSON.stringify(state.cart)); } catch {}
 }
@@ -1862,6 +1981,8 @@ async function checkout() {
   // seconde fois sans que rien ne le dise.
   if (reference) {
     showOrderDone(reference, lines, remise, creneau, zone);
+    // La commande qu'on vient de passer devient celle qu'on pourra reprendre.
+    chargerLaDerniereCommande();
     state.cart = [];
     saveCart();
     renderCart();
@@ -1937,6 +2058,8 @@ async function refreshCatalog() {
     const data = await res.json();
     state.products = data.products;
     renderGrid();
+    // Un article épuisé entre-temps ne doit plus être promis par le raccourci.
+    renderReprise();
   } catch {
     /* on garde l'affichage précédent plutôt que de vider la boutique */
   }
@@ -2063,6 +2186,17 @@ function orderCard(order) {
         .join('')}
     </ul>
     <p class="order__total">${formatPrice(order.total)}</p>`;
+
+  // Reprendre une commande précise, pas seulement la dernière : un client
+  // revient parfois sur celle d'avant.
+  if (order.status !== 'annulee') {
+    const reprise = document.createElement('button');
+    reprise.className = 'btn btn--ghost btn--block';
+    reprise.type = 'button';
+    reprise.textContent = '🔁 Reprendre cette commande';
+    reprise.addEventListener('click', () => reprendreLaCommande(order));
+    card.append(reprise);
+  }
   return card;
 }
 
