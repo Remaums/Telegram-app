@@ -106,6 +106,35 @@ bot.command('annonces', async (ctx) => {
   await ctx.reply('🔔 C\'est reparti : tu recevras de nouveau les annonces.');
 });
 
+/**
+ * Un identifiant déclaré qui ne diffère du demandeur que d'un caractère.
+ *
+ * À l'installation, l'identifiant se recopie à la main depuis un message : le
+ * chiffre en trop ou en moins est l'erreur la plus commune, et la plus pénible
+ * à voir — deux nombres de dix chiffres se ressemblent trop pour qu'on repère
+ * l'écart à l'œil. Autant le désigner.
+ */
+function presqueLeMeme(demandeur, declares) {
+  const a = String(demandeur);
+  return declares.find((b) => {
+    if (b === a) return false;
+    const [court, long] = a.length <= b.length ? [a, b] : [b, a];
+    if (long.length - court.length > 1) return false;
+
+    if (long.length === court.length) {
+      // Un seul caractère qui diffère, à la même position.
+      let ecarts = 0;
+      for (let i = 0; i < long.length; i++) if (long[i] !== court[i]) ecarts++;
+      return ecarts === 1;
+    }
+    // Un caractère de plus : le long est-il le court avec une insertion ?
+    for (let i = 0; i < long.length; i++) {
+      if (long.slice(0, i) + long.slice(i + 1) === court) return true;
+    }
+    return false;
+  });
+}
+
 bot.command('admin', async (ctx) => {
   if (!isAdmin(ctx.from.id)) {
     // « Réservé à l'administrateur » laisse sans recours celui qui EST le
@@ -113,12 +142,17 @@ bot.command('admin', async (ctx) => {
     // plus fréquent à l'installation. On lui donne donc ce qui lui manque :
     // son identifiant, et où l'écrire.
     const rien = config.adminIds.length === 0;
+    const voisin = presqueLeMeme(ctx.from.id, config.adminIds);
     return ctx.reply(
       "Cet espace est réservé à l'administrateur.\n\n" +
         `Ton identifiant Telegram : ${ctx.from.id}\n` +
         (rien
           ? "Aucun administrateur n'est déclaré pour l'instant."
           : `Déclarés pour l'instant : ${config.adminIds.join(', ')}`) +
+        (voisin
+          ? `\n\n⚠️ ${voisin} ne diffère du tien que d'un caractère : c'est ` +
+            'très probablement une faute de frappe dans .env.'
+          : '') +
         '\n\nSi la boutique est la tienne, ajoute ton identifiant à ADMIN_IDS ' +
         'dans le fichier .env, puis redémarre la boutique.'
     );

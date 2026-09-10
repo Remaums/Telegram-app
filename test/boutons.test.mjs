@@ -220,5 +220,22 @@ const URL_OK = 'https://boutique.exemple.fr';
     r[0].dit.slice(0, 80).replace(/\n/g, ' '));
 }
 
+{
+  // Le chiffre en trop : l'erreur de recopie la plus commune, et la plus
+  // pénible à voir — deux nombres de dix chiffres se ressemblent trop.
+  const presque = `${CLIENT.id}9`;
+  const r = await avecUrl(URL_OK, [{ from: CLIENT, texte: '/admin' }], { ADMIN_IDS: presque });
+  check('Une faute de frappe à un chiffre est désignée',
+    r[0].dit.includes(presque) && /faute de frappe/i.test(r[0].dit),
+    r[0].dit.split('\n').filter((l) => l.includes('⚠')).join(' ').slice(0, 90));
+}
+
+{
+  // Et on ne crie pas au loup quand les identifiants n'ont rien à voir.
+  const r = await avecUrl(URL_OK, [{ from: CLIENT, texte: '/admin' }], { ADMIN_IDS: '111222333' });
+  check("Un identifiant sans rapport ne déclenche pas l'alerte",
+    !/faute de frappe/i.test(r[0].dit), r[0].dit.slice(0, 60).replace(/\n/g, ' '));
+}
+
 console.log(`\n${failures ? `${failures} test(s) en échec` : 'Boutons Mini App : OK'}`);
 process.exit(failures ? 1 : 0);
