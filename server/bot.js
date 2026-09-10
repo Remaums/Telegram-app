@@ -287,9 +287,14 @@ export async function notifyOrderPlaced(order) {
     .map((i) => `• ${i.quantity} × ${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ''}`)
     .join('\n');
 
+  const remise = order.discount
+    ? `Remise${order.discountLabel ? ` ${order.discountLabel}` : ''} : −${formatPrice(order.discount)}\n`
+    : '';
+
   const text =
     `✅ Commande ${order.reference} enregistrée\n\n` +
     `${items}\n\n` +
+    remise +
     `Total : ${formatPrice(order.total)}\n\n` +
     'On revient vers toi très vite.';
 
@@ -313,11 +318,21 @@ export function orderMessage(order) {
       ? 'Livraison : offerte\n'
       : '';
 
+  // Le vendeur doit pouvoir refaire le calcul de tête : sous-total, remise,
+  // frais, total. Sans la ligne de remise, un total plus bas que la somme des
+  // articles ressemble à un bug.
+  const remise = order.discount
+    ? `Sous-total : ${formatPrice(order.subtotal)}\n` +
+      `Remise ${order.promoCode ? `${order.promoCode} ` : ''}: −${formatPrice(order.discount)}` +
+      `${order.discountLabel ? ` (${order.discountLabel})` : ''}\n`
+    : '';
+
   return (
     `🧾 COMMANDE ${order.reference} — ${status?.emoji ?? ''} ${status?.label ?? order.status}\n\n` +
     `Client : ${who} (id ${order.user.id})\n` +
     `Mode : ${livraison ? '🛵 livraison' : '🏠 retrait'}\n` +
     `${items}\n\n` +
+    remise +
     frais +
     `Total : ${formatPrice(order.total)}\n` +
     (order.contact ? `${livraison ? 'Adresse' : 'Contact'} : ${order.contact}\n` : '') +

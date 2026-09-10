@@ -164,6 +164,15 @@
         <span id="contactLabel">Téléphone ou adresse (optionnel)</span>
         <input id="orderContact" type="text" maxlength="200" placeholder="Pour te joindre ou te livrer">
       </label>
+      <div class="field" id="promoField">
+        <span>Code promo</span>
+        <div class="promo">
+          <input id="promoCode" type="text" maxlength="20" autocomplete="off" spellcheck="false"
+                 placeholder="Si tu en as un" aria-label="Code promo">
+          <button class="btn btn--ghost" id="promoApply" type="button">Appliquer</button>
+        </div>
+        <p class="promo__status" id="promoStatus" hidden role="status"></p>
+      </div>
       <p class="cart__hint" id="cartHint" hidden></p>
       <label class="field" id="noteField">
         <span>Un mot pour la commande ? (optionnel)</span>
@@ -174,6 +183,7 @@
       <div class="cart__total">
         <span id="cartTotalLabel">Total</span>
         <strong class="goldtext" id="cartTotal">0 €</strong>
+        <small id="cartStrike" hidden></small>
       </div>
       <button class="btn btn--primary btn--grow" id="checkout" type="button">Commander</button>
     </div>

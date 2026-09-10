@@ -14,6 +14,7 @@ const state = {
   stats: null,
   settings: null,
   verifications: [],
+  promos: [],
   tab: 'board',
   orderFilter: '',
   editing: null, // produit en cours d'édition, null = création
@@ -73,6 +74,10 @@ function bindHandlers() {
   $('saveSettings').addEventListener('click', saveGuards);
   $('saveOpening').addEventListener('click', saveOpening);
   $('saveFulfillment').addEventListener('click', saveFulfillment);
+  $('addTier').addEventListener('click', () => addTierRow());
+  $('saveTiers').addEventListener('click', saveTiers);
+  $('savePromo').addEventListener('click', savePromo);
+  $('fPromoType').addEventListener('change', syncPromoValueLabel);
   $('fHours').addEventListener('change', () => {
     $('hoursBlock').hidden = !$('fHours').checked;
   });
@@ -91,15 +96,17 @@ function bindHandlers() {
 }
 
 async function refreshAll() {
-  const [catalog, orders, stats, settings, verifications] = await Promise.all([
+  const [catalog, orders, stats, settings, verifications, promos] = await Promise.all([
     api('/catalog'),
     api('/orders'),
     api('/stats'),
     api('/settings'),
     api('/verifications'),
+    api('/promos'),
   ]);
   state.settings = settings;
   state.verifications = verifications;
+  state.promos = promos;
   state.products = catalog.products;
   state.categories = catalog.categories.filter((c) => c.id !== 'all');
   state.orders = orders;
@@ -612,6 +619,9 @@ function renderSettings() {
     : (fulfillment.freeDeliveryFrom / 100).toFixed(2);
   $('fMinimum').value = ((fulfillment.minimumOrder ?? 0) / 100).toFixed(2);
 
+  renderTiers(settings.discounts?.tiers ?? []);
+  renderPromos();
+
   $('fCaptcha').checked = Boolean(settings.captcha?.enabled);
   $('fVerification').checked = Boolean(settings.verification?.enabled);
   renderVerifications();
@@ -751,6 +761,174 @@ async function saveGuards() {
   } catch (err) {
     toast(err.message);
   } finally {
+    button.disabled = false;
+  }
+}
+
+/* ── Remises ─────────────────────────────────────────────── */
+
+function renderTiers(tiers) {
+  $('tierRows').replaceChildren(...tiers.map((t) => tierRow(t)));
+}
+
+function tierRow({ from = 0, percent = 5 } = {}) {
+  const row = document.createElement('div');
+  row.className = 'a-tier';
+  row.innerHTML = `
+    <span class="a-tier__unit">dès</span>
+    <input class="a-tier__from" type="number" step="0.01" min="0" inputmode="decimal"
+           value="${(from / 100).toFixed(2)}" aria-label="Montant du palier en euros">
+    <span class="a-tier__unit">€ →</span>
+    <input class="a-tier__percent" type="number" min="1" max="90" inputmode="numeric"
+           value="${Number(percent)}" aria-label="Pourcentage de remise">
+    <span class="a-tier__unit">%</span>`;
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'a-btn a-btn--sm a-btn--ghost';
+  remove.textContent = '✕';
+  remove.setAttribute('aria-label', 'Retirer ce palier');
+  remove.addEventListener('click', () => row.remove());
+  row.append(remove);
+  return row;
+}
+
+function addTierRow() {
+  if ($('tierRows').children.length >= 5) return toast('Cinq paliers au maximum.');
+  $('tierRows').append(tierRow());
+}
+
+async function saveTiers() {
+  const button = $('saveTiers');
+  button.disabled = true;
+  try {
+    const tiers = [...$('tierRows').children].map((row) => ({
+      from: toCents(row.querySelector('.a-tier__from').value),
+      percent: Number(row.querySelector('.a-tier__percent').value),
+    }));
+    state.settings = await api('/settings', { method: 'PUT', body: { discounts: { tiers } } });
+    renderSettings();
+    toast(tiers.length ? 'Paliers enregistrés' : 'Paliers retirés');
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function syncPromoValueLabel() {
+  $('fPromoValueLabel').textContent =
+    $('fPromoType').value === 'percent' ? 'Remise (%)' : 'Remise (€)';
+}
+
+function renderPromos() {
+  const list = $('promosList');
+  if (!state.promos.length) {
+    list.replaceChildren(Object.assign(document.createElement('li'), {
+      className: 'a-empty', textContent: 'Aucun code pour le moment.',
+    }));
+    return;
+  }
+
+  list.replaceChildren(
+    ...state.promos.map((promo) => {
+      const li = document.createElement('li');
+      const epuise = promo.maxUses !== null && promo.uses >= promo.maxUses;
+      const expire = promo.expiresAt && promo.expiresAt < new Date().toISOString().slice(0, 10);
+      if (!promo.active || epuise || expire) li.className = 'a-promo--off';
+
+      const valeur = promo.type === 'percent' ? `−${promo.value} %` : `−${formatPrice(promo.value)}`;
+      const details = [
+        promo.minSubtotal ? `dès ${formatPrice(promo.minSubtotal)}` : null,
+        promo.maxUses !== null ? `${promo.uses}/${promo.maxUses} usages` : `${promo.uses} usages`,
+        promo.expiresAt ? `jusqu'au ${promo.expiresAt}` : null,
+        promo.oncePerClient ? '1×/client' : null,
+        !promo.active ? 'désactivé' : epuise ? 'épuisé' : expire ? 'expiré' : null,
+      ].filter(Boolean);
+
+      const info = document.createElement('span');
+      info.className = 'a-promo';
+      info.innerHTML = `
+        <span class="a-promo__code">${escapeHtml(promo.code)} · ${escapeHtml(valeur)}</span>
+        <span class="a-promo__meta">${escapeHtml(details.join(' · '))}</span>`;
+      li.append(info);
+
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'a-btn a-btn--sm a-btn--ghost';
+      edit.textContent = 'Modifier';
+      edit.addEventListener('click', () => fillPromoForm(promo));
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'a-btn a-btn--sm a-btn--danger';
+      remove.textContent = 'Supprimer';
+      remove.addEventListener('click', () => removePromo(promo.code, remove));
+
+      li.append(edit, remove);
+      return li;
+    })
+  );
+}
+
+/** Recharge le formulaire depuis un code existant : l'enregistrer l'écrase,
+ *  en gardant son compteur d'usages. */
+function fillPromoForm(promo) {
+  $('fPromoCode').value = promo.code;
+  $('fPromoType').value = promo.type;
+  $('fPromoValue').value = promo.type === 'percent' ? promo.value : (promo.value / 100).toFixed(2);
+  $('fPromoMin').value = promo.minSubtotal ? (promo.minSubtotal / 100).toFixed(2) : '';
+  $('fPromoExpires').value = promo.expiresAt ?? '';
+  $('fPromoMaxUses').value = promo.maxUses ?? '';
+  $('fPromoOnce').checked = promo.oncePerClient;
+  $('fPromoActive').checked = promo.active;
+  syncPromoValueLabel();
+  $('fPromoCode').scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+async function savePromo() {
+  const button = $('savePromo');
+  button.disabled = true;
+  try {
+    const type = $('fPromoType').value;
+    const brut = $('fPromoValue').value;
+    const min = $('fPromoMin').value.trim();
+    const maxUses = $('fPromoMaxUses').value.trim();
+
+    state.promos = await api('/promos', {
+      method: 'PUT',
+      body: {
+        code: $('fPromoCode').value,
+        type,
+        // Un pourcentage est un entier, un montant est en centimes : deux
+        // unités différentes derrière le même champ.
+        value: type === 'percent' ? Number(brut) : toCents(brut),
+        minSubtotal: min === '' ? 0 : toCents(min),
+        expiresAt: $('fPromoExpires').value || null,
+        maxUses: maxUses === '' ? null : Number(maxUses),
+        oncePerClient: $('fPromoOnce').checked,
+        active: $('fPromoActive').checked,
+      },
+    });
+    renderPromos();
+    toast('Code enregistré');
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function removePromo(code, button) {
+  button.disabled = true;
+  try {
+    state.promos = await api(`/promos/${encodeURIComponent(code)}`, { method: 'DELETE' });
+    renderPromos();
+    toast('Code supprimé');
+  } catch (err) {
+    toast(err.message);
     button.disabled = false;
   }
 }

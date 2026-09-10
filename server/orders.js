@@ -18,7 +18,10 @@ function makeReference() {
   return `CS68-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 }
 
-export async function createOrder({ user, items, subtotal, deliveryFee = 0, total, mode = 'pickup', contact, note }) {
+export async function createOrder({
+  user, items, subtotal, discount = 0, discountLabel = null, promoCode = null,
+  deliveryFee = 0, total, mode = 'pickup', contact, note,
+}) {
   return store.update((orders) => {
     const order = {
       reference: makeReference(),
@@ -33,6 +36,11 @@ export async function createOrder({ user, items, subtotal, deliveryFee = 0, tota
       items,
       mode,
       subtotal: subtotal ?? total,
+      // Remise appliquée, avec de quoi l'expliquer au client s'il rappelle :
+      // le libellé du palier, ou le code qu'il a saisi.
+      discount,
+      discountLabel,
+      promoCode,
       deliveryFee,
       total,
       contact: contact ?? null,

@@ -391,6 +391,28 @@ Une commande en livraison exige une adresse. Le mode, le sous-total et les
 frais sont enregistrés avec la commande, et repris dans le message envoyé au
 vendeur.
 
+### Remises et codes promo
+
+Deux mécanismes, dans l'onglet Réglages :
+
+- **Paliers automatiques** (cinq au maximum) : « −10 % dès 100 € ». Ils sont
+  publics — la boutique les annonce dans le panier et dit ce qu'il manque pour
+  atteindre le suivant.
+- **Codes promo** : pourcentage ou montant fixe, avec panier minimum, date
+  d'expiration, nombre d'usages et option « une seule fois par client ».
+
+> 🧮 **Un client ne cumule jamais les deux : la meilleure des deux remises
+> s'applique.** Cumuler ouvre la porte aux additions surprises (un code de 20 %
+> sur un panier déjà remisé de 15 %) et rend le prix impossible à expliquer au
+> téléphone. Si le code saisi est moins avantageux que le palier, la boutique
+> le dit et garde le palier.
+
+Le minimum de commande et le franco de livraison se jugent sur le panier
+**avant remise** : un code ne doit pas faire repasser une commande sous le
+minimum qu'elle venait d'atteindre. Le code n'est décompté qu'une fois la
+commande écrite, et le montant de la remise est recalculé côté serveur — celui
+envoyé par le client est ignoré.
+
 ### Alertes de stock
 
 Deux sens, réglés par un seul seuil (onglet Réglages) :

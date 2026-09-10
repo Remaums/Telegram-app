@@ -18,6 +18,7 @@ import { getSettings, saveSettings, blockClient, unblockClient } from './setting
 import { listVerifications, decideVerification, resetVerification } from './verification.js';
 import { notifyCustomer, notifyBackInStock } from './bot.js';
 import { waitlistKey, takeSubscribers } from './waitlist.js';
+import { listPromos, savePromo, deletePromo } from './promos.js';
 
 export const adminRouter = express.Router();
 
@@ -211,6 +212,31 @@ adminRouter.post(
 adminRouter.post(
   '/clients/:id/unblock',
   route(async (req, res) => res.json(await unblockClient(req.params.id)))
+);
+
+/* ── Codes promo ─────────────────────────────────────────── */
+
+adminRouter.get(
+  '/promos',
+  route(async (req, res) => res.json(await listPromos()))
+);
+
+adminRouter.put(
+  '/promos',
+  route(async (req, res) => {
+    await savePromo(req.body ?? {});
+    // On renvoie la liste entière : l'écran admin se réaffiche d'un bloc,
+    // sans avoir à deviner où insérer la ligne créée ou modifiée.
+    res.json(await listPromos());
+  })
+);
+
+adminRouter.delete(
+  '/promos/:code',
+  route(async (req, res) => {
+    await deletePromo(req.params.code);
+    res.json(await listPromos());
+  })
 );
 
 /* ── Vérifications d'identité ────────────────────────────── */

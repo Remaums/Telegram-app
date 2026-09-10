@@ -20,6 +20,7 @@ import { getVerification, isApproved } from './verification.js';
 import { isOpenNow } from './opening.js';
 import { resolveFileUrl } from './photos.js';
 import { waitlistKey, subscribe, isSubscribed } from './waitlist.js';
+import { bestDiscount, consumePromo } from './promos.js';
 import { adminRouter } from './admin.js';
 import { bot, notifyAdmin, notifyOrderPlaced, notifyLowStock } from './bot.js';
 import { storageKind } from './store.js';
@@ -115,6 +116,9 @@ app.get('/api/catalog', async (req, res, next) => {
       },
       opening: { ...isOpenNow(settings.opening), message: settings.opening.message },
       fulfillment: settings.fulfillment,
+      // Les paliers sont publics : c'est une promesse d'affichage (« −10 %
+      // dès 100 € »), pas un secret. Les codes, eux, ne sortent jamais d'ici.
+      discounts: { tiers: settings.discounts.tiers },
     });
   } catch (err) {
     next(err);
@@ -131,9 +135,52 @@ function authenticate(req, res, next) {
   next();
 }
 
+/**
+ * Traduit un panier client en lignes de commande sûres.
+ *
+ * Les prix sont recalculés à partir du catalogue : ceux envoyés par le client
+ * sont ignorés, sinon n'importe qui commanderait à 0 €. Sert à la commande
+ * comme à l'aperçu de remise, pour que les deux voient exactement le même
+ * panier.
+ */
+async function resolveItems(items) {
+  if (!Array.isArray(items) || items.length === 0) throw new HttpError(400, 'Panier vide.');
+  if (items.length > 50) throw new HttpError(400, 'Trop de lignes dans le panier.');
+
+  const resolved = [];
+  let units = 0;
+  for (const item of items) {
+    const product = await getProduct(item.id, { includeHidden: false });
+    if (!product) throw new HttpError(400, `Produit indisponible : ${item.id}`);
+
+    const quantity = Number(item.quantity);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+      throw new HttpError(400, `Quantité invalide pour ${product.name}.`);
+    }
+
+    const variant = product.variants?.find((v) => v.id === item.variantId) ?? null;
+    if (product.variants?.length && !variant) {
+      throw new HttpError(400, `Format invalide pour ${product.name}.`);
+    }
+
+    units += quantity;
+    const unitPrice = priceOf(product, variant?.id);
+    resolved.push({
+      id: product.id,
+      name: product.name,
+      variantId: variant?.id ?? null,
+      variantLabel: variant?.label ?? null,
+      unitPrice,
+      quantity,
+      lineTotal: unitPrice * quantity,
+    });
+  }
+  return { resolved, units };
+}
+
 app.post('/api/orders', authenticate, async (req, res, next) => {
   try {
-    const { items, contact, note, mode } = req.body ?? {};
+    const { items, contact, note, mode, promoCode } = req.body ?? {};
     const settings = await getSettings();
 
     if (isBlocked(settings, req.telegramUser.id)) {
@@ -159,11 +206,10 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       }
     }
 
+    // Vérifié avant la limite horaire : un panier vide est une erreur de
+    // saisie, pas une commande, et ne doit pas consommer le quota.
     if (!Array.isArray(items) || items.length === 0) {
       throw new HttpError(400, 'Panier vide.');
-    }
-    if (items.length > 50) {
-      throw new HttpError(400, 'Trop de lignes dans le panier.');
     }
 
     // Un client authentifié pourrait sinon enchaîner les commandes en boucle
@@ -177,36 +223,7 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       );
     }
 
-    // Les prix sont recalculés côté serveur à partir du catalogue : ceux
-    // envoyés par le client sont ignorés, sinon n'importe qui commanderait à 0 €.
-    const resolved = [];
-    let units = 0;
-    for (const item of items) {
-      const product = await getProduct(item.id, { includeHidden: false });
-      if (!product) throw new HttpError(400, `Produit indisponible : ${item.id}`);
-
-      const quantity = Number(item.quantity);
-      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
-        throw new HttpError(400, `Quantité invalide pour ${product.name}.`);
-      }
-
-      const variant = product.variants?.find((v) => v.id === item.variantId) ?? null;
-      if (product.variants?.length && !variant) {
-        throw new HttpError(400, `Format invalide pour ${product.name}.`);
-      }
-
-      units += quantity;
-      const unitPrice = priceOf(product, variant?.id);
-      resolved.push({
-        id: product.id,
-        name: product.name,
-        variantId: variant?.id ?? null,
-        variantLabel: variant?.label ?? null,
-        unitPrice,
-        quantity,
-        lineTotal: unitPrice * quantity,
-      });
-    }
+    const { resolved, units } = await resolveItems(items);
 
     // Retrait ou livraison : le mode décide des frais et de l'adresse exigée.
     const fulfillment = settings.fulfillment;
@@ -237,6 +254,19 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       );
     }
 
+    // Remise : le code saisi ou le palier automatique, le meilleur des deux.
+    // Un code refusé fait échouer la commande plutôt que de passer en silence
+    // au prix fort — le client l'a tapé, il doit savoir pourquoi il ne prend pas.
+    const remise = await bestDiscount({
+      code: promoCode,
+      subtotal,
+      userId: req.telegramUser.id,
+      tiers: settings.discounts.tiers,
+    });
+
+    // Minimum et franco se jugent sur le panier AVANT remise : sinon un code
+    // ferait repasser la commande sous le minimum qu'elle venait d'atteindre,
+    // et un franco gagné se perdrait en saisissant un code.
     const francoAtteint =
       fulfillment.freeDeliveryFrom !== null && subtotal >= fulfillment.freeDeliveryFrom;
     const deliveryFee = chosen === 'delivery' && !francoAtteint ? fulfillment.deliveryFee : 0;
@@ -252,8 +282,11 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
         items: resolved,
         mode: chosen,
         subtotal,
+        discount: remise.discount,
+        discountLabel: remise.label,
+        promoCode: remise.code,
         deliveryFee,
-        total: subtotal + deliveryFee,
+        total: subtotal - remise.discount + deliveryFee,
         contact: address || null,
         note: typeof note === 'string' ? note.slice(0, 500) : null,
       });
@@ -262,6 +295,10 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       await restoreStock(resolved).catch(() => {});
       throw err;
     }
+
+    // Le code n'est décompté qu'une fois la commande écrite : une erreur en
+    // amont ne doit pas grignoter les usages restants.
+    if (remise.code) await consumePromo(remise.code, req.telegramUser.id).catch(() => {});
 
     // Le vendeur découvrait ses ruptures en lisant une commande : on prévient
     // dès que le seuil est franchi, pas au prochain coup d'œil au tableau.
@@ -277,6 +314,9 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       reference: order.reference,
       mode: order.mode,
       subtotal: order.subtotal,
+      discount: order.discount,
+      discountLabel: order.discountLabel,
+      promoCode: order.promoCode,
       deliveryFee: order.deliveryFee,
       total: order.total,
       items: order.items,
@@ -289,6 +329,42 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
 app.get('/api/orders', authenticate, async (req, res, next) => {
   try {
     res.json(await listOrders({ userId: req.telegramUser.id, limit: 10 }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ── Aperçu d'une remise ─────────────────────────────────── */
+
+/**
+ * Dit au client ce que son panier coûterait avec un code, sans rien
+ * consommer.
+ *
+ * Le calcul est refait ici avec les prix du catalogue : l'aperçu affiché dans
+ * le panier ne peut donc pas mentir sur le total que la commande appliquera.
+ */
+app.post('/api/promo', authenticate, async (req, res, next) => {
+  try {
+    const { items, code } = req.body ?? {};
+    const settings = await getSettings();
+    const { resolved } = await resolveItems(items);
+    const subtotal = resolved.reduce((sum, i) => sum + i.lineTotal, 0);
+
+    const remise = await bestDiscount({
+      code,
+      subtotal,
+      userId: req.telegramUser.id,
+      tiers: settings.discounts.tiers,
+    });
+
+    res.json({
+      subtotal,
+      discount: remise.discount,
+      label: remise.label,
+      code: remise.code,
+      source: remise.source,
+      total: subtotal - remise.discount,
+    });
   } catch (err) {
     next(err);
   }

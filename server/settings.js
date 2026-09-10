@@ -1,6 +1,7 @@
 import { createStore } from './store.js';
 import { HttpError } from './catalog.js';
 import { defaultHours, normalizeHours } from './opening.js';
+import { normalizeTiers } from './promos.js';
 
 /**
  * Réglages de la boutique : ce qui se change en exploitation, sans toucher au
@@ -18,6 +19,9 @@ const DEFAULTS = {
   },
   // Seuil d'alerte : en dessous, le vendeur reçoit un message.
   alerts: { lowStock: 3 },
+  // Remises automatiques par palier de panier. Les codes promo, eux, vivent
+  // dans leur propre fichier : ils se créent et s'épuisent tout seuls.
+  discounts: { tiers: [] },
   // Garde-fous contre les abus. Généreux par défaut : ils doivent gêner un
   // robot, pas un client qui commande deux fois dans la soirée.
   limits: {
@@ -53,6 +57,7 @@ export async function getSettings() {
     limits: { ...DEFAULTS.limits, ...(data.limits ?? {}) },
     fulfillment: { ...DEFAULTS.fulfillment, ...(data.fulfillment ?? {}) },
     alerts: { ...DEFAULTS.alerts, ...(data.alerts ?? {}) },
+    discounts: { tiers: normalizeTiers(data.discounts?.tiers) },
     captcha: { ...DEFAULTS.captcha, ...(data.captcha ?? {}) },
     verification: { ...DEFAULTS.verification, ...(data.verification ?? {}) },
     opening: {
@@ -83,6 +88,9 @@ export async function saveSettings(patch) {
     }
     if (patch.verification) {
       data.verification = { enabled: Boolean(patch.verification.enabled) };
+    }
+    if (patch.discounts) {
+      data.discounts = { tiers: normalizeTiers(patch.discounts.tiers) };
     }
     if (patch.alerts) {
       data.alerts = {

@@ -6,4 +6,5 @@ server/data/catalog.json
 server/data/settings.json
 server/data/verifications.json
 server/data/waitlist.json
+server/data/promos.json
 .DS_Store

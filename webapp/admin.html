@@ -157,6 +157,46 @@
     </p>
     <button class="a-btn a-btn--primary a-btn--block" id="saveSettings" type="button">Enregistrer les garde-fous</button>
 
+    <h2 class="a-h2">Remises automatiques</h2>
+    <p class="a-hint">
+      Des paliers de panier, appliqués tout seuls et annoncés dans la boutique
+      (« −10 % dès 100 € »). Cinq au maximum. Laisse vide pour n'en avoir aucun.
+    </p>
+    <div id="tierRows"></div>
+    <button class="a-btn a-btn--ghost a-btn--block" id="addTier" type="button">+ Ajouter un palier</button>
+    <button class="a-btn a-btn--primary a-btn--block" id="saveTiers" type="button">Enregistrer les paliers</button>
+
+    <h2 class="a-h2">Codes promo</h2>
+    <p class="a-hint">
+      Un client ne cumule jamais un code et un palier : <b>la meilleure des deux
+      remises s'applique</b>, jamais les deux. Le code n'est décompté qu'une fois
+      la commande enregistrée.
+    </p>
+    <div class="a-row">
+      <label class="a-field"><span>Code</span><input id="fPromoCode" maxlength="20" placeholder="BIENVENUE"></label>
+      <label class="a-field">
+        <span>Type</span>
+        <select id="fPromoType">
+          <option value="percent">Pourcentage</option>
+          <option value="amount">Montant fixe</option>
+        </select>
+      </label>
+    </div>
+    <div class="a-row">
+      <label class="a-field"><span id="fPromoValueLabel">Remise (%)</span><input id="fPromoValue" type="number" step="0.01" min="0" inputmode="decimal"></label>
+      <label class="a-field"><span>Panier minimum (€)</span><input id="fPromoMin" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0"></label>
+    </div>
+    <div class="a-row">
+      <label class="a-field"><span>Expire le</span><input id="fPromoExpires" type="date"></label>
+      <label class="a-field"><span>Usages maximum</span><input id="fPromoMaxUses" type="number" min="1" inputmode="numeric" placeholder="illimité"></label>
+    </div>
+    <div class="a-toggle">
+      <label><input type="checkbox" id="fPromoOnce" checked> Une seule fois par client</label>
+      <label><input type="checkbox" id="fPromoActive" checked> Actif</label>
+    </div>
+    <button class="a-btn a-btn--primary a-btn--block" id="savePromo" type="button">Enregistrer le code</button>
+    <ul class="a-list" id="promosList"></ul>
+
     <h2 class="a-h2">Vérifications</h2>
     <ul class="a-list" id="verificationsList"></ul>
 

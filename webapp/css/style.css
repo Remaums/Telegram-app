@@ -605,6 +605,24 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .mode[aria-pressed="true"] small { color: rgb(var(--ink-rgb) / .75); }
 
+.promo { display: flex; gap: 8px; }
+.promo input { flex: 1; text-transform: uppercase; letter-spacing: .08em; }
+/* Le code se saisit en majuscules, l'invite reste une phrase normale. */
+.promo input::placeholder { text-transform: none; letter-spacing: 0; }
+.promo .btn { flex: none; padding: 0 16px; font-size: 13px; }
+.promo__status {
+  margin: 7px 0 0; font-size: 12.5px; font-weight: 800; line-height: 1.35;
+  color: var(--muted);
+}
+.promo__status--ok { color: var(--neon); }
+.promo__status--ko { color: var(--gold); }
+
+/* Le prix barré rassure : on voit ce qu'on aurait payé sans la remise. */
+.cart__total small {
+  display: block; font-size: 12px; font-weight: 800; color: var(--muted);
+  text-decoration: line-through; text-decoration-color: rgb(var(--cream-rgb) / .5);
+}
+
 .cart__hint {
   margin: 12px 14px 0; padding: 10px 12px; border-radius: 12px;
   font-size: 13px; font-weight: 700; line-height: 1.4;

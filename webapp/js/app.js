@@ -16,6 +16,8 @@ const state = {
   gates: {},
   opening: { open: true },
   fulfillment: { pickup: true, delivery: false, deliveryFee: 0, freeDeliveryFrom: null, minimumOrder: 0 },
+  tiers: [],          // remises automatiques par palier
+  promo: null,        // remise en cours : { code, discount, label, source }
   mode: 'pickup',
   captcha: null,      // épreuve en cours
   selection: [],      // tuiles touchées
@@ -57,6 +59,7 @@ async function init() {
     state.gates = data.gates ?? {};
     state.opening = data.opening ?? { open: true };
     state.fulfillment = data.fulfillment ?? state.fulfillment;
+    state.tiers = data.discounts?.tiers ?? [];
     state.mode = state.fulfillment.pickup ? 'pickup' : 'delivery';
   } catch (err) {
     console.error(err);
@@ -96,6 +99,13 @@ function bindStaticHandlers() {
   // envoie sa pièce : pas besoin de connaître le nom du bot.
   $('verifAction').addEventListener('click', () => (tg ? tg.close() : window.history.back()));
   $('checkout').addEventListener('click', checkout);
+  $('promoApply').addEventListener('click', applyPromo);
+  $('promoCode').addEventListener('keydown', (e) => e.key === 'Enter' && applyPromo());
+  $('promoCode').addEventListener('input', () => {
+    if (!promoError) return;
+    promoError = null;
+    renderCart();
+  });
 
   $('qtyMinus').addEventListener('click', () => setQty(state.currentQty - 1));
   $('qtyPlus').addEventListener('click', () => setQty(state.currentQty + 1));
@@ -145,6 +155,142 @@ function deliveryFeeFor(subtotal) {
   if (state.mode !== 'delivery' || !delivery) return 0;
   if (freeDeliveryFrom !== null && subtotal >= freeDeliveryFrom) return 0;
   return deliveryFee;
+}
+
+/* ── Remises ─────────────────────────────────────────────── */
+
+/**
+ * Remise automatique du panier, calculée ici pour l'affichage.
+ *
+ * Les paliers sont publics : les recopier côté client évite un aller-retour
+ * réseau à chaque « + ». Le serveur refait le calcul au moment de la commande,
+ * c'est lui qui fait foi.
+ */
+function tierDiscountFor(subtotal) {
+  const palier = state.tiers
+    .filter((t) => subtotal >= t.from)
+    .sort((a, b) => b.from - a.from)[0];
+
+  if (!palier) return { discount: 0, label: null };
+  return {
+    discount: Math.round((subtotal * palier.percent) / 100),
+    label: `−${palier.percent} % dès ${formatPrice(palier.from)}`,
+  };
+}
+
+/** Remise finalement appliquée : le code saisi ou le palier, le meilleur. */
+function currentDiscount(subtotal) {
+  const palier = tierDiscountFor(subtotal);
+  if (state.promo && state.promo.discount >= palier.discount) return state.promo;
+  return palier.discount > 0 ? { ...palier, code: null, source: 'tier' } : { discount: 0, label: null };
+}
+
+/**
+ * Dernier refus de code, retenu jusqu'à la prochaine saisie.
+ *
+ * Sans ça, le réaffichage du panier écrasait aussitôt « Code inconnu » par la
+ * remise automatique en cours : le client voyait sa saisie ne rien faire, sans
+ * savoir pourquoi.
+ */
+let promoError = null;
+
+/** Encourage sans mentir : le prochain palier et ce qu'il manque pour l'avoir. */
+function nextTierHint(subtotal) {
+  const next = state.tiers.filter((t) => subtotal < t.from).sort((a, b) => a.from - b.from)[0];
+  if (!next) return '';
+  return `−${next.percent} % dès ${formatPrice(next.from)} : il manque ${formatPrice(next.from - subtotal)}.`;
+}
+
+async function applyPromo() {
+  const input = $('promoCode');
+  const code = input.value.trim();
+  const lines = detailedCart();
+
+  if (!code) {
+    state.promo = null;
+    promoError = null;
+    showPromoStatus('', null);
+    renderCart();
+    return;
+  }
+  if (!lines.length) return showPromoStatus('Ajoute d\'abord un article.', false);
+
+  const button = $('promoApply');
+  button.disabled = true;
+  promoError = null;
+  try {
+    const result = await previewPromo(code, lines);
+    // Le serveur peut préférer le palier au code : dans ce cas il ne renvoie
+    // pas de code, et le dire évite de faire croire que la saisie n'a rien fait.
+    state.promo = result.code ? result : null;
+    showPromoStatus(
+      result.code
+        ? `Code ${result.code} appliqué : −${formatPrice(result.discount)}`
+        : `Ta remise automatique (${result.label}) est plus avantageuse : on la garde.`,
+      true
+    );
+    haptic('success');
+  } catch (err) {
+    state.promo = null;
+    promoError = err.message;
+  } finally {
+    button.disabled = false;
+    renderCart();
+  }
+}
+
+async function previewPromo(code, lines) {
+  const res = await fetch('/api/promo', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Init-Data': tg?.initData ?? '',
+    },
+    body: JSON.stringify({
+      code,
+      items: lines.map((l) => ({ id: l.id, variantId: l.variantId, quantity: l.quantity })),
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? 'Code refusé.');
+  return data;
+}
+
+function showPromoStatus(message, ok) {
+  const el = $('promoStatus');
+  el.textContent = message;
+  el.hidden = !message;
+  el.classList.toggle('promo__status--ok', ok === true);
+  el.classList.toggle('promo__status--ko', ok === false);
+}
+
+/**
+ * Le panier a bougé alors qu'un code était posé : son montant a changé, et il
+ * peut même ne plus être valable (minimum de panier). On revalide au calme
+ * plutôt qu'à chaque appui sur « + ».
+ */
+let promoTimer;
+function revalidatePromo() {
+  if (!state.promo) return;
+  clearTimeout(promoTimer);
+  promoTimer = setTimeout(async () => {
+    const lines = detailedCart();
+    const code = state.promo?.code;
+    if (!code || !lines.length) {
+      state.promo = null;
+      showPromoStatus('', null);
+      renderCart();
+      return;
+    }
+    try {
+      const result = await previewPromo(code, lines);
+      state.promo = result.code ? result : null;
+    } catch (err) {
+      state.promo = null;
+      promoError = err.message;
+    }
+    renderCart();
+  }, 400);
 }
 
 /** Boutique fermée : on le dit, et on empêche la commande. */
@@ -554,6 +700,7 @@ function addCurrentToCart() {
 
   saveCart();
   renderCart();
+  revalidatePromo();
   closeSheets();
   haptic('success');
   toast(`${product.name} ajouté au panier 🛒`);
@@ -591,11 +738,14 @@ function renderCart() {
 
   const subtotal = cartTotal();
   const fee = deliveryFeeFor(subtotal);
+  const remise = currentDiscount(subtotal);
   const { minimumOrder, freeDeliveryFrom } = state.fulfillment;
+  // Minimum et franco se jugent sur le panier avant remise, comme le serveur.
   const manque = Math.max(0, minimumOrder - subtotal);
 
   $('cartEmpty').hidden = lines.length > 0;
   $('noteField').hidden = lines.length === 0;
+  $('promoField').hidden = lines.length === 0;
   $('modeField').hidden = lines.length === 0 || !(state.fulfillment.pickup && state.fulfillment.delivery);
   $('contactField').hidden = lines.length === 0;
 
@@ -607,8 +757,30 @@ function renderCart() {
   $('checkout').disabled = lines.length === 0 || !state.opening.open || manque > 0;
   $('checkout').textContent = state.opening.open ? 'Commander' : 'Boutique fermée';
 
-  $('cartTotalLabel').textContent = fee ? `Total · dont ${formatPrice(fee)} de livraison` : 'Total';
-  $('cartTotal').textContent = formatPrice(subtotal + fee);
+  const details = [
+    remise.discount ? `remise ${formatPrice(remise.discount)} déduite` : null,
+    fee ? `dont ${formatPrice(fee)} de livraison` : null,
+  ].filter(Boolean);
+  $('cartTotalLabel').textContent = details.length ? `Total · ${details.join(', ')}` : 'Total';
+  $('cartTotal').textContent = formatPrice(subtotal - remise.discount + fee);
+
+  // Prix barré : ce que le panier aurait coûté sans la remise.
+  const strike = $('cartStrike');
+  strike.hidden = remise.discount === 0;
+  strike.textContent = remise.discount ? formatPrice(subtotal + fee) : '';
+
+  if (promoError) {
+    showPromoStatus(promoError, false);
+  } else if (remise.discount && remise.label) {
+    showPromoStatus(
+      remise.source === 'tier'
+        ? `Remise automatique ${remise.label} : −${formatPrice(remise.discount)}`
+        : `Code ${remise.code} : ${remise.label}, soit −${formatPrice(remise.discount)}`,
+      true
+    );
+  } else if (!state.promo && !$('promoCode').value.trim()) {
+    showPromoStatus(nextTierHint(subtotal), null);
+  }
 
   const hint = $('cartHint');
   if (manque > 0 && lines.length) {
@@ -659,6 +831,7 @@ function changeLine(key, delta) {
   if (line.quantity < 1) state.cart = state.cart.filter((l) => l.key !== key);
   saveCart();
   renderCart();
+  revalidatePromo();
   haptic('light');
 }
 
@@ -674,6 +847,9 @@ async function checkout() {
 
   const note = $('orderNote').value.trim();
   const contact = $('orderContact').value.trim();
+  // Figé avant l'envoi : la commande réussie efface le code consommé, et le
+  // récapitulatif envoyé au vendeur doit quand même porter la remise.
+  const remise = currentDiscount(cartTotal());
 
   if (state.mode === 'delivery' && contact.length < 5) {
     toast('Indique ton adresse de livraison.');
@@ -696,12 +872,21 @@ async function checkout() {
       body: JSON.stringify({
         items: lines.map((l) => ({ id: l.id, variantId: l.variantId, quantity: l.quantity })),
         mode: state.mode,
+        promoCode: state.promo?.code ?? null,
         contact,
         note,
       }),
     });
     if (res.ok) {
       reference = (await res.json()).reference;
+      // Le code vient d'être consommé côté serveur : le garder ferait échouer
+      // la commande suivante avec un message incompréhensible.
+      if (state.promo) {
+        state.promo = null;
+        promoError = null;
+        $('promoCode').value = '';
+        showPromoStatus('', null);
+      }
     } else {
       const data = await res.json().catch(() => ({}));
       // Le laissez-passer a expiré : on refait l'épreuve plutôt que d'envoyer
@@ -727,7 +912,7 @@ async function checkout() {
     console.warn('Enregistrement de la commande impossible :', err);
   }
 
-  const message = buildOrderMessage(lines, note, reference, contact);
+  const message = buildOrderMessage(lines, note, reference, contact, remise);
   openSellerChat(message);
 
   button.disabled = false;
@@ -735,7 +920,7 @@ async function checkout() {
   haptic('success');
 }
 
-function buildOrderMessage(lines, note, reference, contact) {
+function buildOrderMessage(lines, note, reference, contact, remise) {
   const parts = [`Bonjour ! Je souhaite commander sur ${state.shop.shopName} 🌿`, ''];
 
   for (const line of lines) {
@@ -743,10 +928,15 @@ function buildOrderMessage(lines, note, reference, contact) {
     parts.push(`• ${line.quantity} × ${line.product.name}${variant} — ${formatPrice(line.lineTotal)}`);
   }
 
-  const fee = deliveryFeeFor(cartTotal());
+  const subtotal = cartTotal();
+  const fee = deliveryFeeFor(subtotal);
   parts.push('', state.mode === 'delivery' ? '🛵 Livraison' : '🏠 Retrait sur place');
+  if (remise.discount) {
+    parts.push(`Sous-total : ${formatPrice(subtotal)}`);
+    parts.push(`Remise${remise.code ? ` ${remise.code}` : ''} : −${formatPrice(remise.discount)}`);
+  }
   if (fee) parts.push(`Frais de livraison : ${formatPrice(fee)}`);
-  parts.push(`Total : ${formatPrice(cartTotal() + fee)}`);
+  parts.push(`Total : ${formatPrice(subtotal - remise.discount + fee)}`);
   if (reference) parts.push(`Réf : ${reference}`);
   if (contact) parts.push(`${state.mode === 'delivery' ? 'Adresse' : 'Contact'} : ${contact}`);
   if (note) parts.push('', `Note : ${note}`);
@@ -866,7 +1056,8 @@ function syncMainButton() {
   const main = tg?.MainButton;
   if (!main) return;
 
-  const total = cartTotal() + deliveryFeeFor(cartTotal());
+  const subtotal = cartTotal();
+  const total = subtotal - currentDiscount(subtotal).discount + deliveryFeeFor(subtotal);
   const sheetOpen = [...document.querySelectorAll('.sheet')].some((s) => !s.hidden);
 
   if (total > 0 && !sheetOpen) {
