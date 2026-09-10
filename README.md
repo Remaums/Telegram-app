@@ -89,6 +89,17 @@ Le bouton apparaît alors en permanence à côté du champ de saisie du bot.
 
 ## ⚙️ Espace admin
 
+**Comment y entrer :** envoie `/admin` à ton bot dans Telegram. Il répond avec
+un bouton **⚙️ Espace admin** qui ouvre le panneau. Deux conditions, et le bot
+dit laquelle manque : ton identifiant numérique doit figurer dans `ADMIN_IDS`
+(envoie `/start` au bot, il te l'affiche), et `WEBAPP_URL` doit être une
+adresse en `https://` — Telegram n'ouvre pas une Mini App autrement.
+
+L'adresse `…/admin.html` ouverte directement dans un navigateur ne sert à rien :
+l'authentification repose sur la signature que Telegram fournit au lancement,
+et elle n'existe qu'à l'intérieur de Telegram.
+
+
 ![Espace admin](docs/admin.png)
 
 Envoie `/admin` au bot (réservé aux identifiants listés dans `ADMIN_IDS`) : la

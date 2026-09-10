@@ -20,11 +20,33 @@ import { desabonner, reabonner, estDesabonne, consignerResultat } from './annonc
  */
 export const bot = new Bot(config.botToken || '0:BOT_TOKEN-absent');
 
+/**
+ * Telegram n'accepte un bouton Mini App qu'avec une URL HTTPS valide.
+ *
+ * Sans `WEBAPP_URL`, ou avec une adresse en HTTP, Telegram refuse le message
+ * entier : la commande échouait alors sans rien afficher, et on cherchait du
+ * côté des droits admin un problème de configuration.
+ */
+const urlUtilisable = () => /^https:\/\/[^\s]+$/.test(config.webappUrl);
+
+// Rendre `undefined` plutôt qu'un clavier invalide : Telegram refuse le
+// message entier quand un bouton Mini App porte une URL qu'il n'accepte pas,
+// si bien que /start ne répondait rien du tout. Le garde-fou est ici, à
+// l'endroit unique où le clavier se fabrique, plutôt que dispersé sur chaque
+// appel — il en manquait justement sur les commandes les plus utilisées.
 const shopKeyboard = () =>
-  new InlineKeyboard().webApp('🛒 Ouvrir la boutique', config.webappUrl);
+  urlUtilisable() ? new InlineKeyboard().webApp('🛒 Ouvrir la boutique', config.webappUrl) : undefined;
 
 const adminKeyboard = () =>
-  new InlineKeyboard().webApp('⚙️ Espace admin', `${config.webappUrl}/admin.html`);
+  urlUtilisable()
+    ? new InlineKeyboard().webApp('⚙️ Espace admin', `${config.webappUrl}/admin.html`)
+    : undefined;
+
+/** Ce qu'il faut dire quand aucun bouton ne peut être proposé. */
+const PAS_D_URL =
+  "⚠️ WEBAPP_URL n'est pas renseignée (ou n'est pas en HTTPS) : Telegram refuse " +
+  "d'ouvrir une Mini App sans adresse HTTPS valide.\n\n" +
+  'Renseigne-la dans le fichier .env, puis redémarre la boutique.';
 
 const isAdmin = (id) => config.adminIds.includes(String(id));
 
@@ -34,7 +56,10 @@ bot.command('start', async (ctx) => {
       "Bienvenue dans la boutique\\. Tout se passe dans l'app : catalogue en images, " +
       'panier, et commande envoyée en un bouton\\.\n\n' +
       `Ton ID Telegram : \`${ctx.from.id}\``,
-    { parse_mode: 'MarkdownV2', reply_markup: shopKeyboard() }
+    {
+      parse_mode: 'MarkdownV2',
+      reply_markup: shopKeyboard(),
+    }
   );
 });
 
@@ -85,6 +110,10 @@ bot.command('admin', async (ctx) => {
   if (!isAdmin(ctx.from.id)) {
     return ctx.reply("Cet espace est réservé à l'administrateur.");
   }
+  // Mieux vaut expliquer que laisser Telegram rejeter le message : sans URL,
+  // la commande ne répondait rien du tout.
+  if (!urlUtilisable()) return ctx.reply(PAS_D_URL);
+
   await ctx.reply('Gestion du stock, des produits et des commandes 👇', {
     reply_markup: adminKeyboard(),
   });

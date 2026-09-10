@@ -82,7 +82,12 @@ async function init() {
     state.mode = state.fulfillment.pickup ? 'pickup' : 'delivery';
   } catch (err) {
     console.error(err);
-    toast("Catalogue indisponible, réessaie dans un instant.");
+    // Un toast disparaît en deux secondes et la grille reste vide : la boutique
+    // avait alors l'air de n'avoir aucun produit, alors qu'elle était
+    // simplement injoignable. Pour un client c'est une boutique abandonnée ;
+    // pour le vendeur qui installe, c'est une fausse piste. On le dit donc en
+    // clair, et on laisse de quoi réessayer.
+    montrerPanne(err);
     return;
   }
 
@@ -101,6 +106,46 @@ async function init() {
   renderCart();
   loadSlots();
   runGates();
+}
+
+/**
+ * Dit que la boutique est injoignable, plutôt que de la montrer vide.
+ *
+ * Les deux états se ressemblent à l'écran et ne veulent pas du tout dire la
+ * même chose : « il n'y a rien à vendre » contre « je n'arrive pas à joindre
+ * le serveur ». Confondre les deux envoie chercher au mauvais endroit.
+ */
+function montrerPanne(err) {
+  const zone = $('empty');
+  zone.hidden = false;
+  zone.replaceChildren();
+
+  const titre = document.createElement('strong');
+  titre.textContent = 'Boutique momentanément injoignable';
+
+  const texte = document.createElement('span');
+  texte.textContent =
+    "Le catalogue n'a pas pu être chargé. Ce n'est pas que la boutique est " +
+    'vide : le serveur ne répond pas comme il faut.';
+
+  const detail = document.createElement('code');
+  detail.className = 'empty__detail';
+  detail.textContent = String(err?.message ?? err).slice(0, 120);
+
+  const reessayer = document.createElement('button');
+  reessayer.type = 'button';
+  reessayer.className = 'btn btn--primary';
+  reessayer.textContent = 'Réessayer';
+  reessayer.addEventListener('click', () => {
+    reessayer.disabled = true;
+    reessayer.textContent = 'Chargement…';
+    // Un rechargement complet : plus sûr qu'un rattrapage partiel, puisqu'on
+    // ne sait pas jusqu'où le démarrage était allé.
+    location.reload();
+  });
+
+  zone.append(titre, texte, detail, reessayer);
+  toast("Catalogue indisponible, réessaie dans un instant.");
 }
 
 function bindStaticHandlers() {
@@ -740,7 +785,11 @@ function renderGrid() {
   );
 
   $('findClear').hidden = !state.query;
-  $('empty').hidden = list.length > 0;
+  // La zone a peut-être servi à annoncer une panne : on la remet en simple
+  // ligne de texte avant de s'en servir.
+  const zone = $('empty');
+  if (zone.childElementCount) zone.replaceChildren();
+  zone.hidden = list.length > 0;
   // Le message d'absence doit dire de quoi il parle : « rien dans cette
   // catégorie » quand on cherche « banane » enverrait chercher au mauvais endroit.
   $('empty').textContent = state.query
