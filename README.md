@@ -528,6 +528,32 @@ minimum qu'elle venait d'atteindre. Le code n'est décompté qu'une fois la
 commande écrite, et le montant de la remise est recalculé côté serveur — celui
 envoyé par le client est ignoré.
 
+### Export et sauvegarde
+
+Deux fichiers, deux usages, tous deux **envoyés dans la conversation du bot** :
+un téléchargement lancé depuis la WebView de Telegram n'aboutit pas toujours,
+un document déposé dans le chat se retrouve toujours.
+
+- **Export des commandes (CSV)** : une ligne par article, filtrable sur une
+  période. Les montants sortent avec une virgule décimale et le fichier porte
+  un BOM, sans quoi un tableur français affiche « NÃ©on » et lit les prix de
+  travers. Une note contenant un point-virgule est mise entre guillemets, et
+  une note commençant par `=` est préfixée d'une apostrophe : sans ça, le
+  tableur l'exécuterait comme une formule.
+- **Sauvegarde complète** : catalogue, commandes, réglages et codes, en JSON.
+  Elle se relit dans l'écran Réglages, qui annonce son contenu et sa date
+  **avant** de proposer le remplacement — restaurer efface la boutique.
+
+> 🔐 **Aucun secret n'en sort.** Ni jeton de bot, ni adresse de base, ni liste
+> d'administrateurs : ces fichiers finissent dans un dossier de
+> téléchargements ou une conversation transférée, ils ne doivent rien contenir
+> qui ouvre la boutique. Un test le vérifie à chaque exécution.
+
+Restaurer remet le catalogue d'abord — les commandes s'y réfèrent —, puis les
+commandes, puis les réglages. Les compteurs d'usage des codes promo sont
+repris tels quels : sinon une restauration rendrait à tout le monde un code
+déjà consommé.
+
 ### Alertes de stock
 
 Deux sens, réglés par un seul seuil (onglet Réglages) :

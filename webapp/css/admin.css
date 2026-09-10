@@ -273,6 +273,12 @@ body.admin {
 }
 .a-order__ship li:first-child { color: var(--cream); font-weight: 800; }
 
+.a-restore {
+  margin-top: 10px; padding: 11px 12px; border-radius: 14px;
+  border: 1px solid rgb(var(--gold-rgb) / .5); background: rgb(var(--gold-rgb) / .1);
+}
+.a-restore p { margin: 0 0 10px; font-size: 13px; font-weight: 700; line-height: 1.45; }
+
 .a-features { display: flex; flex-direction: column; gap: 7px; margin-bottom: 4px; }
 .a-feature {
   display: flex; align-items: flex-start; gap: 11px;

@@ -82,6 +82,11 @@ function bindHandlers() {
   $('addTier').addEventListener('click', () => addTierRow());
   $('saveTiers').addEventListener('click', saveTiers);
   $('savePromo').addEventListener('click', savePromo);
+  $('exportCsv').addEventListener('click', exporterCommandes);
+  $('downloadBackup').addEventListener('click', envoyerSauvegarde);
+  $('pickBackup').addEventListener('click', () => $('restoreFile').click());
+  $('restoreFile').addEventListener('change', lireSauvegarde);
+  $('doRestore').addEventListener('click', restaurer);
   $('fPromoType').addEventListener('change', syncPromoValueLabel);
   $('newProductBtn').addEventListener('click', () => openEditor(null));
 
@@ -800,6 +805,96 @@ async function saveGuards() {
     toast(err.message);
   } finally {
     button.disabled = false;
+  }
+}
+
+/* ── Export et sauvegarde ────────────────────────────────── */
+
+/** La sauvegarde choisie, gardée le temps de la confirmation. */
+let sauvegardeChoisie = null;
+
+async function exporterCommandes() {
+  const bouton = $('exportCsv');
+  bouton.disabled = true;
+  try {
+    const r = await api('/export/orders/send', {
+      method: 'POST',
+      body: { from: $('fExportFrom').value || undefined, to: $('fExportTo').value || undefined },
+    });
+    toast(`${r.orders} commande(s) envoyées dans la conversation`);
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    bouton.disabled = false;
+  }
+}
+
+async function envoyerSauvegarde() {
+  const bouton = $('downloadBackup');
+  bouton.disabled = true;
+  try {
+    const r = await api('/backup/send', { method: 'POST' });
+    toast(`Sauvegarde envoyée dans la conversation (${Math.round(r.octets / 1024)} Ko)`);
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    bouton.disabled = false;
+  }
+}
+
+/**
+ * Lit le fichier choisi et dit ce qu'il contient.
+ *
+ * On montre le contenu avant de proposer le remplacement : restaurer efface
+ * la boutique, et personne ne doit découvrir après coup qu'il a chargé la
+ * sauvegarde du mois dernier.
+ */
+async function lireSauvegarde(event) {
+  const fichier = event.target.files?.[0];
+  event.target.value = '';
+  if (!fichier) return;
+
+  const zone = $('restorePreview');
+  zone.hidden = true;
+  sauvegardeChoisie = null;
+
+  try {
+    const texte = await fichier.text();
+    const data = JSON.parse(texte);
+    const resume = await api('/backup/inspect', { method: 'POST', body: data });
+
+    sauvegardeChoisie = data;
+    const quand = resume.exportedAt
+      ? new Date(resume.exportedAt).toLocaleString('fr-FR')
+      : 'date inconnue';
+    $('restoreSummary').textContent =
+      `Sauvegarde du ${quand} : ${resume.products} produit(s), ${resume.categories} catégorie(s), ` +
+      `${resume.orders} commande(s), ${resume.promos} code(s).`;
+    zone.hidden = false;
+  } catch (err) {
+    toast(err instanceof SyntaxError ? 'Ce fichier n\'est pas une sauvegarde.' : err.message);
+  }
+}
+
+async function restaurer() {
+  if (!sauvegardeChoisie) return;
+  if (!confirm('Remplacer toute la boutique par cette sauvegarde ? Les données actuelles seront perdues.')) return;
+
+  const bouton = $('doRestore');
+  bouton.disabled = true;
+  try {
+    const fait = await api('/backup/restore', { method: 'POST', body: sauvegardeChoisie });
+    sauvegardeChoisie = null;
+    $('restorePreview').hidden = true;
+    toast(`Restauré : ${fait.catalogue.products} produits, ${fait.commandes.orders} commandes`);
+    haptic('success');
+    await refreshAll();
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    bouton.disabled = false;
   }
 }
 

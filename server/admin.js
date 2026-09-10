@@ -16,10 +16,11 @@ import {
 import { STATUSES, listOrders, getOrder, setStatus, stats } from './orders.js';
 import { getSettings, saveSettings, blockClient, unblockClient } from './settings.js';
 import { listVerifications, decideVerification, resetVerification } from './verification.js';
-import { notifyCustomer, notifyBackInStock } from './bot.js';
+import { notifyCustomer, notifyBackInStock, sendFileToAdmin } from './bot.js';
 import { waitlistKey, takeSubscribers } from './waitlist.js';
 import { listPromos, savePromo, deletePromo } from './promos.js';
 import { FEATURES } from './features.js';
+import { buildBackup, restoreBackup, inspectBackup, ordersToCsv } from './backup.js';
 
 export const adminRouter = express.Router();
 
@@ -263,6 +264,105 @@ adminRouter.post(
     if (status === 'none') return res.json(await resetVerification(req.params.id));
     res.json(await decideVerification(req.params.id, status, req.telegramUser.id));
   })
+);
+
+/* ── Export et sauvegarde ────────────────────────────────── */
+
+/**
+ * Les commandes en tableur, une ligne par article.
+ *
+ * Le fichier est envoyé en pièce jointe avec un nom daté : c'est ce que le
+ * comptable ouvrira dans six mois sans se demander de quand il date.
+ */
+adminRouter.get(
+  '/export/orders.csv',
+  route(async (req, res) => {
+    const { csv, orders, lignes } = await ordersToCsv({
+      from: req.query.from,
+      to: req.query.to,
+      status: req.query.status,
+    });
+
+    const jour = new Date().toISOString().slice(0, 10);
+    // Le BOM force les tableurs à lire l'UTF-8 : sans lui, « Néon » devient
+    // « NÃ©on » à l'ouverture, et le vendeur croit son export abîmé.
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="commandes-${jour}.csv"`);
+    res.setHeader('X-Orders-Count', String(orders));
+    res.setHeader('X-Lines-Count', String(lignes));
+    res.send(`\ufeff${csv}`);
+  })
+);
+
+adminRouter.get(
+  '/backup',
+  route(async (req, res) => {
+    const backup = await buildBackup();
+    const jour = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="boutique-${jour}.json"`);
+    res.send(JSON.stringify(backup, null, 2));
+  })
+);
+
+/** Ce qu'une sauvegarde contient, avant de décider de l'appliquer. */
+/**
+ * Les mêmes fichiers, mais envoyés dans la conversation du bot.
+ *
+ * C'est le chemin qui marche vraiment depuis un téléphone : la Mini App
+ * demande, le fichier arrive dans le chat.
+ */
+adminRouter.post(
+  '/export/orders/send',
+  route(async (req, res) => {
+    const { csv, orders, lignes } = await ordersToCsv({
+      from: req.body?.from,
+      to: req.body?.to,
+      status: req.body?.status,
+    });
+    if (!orders) throw new HttpError(400, 'Aucune commande sur cette période.');
+
+    const jour = new Date().toISOString().slice(0, 10);
+    const periode = req.body?.from || req.body?.to
+      ? ` (${req.body.from || '…'} → ${req.body.to || '…'})`
+      : '';
+    // Le BOM force les tableurs à lire l'UTF-8 : sans lui, « Néon » arrive
+    // en « NÃ©on » et le vendeur croit son export abîmé.
+    const envoi = await sendFileToAdmin(
+      req.telegramUser.id,
+      `commandes-${jour}.csv`,
+      `\ufeff${csv}`,
+      `📊 ${orders} commande(s), ${lignes} ligne(s)${periode}.`
+    );
+    res.json({ ...envoi, orders, lignes });
+  })
+);
+
+adminRouter.post(
+  '/backup/send',
+  route(async (req, res) => {
+    const backup = await buildBackup();
+    const jour = new Date().toISOString().slice(0, 10);
+    const envoi = await sendFileToAdmin(
+      req.telegramUser.id,
+      `boutique-${jour}.json`,
+      JSON.stringify(backup, null, 2),
+      `💾 Sauvegarde du ${jour} : ${backup.counts.products} produits, ` +
+        `${backup.counts.orders} commandes, ${backup.counts.promos} codes.\n` +
+        'Garde-la ailleurs que sur le serveur.'
+    );
+    res.json({ ...envoi, counts: backup.counts });
+  })
+);
+
+adminRouter.post(
+  '/backup/inspect',
+  route(async (req, res) => res.json(inspectBackup(req.body)))
+);
+
+adminRouter.post(
+  '/backup/restore',
+  route(async (req, res) => res.json(await restoreBackup(req.body)))
 );
 
 /* ── Tableau de bord ─────────────────────────────────────── */

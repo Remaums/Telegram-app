@@ -139,6 +139,24 @@ export async function slotCounts() {
   return counts;
 }
 
+/**
+ * Remplace toutes les commandes.
+ *
+ * Réservé à la restauration. On ne revalide pas leur contenu — une commande
+ * passée est un fait, pas une saisie —, mais on écarte ce qui n'a ni
+ * référence ni client : une ligne abîmée ferait planter l'affichage.
+ */
+export async function replaceOrders(orders) {
+  if (!Array.isArray(orders)) throw new HttpError(400, 'Liste de commandes invalide.');
+
+  const propres = orders.filter((o) => o && typeof o === 'object' && o.reference && o.user?.id);
+  return store.update((data) => {
+    data.length = 0;
+    data.push(...propres);
+    return { orders: propres.length, ecartees: orders.length - propres.length };
+  });
+}
+
 export async function getOrder(reference) {
   const orders = await store.read();
   return orders.find((o) => o.reference === reference) ?? null;

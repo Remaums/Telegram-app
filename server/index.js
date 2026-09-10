@@ -52,6 +52,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// Une sauvegarde complète pèse bien plus que ce qu'on accepte ailleurs : ces
+// deux routes ont leur propre limite, montée avant la limite générale pour
+// que celle-ci ne rejette pas le corps avant d'y arriver. Le reste de l'API
+// n'a aucune raison de recevoir plus de 64 Ko.
+app.use(['/api/admin/backup/restore', '/api/admin/backup/inspect'], express.json({ limit: '32mb' }));
 app.use(express.json({ limit: '64kb' }));
 
 // La Mini App tourne dans une WebView Telegram : ces en-têtes évitent qu'elle

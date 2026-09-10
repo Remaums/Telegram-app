@@ -1,4 +1,4 @@
-import { Bot, InlineKeyboard } from 'grammy';
+import { Bot, InlineKeyboard, InputFile } from 'grammy';
 import { config } from './config.js';
 import { listOrders, STATUSES, setStatus } from './orders.js';
 import { restoreStock, getCatalog, setProductPhoto } from './catalog.js';
@@ -352,6 +352,22 @@ export async function notifyOrderPlaced(order) {
   await bot.api.sendMessage(order.user.id, text, {
     reply_markup: config.webappUrl ? shopKeyboard() : undefined,
   });
+}
+
+/**
+ * Envoie un fichier à l'administrateur, dans la conversation du bot.
+ *
+ * Un téléchargement lancé depuis la Mini App est capricieux : la WebView de
+ * Telegram bloque souvent les liens de téléchargement, et le fichier n'arrive
+ * nulle part. Passer par le bot le dépose dans la conversation, où il se
+ * consulte, se transfère et se retrouve des mois plus tard.
+ */
+export async function sendFileToAdmin(chatId, filename, contenu, legende) {
+  const donnees = Buffer.isBuffer(contenu) ? contenu : Buffer.from(contenu, 'utf8');
+  await bot.api.sendDocument(chatId, new InputFile(donnees, filename), {
+    caption: legende?.slice(0, 1000),
+  });
+  return { filename, octets: donnees.length };
 }
 
 /** Récapitulatif d'une commande, tel que le vendeur le lit dans Telegram. */

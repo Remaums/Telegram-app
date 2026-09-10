@@ -127,6 +127,43 @@ export async function releasePromo(code, userId) {
   });
 }
 
+/**
+ * Remplace tous les codes.
+ *
+ * Réservé à la restauration. Chaque code repasse par la validation, mais son
+ * compteur d'usages est repris tel quel : sinon restaurer une sauvegarde
+ * rendrait à tout le monde un code déjà consommé.
+ */
+export async function replacePromos(promos) {
+  if (!Array.isArray(promos)) return { promos: 0 };
+
+  return store.update((data) => {
+    for (const cle of Object.keys(data)) delete data[cle];
+    let gardes = 0;
+    for (const promo of promos) {
+      const code = normalizeCode(promo?.code);
+      if (!code) continue;
+      const type = promo.type === 'amount' ? 'amount' : 'percent';
+      const value = Math.round(Number(promo.value));
+      if (!Number.isFinite(value) || value <= 0) continue;
+
+      data[code] = {
+        type,
+        value: type === 'percent' ? Math.min(90, value) : value,
+        minSubtotal: Math.max(0, Math.round(Number(promo.minSubtotal ?? 0)) || 0),
+        expiresAt: promo.expiresAt ? String(promo.expiresAt).slice(0, 10) : null,
+        maxUses: promo.maxUses ? Math.max(1, Math.round(Number(promo.maxUses))) : null,
+        oncePerClient: promo.oncePerClient !== false,
+        active: promo.active !== false,
+        uses: Math.max(0, Math.round(Number(promo.uses ?? 0)) || 0),
+        usedBy: Array.isArray(promo.usedBy) ? promo.usedBy.map(String) : [],
+      };
+      gardes++;
+    }
+    return { promos: gardes };
+  });
+}
+
 /* ── Paliers automatiques ────────────────────────────────── */
 
 /**

@@ -225,6 +225,35 @@
     <button class="a-btn a-btn--primary a-btn--block" id="savePromo" type="button">Enregistrer le code</button>
     <ul class="a-list" id="promosList"></ul>
 
+    <h2 class="a-h2">Export et sauvegarde</h2>
+    <p class="a-hint">
+      Les deux fichiers arrivent <b>dans la conversation du bot</b> : un
+      téléchargement lancé depuis Telegram n'aboutit pas toujours, un document
+      envoyé dans le chat se retrouve toujours. L'export part chez le
+      comptable — une ligne par article, lisible dans n'importe quel tableur ;
+      la sauvegarde est un instantané complet qui revient dans la boutique.
+      <b>Ni l'un ni l'autre ne contient de jeton, de mot de passe ou d'adresse
+      de base de données.</b>
+    </p>
+    <div class="a-row">
+      <label class="a-field"><span>Commandes depuis le</span><input id="fExportFrom" type="date"></label>
+      <label class="a-field"><span>jusqu'au</span><input id="fExportTo" type="date"></label>
+    </div>
+    <button class="a-btn a-btn--ghost a-btn--block" id="exportCsv" type="button">📊 M'envoyer les commandes (CSV)</button>
+    <button class="a-btn a-btn--ghost a-btn--block" id="downloadBackup" type="button">💾 M'envoyer une sauvegarde</button>
+
+    <p class="a-hint">
+      Restaurer <b>remplace tout</b> : le catalogue, les commandes, les
+      réglages et les codes de la boutique disparaissent au profit de ceux du
+      fichier. Demande-toi une sauvegarde de l'état actuel avant, au cas où.
+    </p>
+    <input id="restoreFile" type="file" accept="application/json,.json" hidden>
+    <button class="a-btn a-btn--ghost a-btn--block" id="pickBackup" type="button">⬆ Choisir une sauvegarde…</button>
+    <div class="a-restore" id="restorePreview" hidden>
+      <p id="restoreSummary"></p>
+      <button class="a-btn a-btn--danger a-btn--block" id="doRestore" type="button">Remplacer la boutique par ce fichier</button>
+    </div>
+
     <h2 class="a-h2">Vérifications</h2>
     <ul class="a-list" id="verificationsList"></ul>
 

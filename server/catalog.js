@@ -189,6 +189,36 @@ export async function restoreStock(lines) {
   });
 }
 
+/**
+ * Remplace tout le catalogue d'un coup.
+ *
+ * Réservé à la restauration d'une sauvegarde : chaque produit repasse par la
+ * normalisation, si bien qu'un fichier trafiqué ne peut pas glisser un prix
+ * négatif ou un champ inattendu dans la boutique.
+ */
+export async function replaceCatalog({ products, categories }) {
+  if (!Array.isArray(products)) throw new HttpError(400, 'Catalogue invalide.');
+
+  const propres = products.map((p) => normalizeProduct(p));
+  const vus = new Set();
+  for (const p of propres) {
+    if (vus.has(p.id)) throw new HttpError(400, `Deux produits portent l'identifiant « ${p.id} ».`);
+    vus.add(p.id);
+  }
+
+  return store.update((data) => {
+    data.products = propres;
+    if (Array.isArray(categories) && categories.length) {
+      data.categories = categories.map((c) => ({
+        id: slug(c.id ?? c.label),
+        label: String(c.label ?? '').slice(0, 40),
+        emoji: String(c.emoji ?? '•').slice(0, 4),
+      }));
+    }
+    return { products: data.products.length, categories: data.categories.length };
+  });
+}
+
 /* ── Écriture : catégories ───────────────────────────────── */
 
 export async function saveCategories(categories) {
