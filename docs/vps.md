@@ -15,7 +15,7 @@ c'est le mode le plus simple du projet.
 | | |
 |---|---|
 | Un VPS | Debian 12 ou Ubuntu 22.04+, 1 vCPU et 1 Go de RAM suffisent |
-| Un nom de domaine | **obligatoire** : Telegram n'ouvre une Mini App qu'en HTTPS, jamais sur une IP nue |
+| Une URL en HTTPS | Telegram n'ouvre une Mini App qu'en HTTPS, jamais sur une IP nue. Un nom de domaine est l'option propre, mais l'étape 6 en donne deux gratuites pour commencer |
 | Un token de bot | donné par [@BotFather](https://t.me/BotFather) |
 
 ---
@@ -32,7 +32,7 @@ Il demande un nom affiché (« COFFEE SHOP 68 ») puis un identifiant se termina
 par `bot` (`coffeeshop68_bot`). Il répond avec un token du type
 `8123456789:AAH...`. **Garde-le secret** : quiconque l'a peut piloter ton bot.
 
-Tu reviendras chez BotFather à l'étape 8, une fois le site en ligne.
+Tu reviendras chez BotFather à l'étape 9, une fois le site en ligne.
 
 ---
 
@@ -97,7 +97,7 @@ BOT_TOKEN=8123456789:AAH...        # celui de BotFather
 WEBAPP_URL=https://boutique.mondomaine.fr
 SELLER_USERNAME=tonpseudo          # sans @ : la conversation qui reçoit les commandes
 BOT_USERNAME=coffeeshop68_bot       # sans @ : sert aux liens directs et aux QR codes
-ADMIN_CHAT_ID=123456789            # ton ID Telegram (étape 9)
+ADMIN_CHAT_ID=123456789            # ton ID Telegram (étape 10)
 ADMIN_IDS=123456789                # qui peut ouvrir l'espace admin
 SHOP_NAME=COFFEE SHOP 68
 CURRENCY=EUR
@@ -145,7 +145,83 @@ journalctl -u coffeeshop68 -f
 
 ---
 
-## 6. Domaine et HTTPS
+## 6. HTTPS sans nom de domaine (pour tester)
+
+Telegram n'ouvre une Mini App qu'en HTTPS — c'est non négociable, et une IP
+nue ne marchera jamais. Mais rien n'oblige à acheter un domaine tout de suite :
+deux chemins gratuits mènent à une URL en `https://`.
+
+### Option A — un tunnel Cloudflare (deux minutes, rien à configurer)
+
+Le plus direct pour essayer. Aucun compte, aucun DNS, aucun port à ouvrir :
+Cloudflare ouvre un tunnel sortant depuis ton VPS et te donne une adresse
+HTTPS publique.
+
+```bash
+# Sur le VPS, la boutique tournant déjà sur le port 3000
+sudo apt install -y curl
+curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
+sudo dpkg -i cloudflared.deb
+
+cloudflared tunnel --url http://localhost:3000
+```
+
+Il affiche au bout de quelques secondes une ligne du type :
+
+```
+https://random-words-here.trycloudflare.com
+```
+
+C'est ton `WEBAPP_URL`. Reporte-la dans `.env`, redémarre la boutique, et
+colle-la chez BotFather (étape 8).
+
+> ⚠️ **L'adresse change à chaque redémarrage du tunnel.** À chaque fois il faut
+> la remettre dans `.env` **et** chez BotFather. C'est acceptable pour tester
+> une soirée, intenable pour une vraie boutique — d'où l'option B.
+
+Pour que le tunnel survive à la fermeture de ta session SSH :
+
+```bash
+sudo tee /etc/systemd/system/tunnel.service >/dev/null <<'EOF'
+[Unit]
+Description=Tunnel Cloudflare vers la boutique
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/cloudflared tunnel --url http://localhost:3000
+Restart=always
+User=shop
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload && sudo systemctl enable --now tunnel
+journalctl -u tunnel -n 20      # pour relire l'adresse attribuée
+```
+
+### Option B — un sous-domaine gratuit qui, lui, ne bouge pas
+
+[DuckDNS](https://www.duckdns.org) donne gratuitement un sous-domaine du type
+`ma-boutique.duckdns.org` pointant vers l'IP de ton choix. C'est un vrai nom de
+domaine du point de vue de Let's Encrypt : Caddy obtient un certificat dessus
+sans rien de particulier, et l'adresse reste la même.
+
+1. Va sur [duckdns.org](https://www.duckdns.org), connecte-toi (Google, GitHub…),
+   choisis un nom et mets l'**IP de ton VPS** dans le champ `current ip`.
+2. Vérifie que ça résout : `dig +short ma-boutique.duckdns.org`
+3. Reprends l'étape 7 (Caddy) **telle quelle**, en mettant
+   `ma-boutique.duckdns.org` dans le `Caddyfile`.
+
+Le jour où tu achètes un vrai domaine, tu changes deux choses — la ligne du
+`Caddyfile` et `WEBAPP_URL` — et tu recolles l'URL chez BotFather. Rien d'autre
+ne bouge, les données restent où elles sont.
+
+> **Freenom** (`.tk`, `.ml`, `.ga`…) revient souvent dans les recherches :
+> l'inscription y est fermée depuis 2023, ce n'est plus une piste.
+
+---
+
+## 7. Domaine et HTTPS (une fois le domaine acheté)
 
 **a.** Chez ton registrar, crée un enregistrement **A** qui pointe
 `boutique.mondomaine.fr` vers l'IP de ton VPS. Vérifie la propagation :
@@ -177,21 +253,21 @@ s'afficher, cadenas compris.
 
 ---
 
-## 7. Pare-feu
+## 8. Pare-feu
 
 ```bash
 sudo ufw allow OpenSSH
-sudo ufw allow 80,443/tcp
+sudo ufw allow 80,443/tcp     # inutile avec un tunnel Cloudflare : il sort, il n'entre pas
 sudo ufw enable
 sudo ufw status
 ```
 
 Le port 3000 n'est **pas** ouvert : avec `HOST=127.0.0.1`, la boutique n'est
-joignable que par le proxy.
+joignable que par le proxy — ou par le tunnel, qui tourne sur la machine.
 
 ---
 
-## 8. Déclarer la Mini App chez BotFather
+## 9. Déclarer la Mini App chez BotFather
 
 Retour dans la conversation avec **@BotFather** :
 
@@ -205,7 +281,7 @@ Colle `https://boutique.mondomaine.fr`, puis donne un libellé au bouton
 
 ---
 
-## 9. Devenir administrateur
+## 10. Devenir administrateur
 
 Écris `/start` à ton bot : il affiche ton identifiant Telegram. Reporte-le dans
 `.env` (`ADMIN_IDS` et `ADMIN_CHAT_ID`), puis redémarre :
@@ -220,7 +296,7 @@ sudo systemctl restart coffeeshop68
 
 ---
 
-## 10. Vérifier que tout tient debout
+## 11. Vérifier que tout tient debout
 
 ```bash
 npm run doctor https://boutique.mondomaine.fr
@@ -236,7 +312,7 @@ test, elle doit arriver dans ta conversation avec les boutons de traitement.
 
 ---
 
-## 11. Mettre à jour la boutique
+## 12. Mettre à jour la boutique
 
 ```bash
 cd ~/Telegram-app
@@ -247,7 +323,7 @@ sudo systemctl restart coffeeshop68
 
 ---
 
-## 12. Sauvegarder
+## 13. Sauvegarder
 
 Tout ce qui est précieux tient dans deux fichiers : `server/data/catalog.json`
 (ton catalogue et tes stocks) et `server/data/orders.json` (tes commandes).
@@ -265,7 +341,7 @@ Une ligne pour une sauvegarde quotidienne, gardée 30 jours :
 
 ---
 
-## 13. Quand ça coince
+## 14. Quand ça coince
 
 | Symptôme | Cause la plus fréquente | Ce qu'il faut faire |
 |---|---|---|
