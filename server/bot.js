@@ -6,6 +6,7 @@ import { matchProduct } from './photos.js';
 import { getSettings, saveSettings } from './settings.js';
 import { requestVerification, decideVerification } from './verification.js';
 import { desabonner, reabonner, estDesabonne, consignerResultat } from './annonces.js';
+import { estPasse, ouvrirLaPorte, demanderLEpreuve, repondre } from './bot-captcha.js';
 
 /**
  * Le bot, construit même sans jeton.
@@ -50,8 +51,9 @@ const PAS_D_URL =
 
 const isAdmin = (id) => config.adminIds.includes(String(id));
 
-bot.command('start', async (ctx) => {
-  await ctx.reply(
+/** L'accueil : ce que voit quelqu'un qui vient d'ouvrir la conversation. */
+const accueillir = (ctx) =>
+  ctx.reply(
     `🌿 *${escapeMarkdown(config.shopName)}*\n\n` +
       "Bienvenue dans la boutique\\. Tout se passe dans l'app : catalogue en images, " +
       'panier, et commande envoyée en un bouton\\.\n\n' +
@@ -61,7 +63,92 @@ bot.command('start', async (ctx) => {
       reply_markup: shopKeyboard(),
     }
   );
+
+/* ── La porte du bot ─────────────────────────────────────── */
+
+/** Les six boutons d'une épreuve, sur deux rangs. */
+function clavierDEpreuve(choix) {
+  const clavier = new InlineKeyboard();
+  choix.forEach((valeur, rang) => {
+    clavier.text(String(valeur), `cap:${valeur}`);
+    if (rang === 2) clavier.row();
+  });
+  return clavier;
+}
+
+const poserLEpreuve = (ctx, epreuve, avant = '') =>
+  ctx.reply(
+    `${avant}🔒 Petite vérification avant d'entrer.\n\n` +
+      `Combien font ${epreuve.texte} ?\n\n` +
+      'C\'est pour éviter que la boutique ne soit noyée sous les faux comptes. ' +
+      'Touche la bonne réponse, ou écris-la.',
+    { reply_markup: clavierDEpreuve(epreuve.choix) }
+  );
+
+/**
+ * Le péage d'entrée, posé avant tous les gestes de client.
+ *
+ * Il ne s'applique ni à l'administrateur — le vendeur n'a pas à se justifier
+ * auprès de sa propre boutique — ni à qui a déjà commandé ici : lui demander
+ * de calculer serait le prendre pour un inconnu. Et il se coupe d'un
+ * interrupteur, comme tout le reste.
+ */
+bot.use(async (ctx, next) => {
+  const id = ctx.from?.id;
+  if (!id || isAdmin(id)) return next();
+  // `/admin` reste ouvert : c'est la commande par laquelle un vendeur découvre
+  // son identifiant Telegram pour se déclarer. Lui opposer un calcul le
+  // laisserait devant une porte dont il cherche justement la clé — et elle ne
+  // donne rien d'autre que ce mode d'emploi à qui n'est pas déclaré.
+  if (/^\/admin(?:@\S+)?(?:\s|$)/.test(ctx.message?.text ?? '')) return next();
+  if (!(await getSettings()).features.botCaptcha) return next();
+  if (await estPasse(id)) return next();
+
+  // Un client d'avant, ou d'avant l'épreuve : sa porte est déjà franchie.
+  // Un message venu de la Mini App aussi — il est signé par Telegram, ce qui
+  // vaut mieux qu'un calcul, et arrive après une commande déjà enregistrée.
+  if (ctx.message?.web_app_data || (await listOrders({ userId: id, limit: 1 })).length) {
+    await ouvrirLaPorte(id);
+    return next();
+  }
+
+  // Une réponse arrive de deux façons : le bouton touché, ou le nombre écrit.
+  const touche = ctx.callbackQuery?.data?.match(/^cap:(\d{1,3})$/)?.[1];
+  const ecrit = touche ? null : ctx.message?.text?.trim().match(/^\d{1,3}$/)?.[0];
+  const valeur = touche ?? ecrit;
+
+  if (valeur !== null && valeur !== undefined) {
+    const verdict = await repondre(id, valeur);
+    if (touche) await ctx.answerCallbackQuery(verdict.ok ? '✅' : '❌').catch(() => {});
+
+    if (verdict.ok) {
+      await ctx.reply('✅ Merci, c\'est bien ce que je voulais lire.');
+      return accueillir(ctx);
+    }
+    if (verdict.pause) {
+      return ctx.reply(
+        `⏳ Trop d'essais. Réessaie dans ${verdict.pause} minute${verdict.pause > 1 ? 's' : ''}.`
+      );
+    }
+    const avant = verdict.raison === 'faux'
+      ? `❌ Ce n'est pas ça — encore ${verdict.restants} essai${verdict.restants > 1 ? 's' : ''}.\n\n`
+      : '';
+    return poserLEpreuve(ctx, verdict.epreuve, avant);
+  }
+
+  // Ni bouton ni nombre : on (re)pose la question, quoi qu'on nous ait écrit.
+  if (ctx.callbackQuery) await ctx.answerCallbackQuery().catch(() => {});
+  const porte = await demanderLEpreuve(id);
+  if (porte.passe) return next();
+  if (porte.pause) {
+    return ctx.reply(
+      `⏳ Trop d'essais. Réessaie dans ${porte.pause} minute${porte.pause > 1 ? 's' : ''}.`
+    );
+  }
+  return poserLEpreuve(ctx, porte.epreuve);
 });
+
+bot.command('start', accueillir);
 
 bot.command('boutique', (ctx) =>
   ctx.reply('Voilà le catalogue 👇', { reply_markup: shopKeyboard() })

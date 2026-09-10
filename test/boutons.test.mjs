@@ -60,6 +60,12 @@ if (process.env.BOUTONS_SCENARIO) {
   };
   await bot.init();
 
+  // Cette suite parle des URL de Mini App, pas de l'épreuve d'entrée : ses
+  // figurants ont déjà passé la porte, sinon chaque /start répondrait par un
+  // calcul et aucun bouton ne serait mis à l'épreuve.
+  const { ouvrirLaPorte } = await import('../server/bot-captcha.js');
+  for (const { from } of commandes) await ouvrirLaPorte(from.id);
+
   let compteur = 5000;
   const resultats = [];
   for (const { from, texte } of commandes) {

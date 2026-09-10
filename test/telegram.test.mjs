@@ -164,6 +164,128 @@ e = await jouer(message(ADMIN, undefined, { ...photo, caption: 'Dry Sift 68' }))
 check('Photos coupées : le bot le dit à l\'administrateur', /désactiv/i.test(dit(e)), dit(e).slice(0, 50));
 await saveSettings({ features: { photos: true } });
 
+/* ── La porte du bot ─────────────────────────────────────── */
+
+// Un péage, pas une énigme : un robot sait additionner. Ce qu'on vérifie, ce
+// sont les trois choses qui font la différence entre une porte et un
+// tourniquet — la réponse ne sort jamais du serveur, un mauvais bouton fait
+// changer le calcul, et l'insistance coûte une attente.
+{
+  const { oublier, estPasse } = await import('../server/bot-captcha.js');
+
+  // Un inconnu, jamais vu : les identifiants tirés au hasard rendent cette
+  // suite rejouable, un client d'une exécution passée étant déjà entré.
+  const INCONNU = { id: 900000 + Math.floor(Math.random() * 90000), is_bot: false, first_name: 'Passant' };
+  await oublier(INCONNU.id);
+
+  const boutons = (e) =>
+    (e[0]?.payload?.reply_markup?.inline_keyboard ?? []).flat().map((b) => b.callback_data);
+
+  e = await jouer(message(INCONNU, '/start'));
+  check('Un inconnu tombe sur un calcul', /Combien font/.test(dit(e)), dit(e).slice(0, 60));
+  check("Et pas sur l'accueil", !/Bienvenue/.test(dit(e)));
+  let choix = boutons(e).map((d) => Number(d.split(':')[1]));
+  check('Six réponses sont proposées', choix.length === 6, choix.join(' '));
+
+  // La bonne réponse ne doit se lire nulle part : ni dans le texte, ni dans
+  // les boutons autrement que noyée parmi les autres.
+  const enonce = dit(e).match(/Combien font (\d+) ([+−]) (\d+)/);
+  const attendu = enonce[2] === '+' ? Number(enonce[1]) + Number(enonce[3]) : Number(enonce[1]) - Number(enonce[3]);
+  check('La réponse est parmi les boutons', choix.includes(attendu), `${attendu} dans ${choix.join(' ')}`);
+  check("Elle n'est pas écrite dans le message",
+    !new RegExp(`= ?${attendu}\\b`).test(dit(e)));
+
+  // Tant que la porte n'est pas franchie, rien d'autre ne s'ouvre.
+  e = await jouer(message(INCONNU, '/boutique'));
+  check('Le catalogue reste fermé entre-temps', !/catalogue/i.test(dit(e)), dit(e).slice(0, 40));
+  check('Et le calcul ne change pas entre deux messages', /Combien font/.test(dit(e)));
+  const memeEnonce = dit(e).match(/Combien font (\d+) ([+−]) (\d+)/);
+  check("La même épreuve est reposée telle quelle",
+    memeEnonce[0] === enonce[0], `${enonce[0]} puis ${memeEnonce[0]}`);
+
+  // Un mauvais bouton fait tirer un autre calcul : sinon il suffirait
+  // d'essayer les six l'un après l'autre.
+  const faux = choix.find((v) => v !== attendu);
+  e = await jouer(callback(INCONNU, `cap:${faux}`));
+  check('Une mauvaise réponse est refusée', /pas ça/i.test(dit(e)), dit(e).slice(0, 40));
+  check('Et il reste des essais', /2 essais/.test(dit(e)), dit(e).slice(0, 60));
+  const apresErreur = dit(e).match(/Combien font (\d+) ([+−]) (\d+)/);
+  check('Un nouveau calcul est tiré', apresErreur[0] !== enonce[0], `${enonce[0]} → ${apresErreur[0]}`);
+  check("La porte est toujours fermée", (await estPasse(INCONNU.id)) === false);
+
+  // Trois erreurs valent une attente : c'est ce qui rend l'essai systématique
+  // plus cher que le renoncement.
+  let courant = apresErreur;
+  for (let i = 0; i < 2; i++) {
+    const juste = courant[2] === '+' ? Number(courant[1]) + Number(courant[3]) : Number(courant[1]) - Number(courant[3]);
+    e = await jouer(callback(INCONNU, `cap:${juste + 1}`));
+    courant = dit(e).match(/Combien font (\d+) ([+−]) (\d+)/) ?? courant;
+  }
+  check('Trois erreurs ferment la porte un moment', /Réessaie dans \d+ minute/.test(dit(e)), dit(e).slice(0, 50));
+
+  e = await jouer(message(INCONNU, '/start'));
+  check("Pendant l'attente, aucun calcul n'est reposé", !/Combien font/.test(dit(e)), dit(e).slice(0, 50));
+  check("Et l'attente est annoncée", /Réessaie dans/.test(dit(e)));
+
+  // On repart d'une porte neuve pour la suite : la réponse écrite plutôt que
+  // touchée doit marcher aussi — un client qui tape « 12 » ne se trompe pas.
+  await oublier(INCONNU.id);
+  e = await jouer(message(INCONNU, '/start'));
+  const dernier = dit(e).match(/Combien font (\d+) ([+−]) (\d+)/);
+  const bonne = dernier[2] === '+' ? Number(dernier[1]) + Number(dernier[3]) : Number(dernier[1]) - Number(dernier[3]);
+
+  e = await jouer(message(INCONNU, String(bonne)));
+  check('Une réponse écrite ouvre aussi la porte', /Bienvenue/.test(dit(e)), dit(e).slice(0, 45));
+  check('Et la porte reste ouverte', (await estPasse(INCONNU.id)) === true);
+
+  e = await jouer(message(INCONNU, '/start'));
+  check("On ne redemande jamais deux fois", !/Combien font/.test(dit(e)) && /Bienvenue/.test(dit(e)));
+
+  // Le vendeur n'a pas à se justifier auprès de sa propre boutique.
+  e = await jouer(message(ADMIN, '/start'));
+  check("L'administrateur n'est jamais interrogé", !/Combien font/.test(dit(e)));
+
+  // Un client qui a déjà commandé non plus : le prendre pour un inconnu
+  // serait lui faire payer une porte qu'il a déjà franchie.
+  const ANCIEN = { id: 950000 + Math.floor(Math.random() * 40000), is_bot: false, first_name: 'Fidele' };
+  await oublier(ANCIEN.id);
+  await createOrder({
+    user: { id: ANCIEN.id, first_name: 'Fidele' },
+    items: [{ id: 'x', name: 'Test', variantId: null, variantLabel: null, unitPrice: 1000, quantity: 1, lineTotal: 1000 }],
+    subtotal: 1000, total: 1000, mode: 'pickup',
+  });
+  e = await jouer(message(ANCIEN, '/start'));
+  check("Un client qui a déjà commandé entre sans rien prouver",
+    !/Combien font/.test(dit(e)) && /Bienvenue/.test(dit(e)), dit(e).slice(0, 40));
+
+  // `/admin` reste ouvert : c'est par lui qu'un vendeur qui vient d'installer
+  // sa boutique découvre son identifiant Telegram. Lui opposer un calcul le
+  // laisserait devant une porte dont il cherche justement la clé.
+  const NOUVEAU = { id: 940000 + Math.floor(Math.random() * 10000), is_bot: false, first_name: 'Vendeur' };
+  await oublier(NOUVEAU.id);
+  e = await jouer(message(NOUVEAU, '/admin'));
+  check("/admin répond son mode d'emploi même à un inconnu",
+    /identifiant/i.test(dit(e)) && !/Combien font/.test(dit(e)), dit(e).slice(0, 45));
+
+  // Une commande passée depuis la Mini App vaut mieux qu'un calcul : elle est
+  // signée par Telegram. Le message de confirmation ne doit pas se heurter à
+  // une épreuve, sinon le client verrait un calcul pour toute réponse à sa
+  // commande.
+  const ACHETEUR = { id: 970000 + Math.floor(Math.random() * 20000), is_bot: false, first_name: 'Acheteur' };
+  await oublier(ACHETEUR.id);
+  e = await jouer(message(ACHETEUR, undefined, { web_app_data: { button_text: 'x', data: '{"reference":"CS68-TEST"}' } }));
+  check("Une commande envoyée depuis la Mini App passe la porte",
+    /bien reçue/.test(dit(e)), dit(e).slice(0, 45));
+  check('Et la porte lui reste ouverte', (await estPasse(ACHETEUR.id)) === true);
+
+  // L'interrupteur ferme la porte pour de bon.
+  const AUTRE = { id: 960000 + Math.floor(Math.random() * 30000), is_bot: false, first_name: 'Autre' };
+  await saveSettings({ features: { botCaptcha: false } });
+  e = await jouer(message(AUTRE, '/start'));
+  check("Épreuve coupée : plus personne n'est interrogé", !/Combien font/.test(dit(e)), dit(e).slice(0, 40));
+  await saveSettings({ features: { botCaptcha: true } });
+}
+
 /* ── La vignette d'une vidéo ─────────────────────────────── */
 
 // Telegram fabrique une petite image pour chaque vidéo qu'on lui confie. Elle

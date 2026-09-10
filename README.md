@@ -575,6 +575,7 @@ car une case cochée mais pas encore enregistrée est un piège.
 |---|---|
 | Porte d'âge | l'écran « as-tu 18 ans ? » |
 | Épreuve anti-robot | la grille de tuiles avant de commander |
+| Épreuve d'entrée du bot | le calcul au premier /start |
 | Vérification d'identité | la demande de pièce dans le bot |
 | Horaires automatiques | la fermeture programmée (l'interrupteur manuel reste) |
 | Zones de livraison | on livre partout aux conditions générales |
@@ -821,6 +822,43 @@ serveur. À noter : la vraie barrière contre les robots reste la signature
 Telegram contrôlée à chaque appel — sans compte Telegram, aucune commande.
 L'épreuve ajoute une friction et un geste conscient à l'entrée. Activée par
 défaut, elle se coupe d'une case.
+
+### Épreuve d'entrée du bot
+
+Un petit calcul au premier `/start`, avant que le bot ne réponde quoi que ce
+soit :
+
+```
+🔒 Petite vérification avant d'entrer.
+
+Combien font 7 + 4 ?
+   [ 9 ] [ 11 ] [ 14 ]
+   [ 6 ] [ 12 ] [ 17 ]
+```
+
+Un robot sait additionner : ce calcul n'est pas une énigme, c'est un **péage**.
+Il coûte un aller-retour et une attente à qui voudrait noyer la boutique sous
+les faux comptes, et un geste, une fois, à un client. Trois choix font la
+différence entre une porte et un tourniquet :
+
+- **la réponse ne quitte jamais le serveur** — les boutons ne portent que la
+  valeur proposée, le résultat juste reste rangé avec l'épreuve ;
+- **une erreur fait tirer un nouveau calcul** — sinon il suffirait d'essayer
+  les six boutons l'un après l'autre ;
+- **trois erreurs valent dix minutes d'attente**, ce qui rend l'essai
+  systématique plus cher que le renoncement.
+
+La réponse se touche ou s'écrit (« 11 » suffit). Trois personnes ne sont jamais
+interrogées : **l'administrateur**, **un client qui a déjà commandé** — le
+prendre pour un inconnu serait lui faire repayer une porte déjà franchie — et
+**une commande venue de la Mini App**, signée par Telegram, ce qui vaut mieux
+qu'un calcul. `/admin` reste ouvert aussi : c'est par lui qu'un vendeur qui
+vient d'installer sa boutique découvre son identifiant Telegram, et lui opposer
+un calcul le laisserait devant une porte dont il cherche justement la clé.
+
+Activée par défaut, elle se coupe d'une case. Elle ne remplace pas l'épreuve
+anti-robot de la Mini App : celle-ci garde l'entrée de la boutique, celle-là
+garde l'entrée de la conversation.
 
 ### Vérification d'identité
 

@@ -26,6 +26,14 @@ export const FEATURES = [
     default: true,
   },
   {
+    key: 'botCaptcha',
+    label: "Épreuve d'entrée du bot",
+    hint:
+      "Un petit calcul au premier /start, avant que le bot ne réponde. " +
+      "Un client qui a déjà commandé n'y est pas soumis, et l'administrateur non plus.",
+    default: true,
+  },
+  {
     key: 'verification',
     label: "Vérification d'identité",
     hint: "Le client fait valider une pièce dans la conversation du bot avant de commander.",
