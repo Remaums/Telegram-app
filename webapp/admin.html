@@ -34,6 +34,7 @@
   <button class="a-tab" data-tab="stock" role="tab" aria-selected="false">Stock</button>
   <button class="a-tab" data-tab="products" role="tab" aria-selected="false">Produits</button>
   <button class="a-tab" data-tab="categories" role="tab" aria-selected="false">Catégories</button>
+  <button class="a-tab" data-tab="settings" role="tab" aria-selected="false">Réglages</button>
 </nav>
 
 <main class="a-main">
@@ -74,6 +75,33 @@
     <div id="categoryRows"></div>
     <button class="a-btn a-btn--ghost a-btn--block" id="addCategory" type="button">+ Ajouter une catégorie</button>
     <button class="a-btn a-btn--primary a-btn--block" id="saveCategories" type="button">Enregistrer les catégories</button>
+  </section>
+
+  <!-- ══ Réglages ══ -->
+  <section class="a-panel" id="panel-settings" hidden>
+    <h2 class="a-h2">Garde-fous</h2>
+    <p class="a-hint">
+      Ces limites gênent un robot, pas un client qui commande deux fois dans la
+      soirée. Elles s'appliquent à chaque client pris séparément.
+    </p>
+    <div class="a-row">
+      <label class="a-field">
+        <span>Commandes par heure et par client</span>
+        <input id="fOrdersPerHour" type="number" min="1" max="100" inputmode="numeric">
+      </label>
+      <label class="a-field">
+        <span>Articles par commande</span>
+        <input id="fUnitsPerOrder" type="number" min="1" max="999" inputmode="numeric">
+      </label>
+    </div>
+    <button class="a-btn a-btn--primary a-btn--block" id="saveSettings" type="button">Enregistrer les garde-fous</button>
+
+    <h2 class="a-h2">Clients bloqués</h2>
+    <p class="a-hint">
+      Un client bloqué ne peut plus passer commande. Le bouton se trouve sur
+      chaque commande reçue, dans l'onglet Commandes.
+    </p>
+    <ul class="a-list" id="blockedList"></ul>
   </section>
 
 </main>

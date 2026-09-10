@@ -49,6 +49,20 @@ export async function listOrders({ userId, status, limit = 50 } = {}) {
     .reverse();
 }
 
+/**
+ * Nombre de commandes passées par un client depuis un instant donné.
+ *
+ * Compté sur les commandes elles-mêmes plutôt que sur un compteur en mémoire :
+ * la limite tient donc au redémarrage du serveur, et reste juste si plusieurs
+ * instances tournent en parallèle. Les commandes annulées comptent aussi —
+ * commander puis annuler en boucle reste un abus.
+ */
+export async function countOrdersSince(userId, since) {
+  const orders = await store.read();
+  const floor = since instanceof Date ? since.getTime() : Number(since);
+  return orders.filter((o) => o.user.id === userId && new Date(o.createdAt).getTime() >= floor).length;
+}
+
 export async function getOrder(reference) {
   const orders = await store.read();
   return orders.find((o) => o.reference === reference) ?? null;

@@ -144,7 +144,9 @@ body.admin {
   font-size: 13px; font-weight: 700; background: rgb(var(--ink-rgb) / .45);
   border-left: 3px solid var(--halo); padding: 8px 10px; border-radius: 0 10px 10px 0; margin-bottom: 9px;
 }
-.a-order__actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.a-order__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+/* Le blocage reste en retrait : c'est un geste rare, pas une action courante. */
+.a-order__ban { margin-left: auto; opacity: .75; }
 
 .a-status {
   display: inline-block; font-size: 11.5px; font-weight: 800; letter-spacing: .04em;

@@ -12,6 +12,7 @@ const state = {
   categories: [],
   orders: [],
   stats: null,
+  settings: null,
   tab: 'board',
   orderFilter: '',
   editing: null, // produit en cours d'édition, null = création
@@ -68,6 +69,7 @@ function bindHandlers() {
   $('stockSearch').addEventListener('input', renderStock);
   $('addCategory').addEventListener('click', () => addCategoryRow());
   $('saveCategories').addEventListener('click', saveCategoryList);
+  $('saveSettings').addEventListener('click', saveGuards);
   $('newProductBtn').addEventListener('click', () => openEditor(null));
 
   $('fHasVariants').addEventListener('change', syncPricingMode);
@@ -83,11 +85,13 @@ function bindHandlers() {
 }
 
 async function refreshAll() {
-  const [catalog, orders, stats] = await Promise.all([
+  const [catalog, orders, stats, settings] = await Promise.all([
     api('/catalog'),
     api('/orders'),
     api('/stats'),
+    api('/settings'),
   ]);
+  state.settings = settings;
   state.products = catalog.products;
   state.categories = catalog.categories.filter((c) => c.id !== 'all');
   state.orders = orders;
@@ -99,6 +103,7 @@ async function refreshAll() {
   renderStock();
   renderProducts();
   renderCategories();
+  renderSettings();
 
   $('pendingDot').hidden = stats.pending === 0;
 }
@@ -254,8 +259,20 @@ function orderCard(order) {
     actions.append(btn);
   }
   if (!status.next.length) {
-    actions.innerHTML = '<span class="a-muted">Commande terminée.</span>';
+    actions.append(Object.assign(document.createElement('span'), {
+      className: 'a-muted', textContent: 'Commande terminée.',
+    }));
   }
+
+  // Le blocage se décide en lisant une commande : c'est là qu'on voit l'abus.
+  const blocked = (state.settings?.blocked ?? []).includes(String(order.user.id));
+  const ban = document.createElement('button');
+  ban.type = 'button';
+  ban.className = 'a-btn a-btn--sm a-btn--ghost a-order__ban';
+  ban.textContent = blocked ? '↩︎ Débloquer' : '⛔ Bloquer';
+  ban.addEventListener('click', () => toggleBlock(order.user.id, !blocked, ban));
+  actions.append(ban);
+
   return card;
 }
 
@@ -557,6 +574,75 @@ function currentImage() {
 
 function syncImageField() {
   $('imagePathField').hidden = $('fImage').value !== CUSTOM_IMAGE;
+}
+
+/* ── Réglages ────────────────────────────────────────────── */
+
+function renderSettings() {
+  const settings = state.settings;
+  if (!settings) return;
+
+  $('fOrdersPerHour').value = settings.limits.ordersPerHour;
+  $('fUnitsPerOrder').value = settings.limits.unitsPerOrder;
+
+  const list = $('blockedList');
+  if (!settings.blocked.length) {
+    list.replaceChildren(Object.assign(document.createElement('li'), {
+      className: 'a-empty', textContent: 'Personne n\'est bloqué.',
+    }));
+    return;
+  }
+
+  list.replaceChildren(
+    ...settings.blocked.map((id) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>#${escapeHtml(id)}</span>`;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'a-btn a-btn--sm a-btn--ghost';
+      btn.textContent = 'Débloquer';
+      btn.addEventListener('click', () => toggleBlock(id, false, btn));
+      li.append(btn);
+      return li;
+    })
+  );
+}
+
+async function saveGuards() {
+  const button = $('saveSettings');
+  button.disabled = true;
+  try {
+    state.settings = await api('/settings', {
+      method: 'PUT',
+      body: {
+        limits: {
+          ordersPerHour: Number($('fOrdersPerHour').value),
+          unitsPerOrder: Number($('fUnitsPerOrder').value),
+        },
+      },
+    });
+    renderSettings();
+    toast('Garde-fous enregistrés');
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function toggleBlock(id, block, button) {
+  button.disabled = true;
+  try {
+    state.settings = await api(`/clients/${id}/${block ? 'block' : 'unblock'}`, { method: 'POST' });
+    renderSettings();
+    renderOrders();
+    toast(block ? `Client #${id} bloqué` : `Client #${id} débloqué`);
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+    button.disabled = false;
+  }
 }
 
 /* ── Catégories ──────────────────────────────────────────── */

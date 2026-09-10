@@ -1,0 +1,7 @@
+{
+  "limits": {
+    "ordersPerHour": 5,
+    "unitsPerOrder": 30
+  },
+  "blocked": []
+}

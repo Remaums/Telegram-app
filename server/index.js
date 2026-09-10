@@ -13,7 +13,8 @@ import {
   reserveStock,
   restoreStock,
 } from './catalog.js';
-import { createOrder, listOrders, STATUSES } from './orders.js';
+import { createOrder, listOrders, countOrdersSince, STATUSES } from './orders.js';
+import { getSettings, isBlocked } from './settings.js';
 import { adminRouter } from './admin.js';
 import { bot, notifyAdmin, notifyOrderPlaced } from './bot.js';
 import { storageKind } from './store.js';
@@ -115,6 +116,11 @@ function authenticate(req, res, next) {
 app.post('/api/orders', authenticate, async (req, res, next) => {
   try {
     const { items, contact, note } = req.body ?? {};
+    const settings = await getSettings();
+
+    if (isBlocked(settings, req.telegramUser.id)) {
+      throw new HttpError(403, 'Ce compte ne peut pas passer commande. Écris-nous si c\'est une erreur.');
+    }
 
     if (!Array.isArray(items) || items.length === 0) {
       throw new HttpError(400, 'Panier vide.');
@@ -123,9 +129,21 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       throw new HttpError(400, 'Trop de lignes dans le panier.');
     }
 
+    // Un client authentifié pourrait sinon enchaîner les commandes en boucle
+    // et vider le stock sans jamais rien retirer.
+    const lastHour = Date.now() - 60 * 60 * 1000;
+    const recent = await countOrdersSince(req.telegramUser.id, lastHour);
+    if (recent >= settings.limits.ordersPerHour) {
+      throw new HttpError(
+        429,
+        `Trop de commandes en une heure (${settings.limits.ordersPerHour} maximum). Réessaie plus tard, ou écris-nous.`
+      );
+    }
+
     // Les prix sont recalculés côté serveur à partir du catalogue : ceux
     // envoyés par le client sont ignorés, sinon n'importe qui commanderait à 0 €.
     const resolved = [];
+    let units = 0;
     for (const item of items) {
       const product = await getProduct(item.id, { includeHidden: false });
       if (!product) throw new HttpError(400, `Produit indisponible : ${item.id}`);
@@ -140,6 +158,7 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
         throw new HttpError(400, `Format invalide pour ${product.name}.`);
       }
 
+      units += quantity;
       const unitPrice = priceOf(product, variant?.id);
       resolved.push({
         id: product.id,
@@ -150,6 +169,13 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
         quantity,
         lineTotal: unitPrice * quantity,
       });
+    }
+
+    if (units > settings.limits.unitsPerOrder) {
+      throw new HttpError(
+        400,
+        `Commande trop grosse : ${settings.limits.unitsPerOrder} articles au maximum. Contacte-nous pour une commande en gros.`
+      );
     }
 
     // Réservation tout-ou-rien : deux clients ne peuvent pas emporter

@@ -13,6 +13,7 @@ import {
   restoreStock,
 } from './catalog.js';
 import { STATUSES, listOrders, getOrder, setStatus, stats } from './orders.js';
+import { getSettings, saveSettings, blockClient, unblockClient } from './settings.js';
 import { notifyCustomer } from './bot.js';
 
 export const adminRouter = express.Router();
@@ -128,6 +129,28 @@ adminRouter.post(
 
     res.json(order);
   })
+);
+
+/* ── Réglages et clients bloqués ─────────────────────────── */
+
+adminRouter.get(
+  '/settings',
+  route(async (req, res) => res.json(await getSettings()))
+);
+
+adminRouter.put(
+  '/settings',
+  route(async (req, res) => res.json(await saveSettings(req.body)))
+);
+
+adminRouter.post(
+  '/clients/:id/block',
+  route(async (req, res) => res.json(await blockClient(req.params.id)))
+);
+
+adminRouter.post(
+  '/clients/:id/unblock',
+  route(async (req, res) => res.json(await unblockClient(req.params.id)))
 );
 
 /* ── Tableau de bord ─────────────────────────────────────── */
