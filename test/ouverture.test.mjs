@@ -8,7 +8,7 @@
  * Usage :  BOT_TOKEN=… node test/ouverture.test.mjs
  */
 import 'dotenv/config';
-import { signInitData, getShopPass } from './helpers.mjs';
+import { signInitData, getShopPass, resetShop } from './helpers.mjs';
 import { isOpenNow, defaultHours } from '../server/opening.js';
 
 const TOKEN = process.env.BOT_TOKEN;
@@ -20,6 +20,10 @@ if (!TOKEN) {
 }
 
 const admin = signInitData(TOKEN, { id: 424242, first_name: 'Patron' });
+
+// Le décor de départ, posé par cette suite plutôt que hérité de la
+// précédente : sans ça, l'ordre du package.json devient un piège.
+await resetShop(BASE, admin, { features: { hours: false, captcha: false } });
 const client = signInitData(TOKEN, { id: 840001, first_name: 'Client' });
 
 let failures = 0;

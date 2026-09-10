@@ -47,3 +47,52 @@ export async function getShopPass(base, initData) {
   if (!solved.ok) throw new Error(`Épreuve d'entrée non résolue : HTTP ${solved.status}`);
   return (await solved.json()).pass;
 }
+
+/**
+ * Remet la boutique dans un état connu avant une suite.
+ *
+ * Les suites tournent à la file sur le même serveur : sans ça, celle qui
+ * coupe les remises fait échouer celle qui les teste, et l'ordre du
+ * `package.json` devient un piège invisible. Chacune pose donc son décor
+ * complet, et ne dépend plus de ce que la précédente a laissé.
+ *
+ * @param {string} base      URL du serveur
+ * @param {string} initData  un `initData` d'administrateur
+ * @param {object} patch     ce que la suite veut en plus ou en moins
+ */
+export async function resetShop(base, initData, patch = {}) {
+  const body = {
+    features: {
+      ageGate: true, captcha: true, verification: false, hours: false,
+      zones: true, slots: false, tiers: true, promos: true, waitlist: true,
+      stockAlerts: true, limits: true, photos: true, orderHistory: true,
+      clientNotifications: true,
+      ...(patch.features ?? {}),
+    },
+    fulfillment: {
+      pickup: true, delivery: false, deliveryFee: 0, freeDeliveryFrom: null, minimumOrder: 0,
+      ...(patch.fulfillment ?? {}),
+    },
+    // Plafonds larges par défaut : une suite qui enchaîne les commandes pour
+    // tester autre chose ne doit pas buter sur le quota horaire. Celles qui
+    // vérifient les garde-fous posent leurs propres valeurs.
+    limits: { ordersPerHour: 999, unitsPerOrder: 999, ...(patch.limits ?? {}) },
+    alerts: { lowStock: 3, ...(patch.alerts ?? {}) },
+    discounts: { tiers: patch.discounts?.tiers ?? [] },
+    zones: patch.zones ?? [],
+    slots: { leadMinutes: 60, daysAhead: 7, days: {}, ...(patch.slots ?? {}) },
+    opening: {
+      open: true,
+      message: 'La boutique est fermée pour le moment. Reviens un peu plus tard !',
+      ...(patch.opening ?? {}),
+    },
+  };
+
+  const res = await fetch(`${base}/api/admin/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Réglages de départ refusés : HTTP ${res.status}`);
+  return res.json();
+}

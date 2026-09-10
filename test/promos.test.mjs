@@ -9,7 +9,7 @@
  * Usage :  BOT_TOKEN=… node test/promos.test.mjs
  */
 import 'dotenv/config';
-import { signInitData, getShopPass } from './helpers.mjs';
+import { signInitData, getShopPass, resetShop } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -20,6 +20,10 @@ if (!TOKEN) {
 }
 
 const admin = signInitData(TOKEN, { id: 424242, first_name: 'Patron' });
+
+// Le décor de départ, posé par cette suite plutôt que hérité de la
+// précédente : sans ça, l'ordre du package.json devient un piège.
+await resetShop(BASE, admin, { features: { tiers: true, promos: true, slots: false, zones: false } });
 const client = signInitData(TOKEN, { id: 860001, first_name: 'Client' });
 const autre = signInitData(TOKEN, { id: 860002, first_name: 'Autre' });
 

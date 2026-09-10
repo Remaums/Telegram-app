@@ -11,7 +11,7 @@
  */
 import crypto from 'node:crypto';
 import 'dotenv/config';
-import { getShopPass } from './helpers.mjs';
+import { getShopPass, resetShop } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -34,6 +34,16 @@ function sign(user) {
 }
 
 const admin = sign({ id: ADMIN_ID, first_name: 'Patron' });
+
+// Le décor de départ, posé par cette suite plutôt que hérité de la
+// précédente : sans ça, l'ordre du package.json devient un piège.
+await resetShop(BASE, admin, { features: { limits: true, captcha: false }, limits: { ordersPerHour: 5, unitsPerOrder: 30 } });
+
+// Les clients sont tirés à chaque exécution : le plafond horaire se compte sur
+// les commandes déjà passées, si bien qu'un identifiant fixe rendait la suite
+// injouable deux fois de suite — la deuxième fois, le quota était déjà consommé.
+const souche = 700000 + (Date.now() % 200000);
+const CLIENT = { gros: souche + 1, robot: souche + 2, banni: souche + 3, curieux: souche + 4 };
 
 let failures = 0;
 function check(label, ok, detail = '') {
@@ -76,15 +86,15 @@ check('Réglages lisibles', typeof settingsBefore.limits?.ordersPerHour === 'num
 
 await api('/api/admin/settings', { method: 'PUT', body: { limits: { ordersPerHour: 3, unitsPerOrder: 5 } } });
 
-let r = await buy(sign({ id: 700001, first_name: 'Gros' }), [{ id: product.id, quantity: 6 }]);
+let r = await buy(sign({ id: CLIENT.gros, first_name: 'Gros' }), [{ id: product.id, quantity: 6 }]);
 check('Commande au-delà du plafond refusée', r.status === 400, `HTTP ${r.status}`);
 
-r = await buy(sign({ id: 700001, first_name: 'Gros' }), [{ id: product.id, quantity: 5 }]);
+r = await buy(sign({ id: CLIENT.gros, first_name: 'Gros' }), [{ id: product.id, quantity: 5 }]);
 check('Commande au plafond acceptée', r.status === 201, `HTTP ${r.status}`);
 
 /* ── Fréquence ───────────────────────────────────────────── */
 
-const spammeur = sign({ id: 700002, first_name: 'Robot' });
+const spammeur = sign({ id: CLIENT.robot, first_name: 'Robot' });
 const codes = [];
 for (let i = 0; i < 4; i++) {
   codes.push((await buy(spammeur, [{ id: product.id, quantity: 1 }])).status);
@@ -94,7 +104,7 @@ check('Trois commandes passent, la quatrième est refusée',
 
 /* ── Client bloqué ───────────────────────────────────────── */
 
-const banni = { id: 700003, first_name: 'Banni' };
+const banni = { id: CLIENT.banni, first_name: 'Banni' };
 r = await api(`/api/admin/clients/${banni.id}/block`, { method: 'POST' });
 check('Client bloqué depuis l\'admin', r.status === 200);
 
@@ -107,7 +117,7 @@ check('Débloqué, il commande à nouveau', r.status === 201, `HTTP ${r.status}`
 
 /* ── Un non-admin ne touche pas aux réglages ─────────────── */
 
-r = await api('/api/admin/settings', { method: 'PUT', init: sign({ id: 700004, first_name: 'Curieux' }), body: { limits: { ordersPerHour: 999 } } });
+r = await api('/api/admin/settings', { method: 'PUT', init: sign({ id: CLIENT.curieux, first_name: 'Curieux' }), body: { limits: { ordersPerHour: 999 } } });
 check('Réglages inaccessibles à un non-admin', r.status === 403, `HTTP ${r.status}`);
 
 /* ── Remise en état ──────────────────────────────────────── */

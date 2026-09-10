@@ -348,6 +348,14 @@ npm test
 La même suite passe sur les deux stockages : lance le serveur sans `DATABASE_URL`
 pour tester les fichiers JSON, avec pour tester Postgres.
 
+Chaque suite **pose son propre décor** au démarrage (`resetShop` dans
+`test/helpers.mjs`) et tire ses identifiants de clients à chaque exécution.
+Sans ça, une suite qui coupe les remises faisait échouer celle qui les teste,
+et un quota horaire déjà consommé rendait la suite injouable deux fois de
+suite : l'ordre du `package.json` devenait un piège invisible. On peut donc
+enchaîner `npm test` autant de fois qu'on veut, sur un magasin déjà bien
+rempli comme sur un magasin vierge.
+
 ---
 
 ## Stockage des commandes

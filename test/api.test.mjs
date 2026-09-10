@@ -6,7 +6,7 @@
  */
 import crypto from 'node:crypto';
 import 'dotenv/config';
-import { getShopPass } from './helpers.mjs';
+import { getShopPass, resetShop } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -39,6 +39,11 @@ const post = (init, body) =>
 
 const user = { id: 424242, first_name: 'Test', username: 'client_test' };
 const valid = signInitData(user);
+
+// Le décor de départ, posé par cette suite plutôt que hérité de la
+// précédente : sans ça, l'ordre du package.json devient un piège.
+await resetShop(BASE, valid, { features: { verification: false } });
+
 pass = await getShopPass(BASE, valid);
 const results = [];
 const check = (name, pass, detail) => results.push({ name, pass, detail });
