@@ -31,6 +31,14 @@ bot.command('boutique', (ctx) =>
 );
 
 bot.command('commandes', async (ctx) => {
+  // Le même interrupteur que l'écran « Mes commandes » de la Mini App : une
+  // porte fermée d'un côté et ouverte de l'autre n'en est pas une.
+  if (!(await getSettings()).features.orderHistory) {
+    return ctx.reply("L'historique des commandes n'est pas disponible ici.", {
+      reply_markup: shopKeyboard(),
+    });
+  }
+
   const orders = await listOrders({ userId: ctx.from.id, limit: 5 });
   if (!orders.length) {
     return ctx.reply("Tu n'as pas encore passé de commande.", { reply_markup: shopKeyboard() });
@@ -281,6 +289,24 @@ bot.on('message:web_app_data', async (ctx) => {
   } catch {
     await ctx.reply('Commande reçue, on revient vers toi rapidement.');
   }
+});
+
+/**
+ * Tout le reste.
+ *
+ * Un client qui écrit « bonjour » au bot n'obtenait rien du tout : la porte
+ * d'entrée de la boutique restait muette. Ce gestionnaire est déclaré après
+ * les commandes, qui gardent donc la priorité.
+ */
+bot.on('message:text', async (ctx) => {
+  await ctx.reply(
+    'Je ne comprends que quelques commandes :\n' +
+      '/boutique — ouvrir le catalogue\n' +
+      '/commandes — retrouver tes commandes\n' +
+      '/aide — tout ce que je sais faire' +
+      (config.sellerUsername ? `\n\nPour parler à quelqu'un : @${config.sellerUsername}` : ''),
+    { reply_markup: config.webappUrl ? shopKeyboard() : undefined }
+  );
 });
 
 bot.catch((err) => {

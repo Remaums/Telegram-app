@@ -317,6 +317,11 @@ dans ton bot.
 | `/commandes` | Les 5 dernières commandes du client |
 | `/aide` | Liste des commandes |
 | `/admin` | Espace d'administration (réservé aux `ADMIN_IDS`) |
+| `/ouvrir` `/fermer` | Ouvre ou ferme la boutique (réservé) |
+| `/verification on\|off` | Allume ou coupe la vérification d'identité (réservé) |
+
+Tout autre message reçoit la liste des commandes et le bouton boutique : la
+porte d'entrée de la boutique ne doit pas rester muette devant un « bonjour ».
 
 ---
 
