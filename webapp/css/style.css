@@ -571,6 +571,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cart-item__ctl button:active { background: rgb(var(--neon-rgb) / .25); }
 .cart-item__ctl span { min-width: 24px; text-align: center; font-weight: 800; font-size: 15px; }
 
+/* Une ligne qu'on ne peut plus servir doit se voir avant le bouton. */
+.cart-item--short { border-color: rgb(var(--gold-rgb) / .55); background: rgb(var(--gold-rgb) / .07); }
+.cart-item__short { display: block; font-size: 11.5px; font-weight: 800; color: var(--gold); margin-top: 2px; }
+
 .cart__empty { text-align: center; padding: 26px 20px; }
 .cart__empty-leaf { width: 84px; margin: 0 auto 12px; opacity: .8; filter: drop-shadow(0 0 20px rgb(var(--neon-rgb) / .5)); }
 .cart__empty p { font-weight: 700; color: var(--muted); margin: 0; }
@@ -632,6 +636,32 @@ button { font: inherit; color: inherit; cursor: pointer; }
   font-size: 13px; font-weight: 700; line-height: 1.4;
   color: var(--gold); background: rgb(var(--gold-rgb) / .12);
   border: 1px solid rgb(var(--gold-rgb) / .4);
+}
+
+/* ── Commande enregistrée ────────────────────────────────── */
+.done { text-align: center; padding: 28px 20px 8px; }
+.done__seal {
+  display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 14px;
+  font-size: 30px; font-weight: 800; color: var(--ink);
+  background: linear-gradient(180deg, var(--neon-hi), var(--neon));
+  border-radius: 50%; box-shadow: var(--glow-neon);
+}
+/* Un peu d'air : serré, l'accent des capitales se fait rogner. */
+.done__title { font-size: 28px; line-height: 1.18; margin: 0 0 6px; }
+.done__ref {
+  display: inline-block; margin: 0 0 12px; padding: 5px 13px; border-radius: 999px;
+  font-family: var(--display); font-size: 17px; letter-spacing: .04em; color: var(--gold);
+  background: rgb(var(--gold-rgb) / .12); border: 1px solid rgb(var(--gold-rgb) / .4);
+}
+.done__text { margin: 0 auto 14px; max-width: 30ch; font-weight: 700; color: var(--muted); line-height: 1.45; }
+.done__lines { list-style: none; margin: 0; padding: 0; font-size: 13.5px; font-weight: 700; }
+.done__lines li { padding: 3px 0; }
+.done__lines li b { color: var(--neon); }
+
+.gate__link {
+  display: block; width: 100%; margin-top: 12px; padding: 6px;
+  font: inherit; font-size: 13px; font-weight: 700; color: var(--muted);
+  background: none; border: 0; text-decoration: underline; text-underline-offset: 3px;
 }
 
 /* ── Mes commandes ───────────────────────────────────────── */

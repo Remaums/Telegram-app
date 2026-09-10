@@ -60,6 +60,7 @@
       Telegram, et tu peux le supprimer une fois la vérification faite.
     </p>
     <button class="btn btn--primary btn--grow" id="verifAction" type="button">Ouvrir la conversation</button>
+    <button class="gate__link" id="verifBrowse" type="button">Regarder la boutique en attendant</button>
   </div>
 </div>
 
@@ -196,6 +197,27 @@
         <small id="cartStrike" hidden></small>
       </div>
       <button class="btn btn--primary btn--grow" id="checkout" type="button">Commander</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Commande enregistrée ══ -->
+<div class="sheet" id="doneSheet" hidden>
+  <div class="sheet__backdrop" data-close></div>
+  <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="doneTitle">
+    <button class="sheet__close" type="button" data-close aria-label="Fermer">✕</button>
+    <div class="sheet__scroll">
+      <div class="done">
+        <span class="done__seal">✓</span>
+        <h2 class="done__title goldtext" id="doneTitle">Commande enregistrée</h2>
+        <p class="done__ref" id="doneRef"></p>
+        <p class="done__text" id="doneText"></p>
+        <ul class="done__lines" id="doneLines"></ul>
+      </div>
+    </div>
+    <div class="sheet__bar">
+      <button class="btn btn--ghost" type="button" data-close>Continuer mes achats</button>
+      <button class="btn btn--primary btn--grow" id="doneChat" type="button">Écrire au vendeur</button>
     </div>
   </div>
 </div>

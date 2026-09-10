@@ -24,6 +24,8 @@ const state = {
   slots: [],          // créneaux encore réservables
   slotId: '',         // celui que le client a choisi
   promo: null,        // remise en cours : { code, discount, label, source }
+  lastMessage: '',    // récapitulatif de la dernière commande, pour le renvoyer
+  blocked: false,     // compte privé de commande par le vendeur
   mode: 'pickup',
   captcha: null,      // épreuve en cours
   selection: [],      // tuiles touchées
@@ -69,7 +71,6 @@ async function init() {
     state.tiers = data.discounts?.tiers ?? [];
     state.zones = data.zones ?? [];
     state.slotsEnabled = Boolean(data.slots?.enabled);
-    gateAge();
     applyFeatures();
     state.mode = state.fulfillment.pickup ? 'pickup' : 'delivery';
   } catch (err) {
@@ -92,8 +93,7 @@ async function init() {
   renderGrid();
   renderCart();
   loadSlots();
-  gateCaptcha();
-  gateVerification();
+  runGates();
 }
 
 function bindStaticHandlers() {
@@ -101,6 +101,7 @@ function bindStaticHandlers() {
     try { localStorage.setItem(AGE_KEY, '1'); } catch {}
     $('agegate').hidden = true;
     haptic('light');
+    runGates();
   });
   $('ageNo').addEventListener('click', () => (tg ? tg.close() : window.history.back()));
 
@@ -111,6 +112,13 @@ function bindStaticHandlers() {
   // envoie sa pièce : pas besoin de connaître le nom du bot.
   $('verifAction').addEventListener('click', () => (tg ? tg.close() : window.history.back()));
   $('checkout').addEventListener('click', checkout);
+  $('doneChat').addEventListener('click', () => openSellerChat(state.lastMessage));
+  $('verifBrowse').addEventListener('click', () => {
+    // Le serveur refuse la commande de toute façon : rien n'oblige à cacher
+    // la boutique pendant que la pièce est examinée.
+    $('verification').hidden = true;
+    toast('Tu pourras commander une fois ta pièce validée.');
+  });
   $('promoApply').addEventListener('click', applyPromo);
   $('promoCode').addEventListener('keydown', (e) => e.key === 'Enter' && applyPromo());
   $('orderPostal').addEventListener('input', () => {
@@ -417,6 +425,14 @@ function revalidatePromo() {
 /** Boutique fermée : on le dit, et on empêche la commande. */
 function renderClosedBanner() {
   const banner = $('closedBanner');
+  // Un compte bloqué passe devant l'horaire : c'est la vraie raison pour
+  // laquelle ce client-là ne pourra pas commander, quelle que soit l'heure.
+  if (state.blocked) {
+    banner.textContent =
+      "Ce compte ne peut pas passer commande. Écris-nous dans la conversation si c'est une erreur.";
+    banner.hidden = false;
+    return;
+  }
   if (state.opening.open) {
     banner.hidden = true;
     return;
@@ -431,18 +447,32 @@ function renderClosedBanner() {
  * Quand le vendeur l'exige, la boutique reste fermée tant que la pièce n'a
  * pas été validée. L'écran dit où on en est plutôt que de rester muet.
  */
-async function gateVerification() {
-  if (!state.gates.verification || !tg?.initData) return;
-
-  let me;
+/**
+ * Ce que le serveur sait de ce client : blocage et vérification.
+ *
+ * Lu une fois et gardé : la porte de vérification et le bandeau de compte
+ * bloqué en avaient besoin tous les deux, et deux appels pour la même
+ * réponse feraient clignoter l'écran au démarrage.
+ */
+async function loadMe() {
+  if (!tg?.initData) return null;
   try {
     const res = await fetch('/api/me', { headers: { 'X-Telegram-Init-Data': tg.initData } });
-    if (!res.ok) return;
-    me = await res.json();
+    if (!res.ok) return null;
+    const me = await res.json();
+    state.blocked = Boolean(me.blocked);
+    renderClosedBanner();
+    renderCart();
+    return me;
   } catch (err) {
     console.error(err);
-    return;
+    return null;
   }
+}
+
+async function gateVerification() {
+  const me = await loadMe();
+  if (!state.gates.verification || !me) return;
 
   const status = me.verification.status;
   if (status === 'approved') return;
@@ -466,10 +496,11 @@ async function gateVerification() {
 /* ── Épreuve d'entrée ────────────────────────────────────── */
 
 /** Rien à demander si l'épreuve est désactivée ou déjà passée aujourd'hui. */
-function gateCaptcha() {
-  if (!state.gates.captcha || !tg?.initData) return;
-  if (readPass()) return;
-  openCaptcha();
+async function gateCaptcha() {
+  if (!state.gates.captcha || !tg?.initData) return false;
+  if (readPass()) return false;
+  await openCaptcha();
+  return !$('captcha').hidden;
 }
 
 async function openCaptcha() {
@@ -559,6 +590,8 @@ async function submitCaptcha() {
     writePass(data.pass);
     $('captcha').hidden = true;
     haptic('success');
+    // L'épreuve franchie, c'est au tour de la porte suivante.
+    await gateVerification();
   } catch (err) {
     console.error(err);
     error.textContent = 'Vérification indisponible. Réessaie dans un instant.';
@@ -575,16 +608,32 @@ function writePass(pass) {
   try { localStorage.setItem(PASS_KEY, pass ?? ''); } catch {}
 }
 
+/**
+ * Les portes d'entrée, une à la fois.
+ *
+ * Les trois écrans sont des voiles plein cadre au même niveau : les ouvrir
+ * ensemble revenait à empiler la vérification par-dessus l'épreuve, qui
+ * avalait alors tous les appuis — le client ne pouvait littéralement plus
+ * entrer. Chacune appelle donc la suivante en se refermant.
+ */
+async function runGates() {
+  if (gateAge()) return;
+  if (await gateCaptcha()) return;
+  await gateVerification();
+}
+
+/** @returns {boolean} vrai si la porte reste ouverte. */
 function gateAge() {
   // Appelée avant le catalogue au premier affichage : sans réponse du serveur
   // on garde la porte fermée, plus prudent que de l'ouvrir par défaut.
   if (state.features.ageGate === false) {
     $('agegate').hidden = true;
-    return;
+    return false;
   }
   let confirmed = false;
   try { confirmed = localStorage.getItem(AGE_KEY) === '1'; } catch {}
   $('agegate').hidden = confirmed;
+  return !confirmed;
 }
 
 /* ── Rendu ───────────────────────────────────────────────── */
@@ -847,7 +896,15 @@ function detailedCart() {
       if (!product) return null;
       const variant = product.variants?.find((v) => v.id === line.variantId) ?? null;
       const price = variant?.price ?? product.price;
-      return { ...line, product, variant, unitPrice: price, lineTotal: price * line.quantity };
+      // Le stock a pu fondre depuis que l'article est au panier : la ligne
+      // porte de quoi le dire, plutôt que d'annoncer un total qu'on ne
+      // pourra pas honorer.
+      const stock = stockOf(product, line.variantId);
+      return {
+        ...line, product, variant, unitPrice: price, stock,
+        lineTotal: price * line.quantity,
+        short: Math.max(0, line.quantity - stock),
+      };
     })
     .filter(Boolean);
 }
@@ -898,13 +955,19 @@ function renderCart() {
   // refusera : le client verrait un aller-retour pour rien.
   const zoneManquante = livraison && state.zones.length > 0 && !state.zone;
   const creneauManquant = state.slotsEnabled && !state.slotId;
+  const rupture = lines.some((l) => l.short > 0);
   $('checkout').disabled =
-    lines.length === 0 || !state.opening.open || manque > 0 || zoneManquante || creneauManquant;
-  $('checkout').textContent = !state.opening.open
-    ? 'Boutique fermée'
-    : creneauManquant && !zoneManquante && manque === 0 && lines.length
-      ? 'Choisis un créneau'
-      : 'Commander';
+    lines.length === 0 || state.blocked || !state.opening.open || manque > 0
+    || zoneManquante || creneauManquant || rupture;
+  $('checkout').textContent = state.blocked
+    ? 'Commande impossible'
+    : !state.opening.open
+      ? 'Boutique fermée'
+      : rupture
+        ? 'Ajuste ton panier'
+        : creneauManquant && !zoneManquante && manque === 0 && lines.length
+          ? 'Choisis un créneau'
+          : 'Commander';
 
   const details = [
     remise.discount ? `remise ${formatPrice(remise.discount)} déduite` : null,
@@ -932,7 +995,14 @@ function renderCart() {
   }
 
   const hint = $('cartHint');
-  if (manque > 0 && lines.length) {
+  const manquants = lines.filter((l) => l.short > 0);
+  if (manquants.length) {
+    hint.textContent =
+      manquants.length === 1
+        ? `${manquants[0].product.name} : ${manquants[0].stock ? `il n'en reste que ${manquants[0].stock}` : 'plus de stock'}. Ajuste la quantité pour continuer.`
+        : `${manquants.length} articles ne sont plus disponibles en quantité voulue. Ajuste ton panier pour continuer.`;
+    hint.hidden = false;
+  } else if (manque > 0 && lines.length) {
     const ou = state.zone ? ` pour ${state.zone.name}` : '';
     hint.textContent = `Commande minimum${ou} ${formatPrice(minimum)} : il manque ${formatPrice(manque)}.`;
     hint.hidden = false;
@@ -949,12 +1019,13 @@ function renderCart() {
 
 function cartRow(line) {
   const li = document.createElement('li');
-  li.className = 'cart-item';
+  li.className = line.short ? 'cart-item cart-item--short' : 'cart-item';
   li.innerHTML = `
     <span class="cart-item__art${isPhoto(line.product.image) ? ' cart-item__art--photo' : ''}"><img src="${line.product.image}" alt=""></span>
     <span class="cart-item__info">
       <span class="cart-item__name">${escapeHtml(line.product.name)}</span>
       <span class="cart-item__meta">${line.variant ? escapeHtml(line.variant.label) + ' · ' : ''}${formatPrice(line.lineTotal)}</span>
+      ${line.short ? `<span class="cart-item__short">${line.stock ? `il n'en reste que ${line.stock}` : 'épuisé'}</span>` : ''}
     </span>
     <span class="cart-item__ctl">
       <button type="button" data-act="minus" aria-label="Retirer un">−</button>
@@ -997,9 +1068,11 @@ async function checkout() {
 
   const note = $('orderNote').value.trim();
   const contact = $('orderContact').value.trim();
-  // Figé avant l'envoi : la commande réussie efface le code consommé, et le
-  // récapitulatif envoyé au vendeur doit quand même porter la remise.
+  // Figés avant l'envoi : la commande réussie efface le code consommé et le
+  // créneau réservé, et le récapitulatif doit quand même les porter.
   const remise = currentDiscount(cartTotal());
+  const creneau = state.slots.find((s) => s.id === state.slotId) ?? null;
+  const zone = state.zone;
 
   if (state.mode === 'delivery' && contact.length < 5) {
     toast('Indique ton adresse de livraison.');
@@ -1061,24 +1134,92 @@ async function checkout() {
         button.textContent = 'Commander';
         return;
       }
-      // Créneau pris entre l'affichage et l'envoi : on recharge la liste
-      // plutôt que de laisser le client réessayer le même.
-      if (res.status === 409) await loadSlots();
+      // Quelque chose a bougé sous nos pieds : un dernier article emporté par
+      // un autre client, un créneau qui vient de se remplir. On relit les deux
+      // plutôt que de deviner lequel — le refus est un chemin rare, et un code
+      // 409 recouvre justement les deux cas.
+      await Promise.all([refreshCatalog(), loadSlots()]);
+
+      // Un refus est un refus. Poursuivre vers la conversation du vendeur
+      // enverrait quand même la commande — un compte bloqué, une boutique
+      // fermée ou un article épuisé arriveraient chez le vendeur comme si de
+      // rien n'était, en contournant précisément ce qu'on vient de refuser.
       toast(data.error ?? 'Commande refusée.');
+      button.disabled = false;
+      button.textContent = 'Commander';
+      renderCart();
+      return;
     }
   } catch (err) {
+    // Serveur injoignable, et non refus : là, on continue. Le client arrive
+    // dans la conversation avec son récapitulatif, le vendeur fait le reste.
     console.warn('Enregistrement de la commande impossible :', err);
   }
 
-  const message = buildOrderMessage(lines, note, reference, contact, remise);
+  const message = buildOrderMessage(lines, note, reference, contact, remise, creneau, zone);
+  state.lastMessage = message;
   openSellerChat(message);
 
   button.disabled = false;
   button.textContent = 'Commander';
   haptic('success');
+
+  // Commande écrite côté serveur : le panier a fait son travail. Le laisser
+  // plein invitait à réappuyer sur Commander — et à réserver le stock une
+  // seconde fois sans que rien ne le dise.
+  if (reference) {
+    showOrderDone(reference, lines, remise, creneau, zone);
+    state.cart = [];
+    saveCart();
+    renderCart();
+    // Le stock vient de bouger : sans ce rafraîchissement, la grille propose
+    // encore des articles qu'on vient soi-même d'emporter.
+    refreshCatalog();
+  }
 }
 
-function buildOrderMessage(lines, note, reference, contact, remise) {
+/** Accusé de réception : sans lui, rien dans l'app ne dit que c'est parti. */
+function showOrderDone(reference, lines, remise, creneau, zone) {
+  const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
+  const fee = deliveryFeeFor(subtotal);
+
+  $('doneRef').textContent = reference;
+  $('doneText').textContent = state.shop.sellerUsername
+    ? 'On a reçu ta commande. Le récapitulatif est prêt dans la conversation du vendeur : envoie-le pour confirmer.'
+    : 'On a reçu ta commande. Le vendeur revient vers toi dans la conversation.';
+
+  const lignes = [
+    ...lines.map((l) => `${l.quantity} × ${l.product.name}${l.variant ? ` (${l.variant.label})` : ''}`),
+    state.mode === 'delivery' ? `🛵 Livraison${zone ? ` — ${zone.name}` : ''}` : '🏠 Retrait sur place',
+    creneau ? `🕒 ${creneau.label}` : null,
+    remise.discount ? `Remise${remise.code ? ` ${remise.code}` : ''} : −${formatPrice(remise.discount)}` : null,
+    `<b>Total : ${formatPrice(subtotal - remise.discount + fee)}</b>`,
+  ].filter(Boolean);
+
+  $('doneLines').replaceChildren(
+    ...lignes.map((texte) => {
+      const li = document.createElement('li');
+      li.innerHTML = texte.startsWith('<b>') ? texte : escapeHtml(texte);
+      return li;
+    })
+  );
+  openSheet('doneSheet');
+}
+
+/** Relit le catalogue pour que les stocks affichés soient ceux du serveur. */
+async function refreshCatalog() {
+  try {
+    const res = await fetch('/api/catalog');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.products = data.products;
+    renderGrid();
+  } catch {
+    /* on garde l'affichage précédent plutôt que de vider la boutique */
+  }
+}
+
+function buildOrderMessage(lines, note, reference, contact, remise, creneau, zone) {
   const parts = [`Bonjour ! Je souhaite commander sur ${state.shop.shopName} 🌿`, ''];
 
   for (const line of lines) {
@@ -1088,9 +1229,8 @@ function buildOrderMessage(lines, note, reference, contact, remise) {
 
   const subtotal = cartTotal();
   const fee = deliveryFeeFor(subtotal);
-  const creneau = state.slots.find((s) => s.id === state.slotId);
   parts.push('', state.mode === 'delivery' ? '🛵 Livraison' : '🏠 Retrait sur place');
-  if (state.zone) parts.push(`Secteur : ${state.zone.name}`);
+  if (zone) parts.push(`Secteur : ${zone.name}`);
   if (creneau) parts.push(`Créneau : ${creneau.label}`);
   if (remise.discount) {
     parts.push(`Sous-total : ${formatPrice(subtotal)}`);
