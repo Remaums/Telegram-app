@@ -15,6 +15,10 @@ const DEFAULTS = {
   // Épreuve d'entrée de la boutique. Vérifiée côté serveur au moment de
   // commander : la désactiver rouvre la boutique immédiatement.
   captcha: { enabled: true },
+  // Vérification d'âge par pièce d'identité, envoyée au bot et jugée par le
+  // vendeur. Désactivée par défaut : elle fait manipuler une donnée sensible,
+  // à n'activer que si la loi de ton pays l'exige.
+  verification: { enabled: false },
   // Identifiants Telegram privés de commande, sous forme de chaînes.
   blocked: [],
 };
@@ -29,6 +33,7 @@ export async function getSettings() {
     ...data,
     limits: { ...DEFAULTS.limits, ...(data.limits ?? {}) },
     captcha: { ...DEFAULTS.captcha, ...(data.captcha ?? {}) },
+    verification: { ...DEFAULTS.verification, ...(data.verification ?? {}) },
     blocked: Array.isArray(data.blocked) ? data.blocked : [],
   };
 }
@@ -45,6 +50,9 @@ export async function saveSettings(patch) {
     }
     if (patch.captcha) {
       data.captcha = { enabled: Boolean(patch.captcha.enabled) };
+    }
+    if (patch.verification) {
+      data.verification = { enabled: Boolean(patch.verification.enabled) };
     }
     if (patch.blocked) {
       data.blocked = normalizeIds(patch.blocked);

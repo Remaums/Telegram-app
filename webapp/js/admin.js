@@ -13,6 +13,7 @@ const state = {
   orders: [],
   stats: null,
   settings: null,
+  verifications: [],
   tab: 'board',
   orderFilter: '',
   editing: null, // produit en cours d'édition, null = création
@@ -85,13 +86,15 @@ function bindHandlers() {
 }
 
 async function refreshAll() {
-  const [catalog, orders, stats, settings] = await Promise.all([
+  const [catalog, orders, stats, settings, verifications] = await Promise.all([
     api('/catalog'),
     api('/orders'),
     api('/stats'),
     api('/settings'),
+    api('/verifications'),
   ]);
   state.settings = settings;
+  state.verifications = verifications;
   state.products = catalog.products;
   state.categories = catalog.categories.filter((c) => c.id !== 'all');
   state.orders = orders;
@@ -583,6 +586,8 @@ function renderSettings() {
   if (!settings) return;
 
   $('fCaptcha').checked = Boolean(settings.captcha?.enabled);
+  $('fVerification').checked = Boolean(settings.verification?.enabled);
+  renderVerifications();
   $('fOrdersPerHour').value = settings.limits.ordersPerHour;
   $('fUnitsPerOrder').value = settings.limits.unitsPerOrder;
 
@@ -617,6 +622,7 @@ async function saveGuards() {
       method: 'PUT',
       body: {
         captcha: { enabled: $('fCaptcha').checked },
+        verification: { enabled: $('fVerification').checked },
         limits: {
           ordersPerHour: Number($('fOrdersPerHour').value),
           unitsPerOrder: Number($('fUnitsPerOrder').value),
@@ -629,6 +635,62 @@ async function saveGuards() {
   } catch (err) {
     toast(err.message);
   } finally {
+    button.disabled = false;
+  }
+}
+
+const VERIF_LABELS = {
+  pending: '⏳ En attente',
+  approved: '✅ Validé',
+  refused: '❌ Refusé',
+};
+
+function renderVerifications() {
+  const list = $('verificationsList');
+  if (!state.verifications.length) {
+    list.replaceChildren(Object.assign(document.createElement('li'), {
+      className: 'a-empty', textContent: 'Aucune demande pour le moment.',
+    }));
+    return;
+  }
+
+  list.replaceChildren(
+    ...state.verifications.map((record) => {
+      const li = document.createElement('li');
+      const when = record.requestedAt
+        ? new Date(record.requestedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
+        : '';
+      li.innerHTML = `<span>#${escapeHtml(record.id)}
+        <span class="a-muted">${escapeHtml(VERIF_LABELS[record.status] ?? record.status)}${when ? ` · ${when}` : ''}</span></span>`;
+
+      const actions = document.createElement('span');
+      actions.className = 'a-verif__actions';
+      for (const [status, label] of [['approved', '✅'], ['refused', '❌'], ['none', '↩︎']]) {
+        if (record.status === status) continue;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'a-btn a-btn--sm a-btn--ghost';
+        btn.textContent = label;
+        btn.title = { approved: 'Valider', refused: 'Refuser', none: 'Réinitialiser' }[status];
+        btn.addEventListener('click', () => decideVerification(record.id, status, btn));
+        actions.append(btn);
+      }
+      li.append(actions);
+      return li;
+    })
+  );
+}
+
+async function decideVerification(id, status, button) {
+  button.disabled = true;
+  try {
+    await api(`/verifications/${id}`, { method: 'POST', body: { status } });
+    state.verifications = await api('/verifications');
+    renderVerifications();
+    toast('Vérification mise à jour');
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
     button.disabled = false;
   }
 }

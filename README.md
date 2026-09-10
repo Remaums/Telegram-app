@@ -349,6 +349,43 @@ choisit — le reste du serveur ignore lequel tourne.
 
 ---
 
+## Contrôles à l'entrée
+
+Deux portes, indépendantes, activables depuis l'espace admin (onglet Réglages).
+
+### Épreuve anti-robot
+
+Une grille de neuf tuiles à résoudre avant de pouvoir commander, vérifiée côté
+serveur. À noter : la vraie barrière contre les robots reste la signature
+Telegram contrôlée à chaque appel — sans compte Telegram, aucune commande.
+L'épreuve ajoute une friction et un geste conscient à l'entrée. Activée par
+défaut, elle se coupe d'une case.
+
+### Vérification d'identité
+
+Quand elle est active, un client doit faire valider une pièce d'identité avant
+de commander. Le client l'envoie en photo dans la conversation du bot ; le
+vendeur la reçoit avec deux boutons, **Valider** ou **Refuser**.
+
+> 🔐 **Le document n'est ni téléchargé ni conservé par la boutique.** Il reste
+> dans la conversation Telegram, et le serveur n'enregistre que le verdict :
+> statut, date de la demande, date et auteur de la décision. Aucune référence
+> au fichier n'est gardée. Supprime le message une fois la décision prise.
+
+Une pièce d'identité est une donnée personnelle sensible : n'active cette
+vérification que si la loi de ton pays l'exige pour ce que tu vends, et
+n'en conserve pas plus que le verdict.
+
+Le pilotage se fait aussi depuis le bot :
+
+```
+/verification        → l'état actuel, avec les boutons
+/verification on     → activer
+/verification off    → désactiver
+```
+
+---
+
 ## ⚖️ Cadre légal
 
 Ce dépôt est un **modèle de boutique** : le code ne présume rien de ce que tu vends.

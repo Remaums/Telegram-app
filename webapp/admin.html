@@ -88,6 +88,17 @@
       se fait côté serveur : décocher rouvre la boutique immédiatement.
     </p>
 
+    <div class="a-toggle">
+      <label><input type="checkbox" id="fVerification"> Vérification d'identité avant de commander</label>
+    </div>
+    <p class="a-hint">
+      Le client envoie sa pièce dans la conversation du bot ; tu la vois arriver
+      avec deux boutons, Valider ou Refuser. <b>Le document n'est ni téléchargé
+      ni conservé par la boutique</b> : seul le verdict est gardé. Pense à
+      supprimer le message une fois la décision prise. Se pilote aussi depuis le
+      bot : <code>/verification on</code> ou <code>off</code>.
+    </p>
+
     <h2 class="a-h2">Garde-fous</h2>
     <p class="a-hint">
       Ces limites gênent un robot, pas un client qui commande deux fois dans la
@@ -104,6 +115,9 @@
       </label>
     </div>
     <button class="a-btn a-btn--primary a-btn--block" id="saveSettings" type="button">Enregistrer les garde-fous</button>
+
+    <h2 class="a-h2">Vérifications</h2>
+    <ul class="a-list" id="verificationsList"></ul>
 
     <h2 class="a-h2">Clients bloqués</h2>
     <p class="a-hint">

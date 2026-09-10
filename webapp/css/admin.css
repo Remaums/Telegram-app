@@ -228,6 +228,8 @@ body.admin {
 
 /* ── Catégories ──────────────────────────────────────────── */
 .a-hint { font-size: 13px; font-weight: 700; color: var(--muted); line-height: 1.45; margin: 0 0 14px; }
+.a-verif__actions { display: flex; gap: 6px; flex: none; }
+
 .a-catrow { display: flex; gap: 7px; align-items: center; margin-bottom: 8px; }
 .a-catrow input {
   min-width: 0; flex: 1; font: inherit; font-size: 14px; font-weight: 700;

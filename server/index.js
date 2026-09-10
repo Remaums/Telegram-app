@@ -16,6 +16,7 @@ import {
 import { createOrder, listOrders, countOrdersSince, STATUSES } from './orders.js';
 import { getSettings, isBlocked } from './settings.js';
 import { buildChallenge, solveChallenge, passIsValid } from './captcha.js';
+import { getVerification, isApproved } from './verification.js';
 import { adminRouter } from './admin.js';
 import { bot, notifyAdmin, notifyOrderPlaced } from './bot.js';
 import { storageKind } from './store.js';
@@ -105,7 +106,10 @@ app.get('/api/catalog', async (req, res, next) => {
       categories,
       products,
       statuses: STATUSES,
-      gates: { captcha: settings.captcha.enabled },
+      gates: {
+        captcha: settings.captcha.enabled,
+        verification: settings.verification.enabled,
+      },
     });
   } catch (err) {
     next(err);
@@ -135,6 +139,13 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
     // ne serait qu'un décor qu'on contourne en sautant l'écran.
     if (settings.captcha.enabled && !passIsValid(req.get('X-Shop-Pass'), req.telegramUser.id)) {
       throw new HttpError(403, 'CAPTCHA_REQUIS');
+    }
+
+    if (settings.verification.enabled) {
+      const verification = await getVerification(req.telegramUser.id);
+      if (!isApproved(verification)) {
+        throw new HttpError(403, 'VERIFICATION_REQUISE');
+      }
     }
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -226,6 +237,26 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
 app.get('/api/orders', authenticate, async (req, res, next) => {
   try {
     res.json(await listOrders({ userId: req.telegramUser.id, limit: 10 }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ── Ce que le client a le droit de savoir sur lui-même ──── */
+
+app.get('/api/me', authenticate, async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    const verification = await getVerification(req.telegramUser.id);
+    res.json({
+      id: req.telegramUser.id,
+      blocked: isBlocked(settings, req.telegramUser.id),
+      verification: {
+        required: settings.verification.enabled,
+        status: verification.status,
+        requestedAt: verification.requestedAt ?? null,
+      },
+    });
   } catch (err) {
     next(err);
   }

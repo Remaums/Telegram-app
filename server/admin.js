@@ -14,6 +14,7 @@ import {
 } from './catalog.js';
 import { STATUSES, listOrders, getOrder, setStatus, stats } from './orders.js';
 import { getSettings, saveSettings, blockClient, unblockClient } from './settings.js';
+import { listVerifications, decideVerification, resetVerification } from './verification.js';
 import { notifyCustomer } from './bot.js';
 
 export const adminRouter = express.Router();
@@ -151,6 +152,22 @@ adminRouter.post(
 adminRouter.post(
   '/clients/:id/unblock',
   route(async (req, res) => res.json(await unblockClient(req.params.id)))
+);
+
+/* ── Vérifications d'identité ────────────────────────────── */
+
+adminRouter.get(
+  '/verifications',
+  route(async (req, res) => res.json(await listVerifications()))
+);
+
+adminRouter.post(
+  '/verifications/:id',
+  route(async (req, res) => {
+    const status = req.body?.status;
+    if (status === 'none') return res.json(await resetVerification(req.params.id));
+    res.json(await decideVerification(req.params.id, status, req.telegramUser.id));
+  })
 );
 
 /* ── Tableau de bord ─────────────────────────────────────── */

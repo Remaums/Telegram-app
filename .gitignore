@@ -4,4 +4,5 @@ node_modules/
 server/data/orders.json
 server/data/catalog.json
 server/data/settings.json
+server/data/verifications.json
 .DS_Store

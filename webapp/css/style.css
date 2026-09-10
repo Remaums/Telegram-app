@@ -249,6 +249,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .gate__title { font-size: 30px; line-height: 1.05; margin: 0; }
 .gate__text { margin: 10px 0 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
+.gate__fine {
+  margin: 14px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); opacity: .85;
+}
 .gate__error {
   margin: 12px 0 0; font-size: 13.5px; font-weight: 800; color: var(--red);
 }

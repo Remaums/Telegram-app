@@ -70,6 +70,7 @@ async function init() {
   renderGrid();
   renderCart();
   gateCaptcha();
+  gateVerification();
 }
 
 function bindStaticHandlers() {
@@ -83,6 +84,9 @@ function bindStaticHandlers() {
   $('cartBtn').addEventListener('click', () => openSheet('cartSheet'));
   $('ordersBtn').addEventListener('click', openOrders);
   $('captchaSubmit').addEventListener('click', submitCaptcha);
+  // Fermer la Mini App ramène le client dans la conversation du bot, là où il
+  // envoie sa pièce : pas besoin de connaître le nom du bot.
+  $('verifAction').addEventListener('click', () => (tg ? tg.close() : window.history.back()));
   $('checkout').addEventListener('click', checkout);
 
   $('qtyMinus').addEventListener('click', () => setQty(state.currentQty - 1));
@@ -93,6 +97,44 @@ function bindStaticHandlers() {
     el.addEventListener('click', closeSheets);
   }
   document.addEventListener('keydown', (e) => e.key === 'Escape' && closeSheets());
+}
+
+/* ── Vérification d'identité ─────────────────────────────── */
+
+/**
+ * Quand le vendeur l'exige, la boutique reste fermée tant que la pièce n'a
+ * pas été validée. L'écran dit où on en est plutôt que de rester muet.
+ */
+async function gateVerification() {
+  if (!state.gates.verification || !tg?.initData) return;
+
+  let me;
+  try {
+    const res = await fetch('/api/me', { headers: { 'X-Telegram-Init-Data': tg.initData } });
+    if (!res.ok) return;
+    me = await res.json();
+  } catch (err) {
+    console.error(err);
+    return;
+  }
+
+  const status = me.verification.status;
+  if (status === 'approved') return;
+
+  const texts = {
+    none: "Pour commander ici, une pièce d'identité doit être validée. Envoie-la en photo dans la conversation du bot : le vendeur la regarde et te répond.",
+    pending: 'Ta pièce est en cours de vérification. Tu recevras la réponse dans la conversation du bot.',
+    refused: "La vérification a été refusée. Écris-nous dans la conversation si tu penses que c'est une erreur.",
+  };
+  const titles = {
+    none: 'Vérification requise',
+    pending: 'En cours de vérification',
+    refused: 'Vérification refusée',
+  };
+
+  $('verifTitle').textContent = titles[status] ?? titles.none;
+  $('verifText').textContent = texts[status] ?? texts.none;
+  $('verification').hidden = false;
 }
 
 /* ── Épreuve d'entrée ────────────────────────────────────── */
@@ -508,6 +550,13 @@ async function checkout() {
       const data = await res.json().catch(() => ({}));
       // Le laissez-passer a expiré : on refait l'épreuve plutôt que d'envoyer
       // le client dans la conversation avec une commande non enregistrée.
+      if (data.error === 'VERIFICATION_REQUISE') {
+        closeSheets();
+        await gateVerification();
+        button.disabled = false;
+        button.textContent = 'Commander';
+        return;
+      }
       if (data.error === 'CAPTCHA_REQUIS') {
         writePass('');
         closeSheets();

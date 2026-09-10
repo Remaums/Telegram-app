@@ -2,6 +2,8 @@ import { Bot, InlineKeyboard } from 'grammy';
 import { config } from './config.js';
 import { listOrders, STATUSES, setStatus } from './orders.js';
 import { restoreStock } from './catalog.js';
+import { getSettings, saveSettings } from './settings.js';
+import { requestVerification, decideVerification } from './verification.js';
 
 export const bot = new Bot(config.botToken);
 
@@ -49,13 +51,131 @@ bot.command('admin', async (ctx) => {
   });
 });
 
+/**
+ * Active ou coupe la vérification d'identité depuis la conversation.
+ *
+ *   /verification        → l'état actuel, avec les boutons
+ *   /verification on|off → bascule directe
+ */
+bot.command('verification', async (ctx) => {
+  if (!isAdmin(ctx.from.id)) {
+    return ctx.reply("Cette commande est réservée à l'administrateur.");
+  }
+
+  const argument = (ctx.match ?? '').trim().toLowerCase();
+  if (argument === 'on' || argument === 'off') {
+    const enabled = argument === 'on';
+    await saveSettings({ verification: { enabled } });
+    return ctx.reply(
+      enabled
+        ? '🪪 Vérification activée : un client doit faire valider une pièce d\'identité avant de commander.'
+        : '🪪 Vérification désactivée : la boutique est ouverte sans contrôle de pièce.'
+    );
+  }
+
+  const settings = await getSettings();
+  await ctx.reply(
+    `🪪 Vérification d'identité : ${settings.verification.enabled ? 'activée' : 'désactivée'}.`,
+    {
+      reply_markup: new InlineKeyboard()
+        .text('✅ Activer', 'vfset:on')
+        .text('⛔ Désactiver', 'vfset:off'),
+    }
+  );
+});
+
+bot.callbackQuery(/^vfset:(on|off)$/, async (ctx) => {
+  if (!isAdmin(ctx.from.id)) {
+    return ctx.answerCallbackQuery({ text: "Réservé à l'administrateur.", show_alert: true });
+  }
+  const enabled = ctx.match[1] === 'on';
+  await saveSettings({ verification: { enabled } });
+  await ctx.answerCallbackQuery({ text: enabled ? 'Vérification activée' : 'Vérification désactivée' });
+  await ctx.editMessageText(
+    `🪪 Vérification d'identité : ${enabled ? 'activée' : 'désactivée'}.`
+  );
+});
+
+/**
+ * Une pièce d'identité arrive.
+ *
+ * Le document n'est ni téléchargé ni enregistré : il est transféré tel quel au
+ * vendeur, qui le regarde dans Telegram puis le supprime. La boutique ne garde
+ * que le verdict.
+ */
+bot.on(['message:photo', 'message:document'], async (ctx) => {
+  const settings = await getSettings();
+  if (!settings.verification.enabled) {
+    return ctx.reply("Merci, mais aucune vérification n'est demandée en ce moment.");
+  }
+  if (isAdmin(ctx.from.id)) return; // le vendeur s'envoie ses propres images
+
+  await requestVerification(ctx.from.id);
+  await ctx.reply(
+    '🪪 Bien reçu. Ta pièce part en vérification, tu recevras la réponse ici.\n\n' +
+      'Elle n\'est pas enregistrée par la boutique : tu peux supprimer ton message ' +
+      'dès que la vérification est faite.'
+  );
+
+  if (!config.adminChatId) {
+    return console.warn('ADMIN_CHAT_ID absent : pièce reçue mais personne à prévenir.');
+  }
+
+  try {
+    await ctx.api.forwardMessage(config.adminChatId, ctx.chat.id, ctx.message.message_id);
+    const who = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name ?? 'client';
+    await ctx.api.sendMessage(
+      config.adminChatId,
+      `🪪 Vérification demandée par ${who} (id ${ctx.from.id}).\n` +
+        'Regarde le document ci-dessus, tranche, puis supprime-le de la conversation.',
+      {
+        reply_markup: new InlineKeyboard()
+          .text('✅ Valider', `vf:${ctx.from.id}:approved`)
+          .text('❌ Refuser', `vf:${ctx.from.id}:refused`),
+      }
+    );
+  } catch (err) {
+    console.error('Transfert de la pièce impossible :', err.message);
+  }
+});
+
+/** Verdict du vendeur, d'un appui, sans quitter la conversation. */
+bot.callbackQuery(/^vf:(\d+):(approved|refused)$/, async (ctx) => {
+  if (!isAdmin(ctx.from.id)) {
+    return ctx.answerCallbackQuery({ text: "Réservé à l'administrateur.", show_alert: true });
+  }
+
+  const [, userId, status] = ctx.match;
+  await decideVerification(userId, status, ctx.from.id);
+
+  const validated = status === 'approved';
+  await ctx.answerCallbackQuery({ text: validated ? 'Client validé' : 'Client refusé' });
+  await ctx.editMessageText(
+    `🪪 Client ${userId} — ${validated ? '✅ validé' : '❌ refusé'}.\n` +
+      'Pense à supprimer le document de la conversation.'
+  );
+
+  try {
+    await ctx.api.sendMessage(
+      Number(userId),
+      validated
+        ? '✅ Vérification acceptée. La boutique t\'est ouverte, bonne visite !'
+        : "❌ Vérification refusée. Écris-nous si tu penses que c'est une erreur."
+    );
+  } catch (err) {
+    console.error('Réponse au client impossible :', err.message);
+  }
+});
+
 bot.command('aide', (ctx) =>
   ctx.reply(
     'Commandes disponibles :\n' +
       '/boutique — ouvrir le catalogue\n' +
       '/commandes — voir tes commandes\n' +
       '/aide — ce message' +
-      (isAdmin(ctx.from.id) ? '\n/admin — espace administrateur' : '')
+      (isAdmin(ctx.from.id)
+        ? '\n/admin — espace administrateur\n/verification [on|off] — contrôle des pièces d\'identité'
+        : '')
   )
 );
 
