@@ -324,6 +324,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cartbtn__count.pop { animation: pop .35s ease; }
 @keyframes pop { 0%{transform:scale(1)} 40%{transform:scale(1.45)} 100%{transform:scale(1)} }
 
+/* Bandeau de fermeture : visible sans masquer le catalogue, on peut
+   préparer son panier et commander à la réouverture. */
+.closed {
+  position: relative; z-index: 2; margin: 0; padding: 13px 18px;
+  text-align: center; font-weight: 800; font-size: 14px; line-height: 1.4;
+  color: var(--gold);
+  background: linear-gradient(180deg, rgb(var(--gold-rgb) / .16), rgb(var(--gold-rgb) / .06));
+  border-bottom: 1px solid rgb(var(--gold-rgb) / .45);
+}
+
 /* ── Page ────────────────────────────────────────────────── */
 .page { position: relative; z-index: 1; padding: 16px 14px calc(28px + var(--safe-bottom)); max-width: 640px; margin: 0 auto; }
 

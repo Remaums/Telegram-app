@@ -51,6 +51,21 @@ bot.command('admin', async (ctx) => {
   });
 });
 
+/** Ouvre ou ferme la boutique sans quitter la conversation. */
+for (const [command, open] of [['ouvrir', true], ['fermer', false]]) {
+  bot.command(command, async (ctx) => {
+    if (!isAdmin(ctx.from.id)) {
+      return ctx.reply("Cette commande est réservée à l'administrateur.");
+    }
+    await saveSettings({ opening: { open } });
+    await ctx.reply(
+      open
+        ? '🟢 Boutique ouverte : les commandes repassent.'
+        : '🔴 Boutique fermée : les commandes sont refusées avec ton message.'
+    );
+  });
+}
+
 /**
  * Active ou coupe la vérification d'identité depuis la conversation.
  *
@@ -174,7 +189,9 @@ bot.command('aide', (ctx) =>
       '/commandes — voir tes commandes\n' +
       '/aide — ce message' +
       (isAdmin(ctx.from.id)
-        ? '\n/admin — espace administrateur\n/verification [on|off] — contrôle des pièces d\'identité'
+        ? '\n/admin — espace administrateur' +
+          '\n/ouvrir, /fermer — ouvrir ou fermer la boutique' +
+          '\n/verification [on|off] — contrôle des pièces d\'identité'
         : '')
   )
 );

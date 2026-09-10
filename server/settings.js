@@ -1,5 +1,6 @@
 import { createStore } from './store.js';
 import { HttpError } from './catalog.js';
+import { defaultHours, normalizeHours } from './opening.js';
 
 /**
  * Réglages de la boutique : ce qui se change en exploitation, sans toucher au
@@ -19,6 +20,13 @@ const DEFAULTS = {
   // vendeur. Désactivée par défaut : elle fait manipuler une donnée sensible,
   // à n'activer que si la loi de ton pays l'exige.
   verification: { enabled: false },
+  // Ouverture : interrupteur immédiat, et horaires si tu veux qu'elle se
+  // ferme toute seule le soir.
+  opening: {
+    open: true,
+    message: 'La boutique est fermée pour le moment. Reviens un peu plus tard !',
+    hours: { enabled: false, timezone: 'Europe/Paris', days: defaultHours() },
+  },
   // Identifiants Telegram privés de commande, sous forme de chaînes.
   blocked: [],
 };
@@ -34,6 +42,15 @@ export async function getSettings() {
     limits: { ...DEFAULTS.limits, ...(data.limits ?? {}) },
     captcha: { ...DEFAULTS.captcha, ...(data.captcha ?? {}) },
     verification: { ...DEFAULTS.verification, ...(data.verification ?? {}) },
+    opening: {
+      ...DEFAULTS.opening,
+      ...(data.opening ?? {}),
+      hours: {
+        ...DEFAULTS.opening.hours,
+        ...(data.opening?.hours ?? {}),
+        days: normalizeHours(data.opening?.hours?.days),
+      },
+    },
     blocked: Array.isArray(data.blocked) ? data.blocked : [],
   };
 }
@@ -53,6 +70,23 @@ export async function saveSettings(patch) {
     }
     if (patch.verification) {
       data.verification = { enabled: Boolean(patch.verification.enabled) };
+    }
+    if (patch.opening) {
+      const current = data.opening ?? DEFAULTS.opening;
+      data.opening = {
+        open: patch.opening.open === undefined ? current.open : Boolean(patch.opening.open),
+        message:
+          patch.opening.message === undefined
+            ? current.message
+            : String(patch.opening.message).slice(0, 300),
+        hours: patch.opening.hours
+          ? {
+              enabled: Boolean(patch.opening.hours.enabled),
+              timezone: validTimezone(patch.opening.hours.timezone) ?? current.hours?.timezone ?? 'Europe/Paris',
+              days: normalizeHours(patch.opening.hours.days ?? current.hours?.days),
+            }
+          : current.hours,
+      };
     }
     if (patch.blocked) {
       data.blocked = normalizeIds(patch.blocked);
@@ -87,6 +121,17 @@ export function isBlocked(settings, id) {
 }
 
 /* ── Validation ──────────────────────────────────────────── */
+
+/** Un fuseau inconnu ferait planter le calcul des horaires à chaque appel. */
+function validTimezone(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    new Intl.DateTimeFormat('fr-FR', { timeZone: value }).format(new Date());
+    return value;
+  } catch {
+    return null;
+  }
+}
 
 function bounded(value, min, max, fallback) {
   const number = Math.round(Number(value));

@@ -71,6 +71,10 @@ function bindHandlers() {
   $('addCategory').addEventListener('click', () => addCategoryRow());
   $('saveCategories').addEventListener('click', saveCategoryList);
   $('saveSettings').addEventListener('click', saveGuards);
+  $('saveOpening').addEventListener('click', saveOpening);
+  $('fHours').addEventListener('change', () => {
+    $('hoursBlock').hidden = !$('fHours').checked;
+  });
   $('newProductBtn').addEventListener('click', () => openEditor(null));
 
   $('fHasVariants').addEventListener('change', syncPricingMode);
@@ -581,9 +585,22 @@ function syncImageField() {
 
 /* ── Réglages ────────────────────────────────────────────── */
 
+const DAYS = [
+  ['lun', 'Lundi'], ['mar', 'Mardi'], ['mer', 'Mercredi'], ['jeu', 'Jeudi'],
+  ['ven', 'Vendredi'], ['sam', 'Samedi'], ['dim', 'Dimanche'],
+];
+
 function renderSettings() {
   const settings = state.settings;
   if (!settings) return;
+
+  const opening = settings.opening ?? { open: true, hours: {} };
+  $('fOpen').checked = Boolean(opening.open);
+  $('fClosedMessage').value = opening.message ?? '';
+  $('fHours').checked = Boolean(opening.hours?.enabled);
+  $('fTimezone').value = opening.hours?.timezone ?? 'Europe/Paris';
+  $('hoursBlock').hidden = !$('fHours').checked;
+  renderHours(opening.hours?.days ?? {});
 
   $('fCaptcha').checked = Boolean(settings.captcha?.enabled);
   $('fVerification').checked = Boolean(settings.verification?.enabled);
@@ -612,6 +629,64 @@ function renderSettings() {
       return li;
     })
   );
+}
+
+function renderHours(days) {
+  $('hoursRows').replaceChildren(
+    ...DAYS.map(([key, label]) => {
+      const slot = days[key] ?? { closed: false, from: '10:00', to: '22:00' };
+      const row = document.createElement('div');
+      row.className = 'a-hours';
+      row.dataset.day = key;
+      row.innerHTML = `
+        <span class="a-hours__day">${label}</span>
+        <input class="a-hours__from" type="time" value="${escapeHtml(slot.from ?? '10:00')}" aria-label="Ouverture ${label}">
+        <input class="a-hours__to" type="time" value="${escapeHtml(slot.to ?? '22:00')}" aria-label="Fermeture ${label}">
+        <label class="a-hours__closed"><input type="checkbox" ${slot.closed ? 'checked' : ''}> fermé</label>`;
+
+      const inputs = row.querySelectorAll('input[type="time"]');
+      const closed = row.querySelector('.a-hours__closed input');
+      const sync = () => inputs.forEach((i) => { i.disabled = closed.checked; });
+      closed.addEventListener('change', sync);
+      sync();
+      return row;
+    })
+  );
+}
+
+async function saveOpening() {
+  const button = $('saveOpening');
+  button.disabled = true;
+  try {
+    const days = Object.fromEntries(
+      [...$('hoursRows').children].map((row) => [
+        row.dataset.day,
+        {
+          closed: row.querySelector('.a-hours__closed input').checked,
+          from: row.querySelector('.a-hours__from').value,
+          to: row.querySelector('.a-hours__to').value,
+        },
+      ])
+    );
+
+    state.settings = await api('/settings', {
+      method: 'PUT',
+      body: {
+        opening: {
+          open: $('fOpen').checked,
+          message: $('fClosedMessage').value.trim(),
+          hours: { enabled: $('fHours').checked, timezone: $('fTimezone').value.trim(), days },
+        },
+      },
+    });
+    renderSettings();
+    toast($('fOpen').checked ? 'Boutique ouverte' : 'Boutique fermée');
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function saveGuards() {

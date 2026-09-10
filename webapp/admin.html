@@ -79,6 +79,26 @@
 
   <!-- ══ Réglages ══ -->
   <section class="a-panel" id="panel-settings" hidden>
+    <h2 class="a-h2">Ouverture</h2>
+    <div class="a-toggle">
+      <label><input type="checkbox" id="fOpen"> Boutique ouverte</label>
+    </div>
+    <label class="a-field">
+      <span>Message affiché quand elle est fermée</span>
+      <input id="fClosedMessage" maxlength="300">
+    </label>
+    <div class="a-toggle">
+      <label><input type="checkbox" id="fHours"> Horaires automatiques</label>
+    </div>
+    <div id="hoursBlock" hidden>
+      <label class="a-field">
+        <span>Fuseau horaire</span>
+        <input id="fTimezone" maxlength="60" placeholder="Europe/Paris">
+      </label>
+      <div id="hoursRows"></div>
+    </div>
+    <button class="a-btn a-btn--primary a-btn--block" id="saveOpening" type="button">Enregistrer l'ouverture</button>
+
     <h2 class="a-h2">Entrée de la boutique</h2>
     <div class="a-toggle">
       <label><input type="checkbox" id="fCaptcha"> Épreuve anti-robot à l'ouverture</label>

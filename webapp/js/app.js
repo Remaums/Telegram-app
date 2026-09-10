@@ -14,6 +14,7 @@ const state = {
   statuses: {},
   category: 'all',
   gates: {},
+  opening: { open: true },
   captcha: null,      // épreuve en cours
   selection: [],      // tuiles touchées
   cart: loadCart(),
@@ -52,6 +53,7 @@ async function init() {
     state.products = data.products;
     state.statuses = data.statuses ?? {};
     state.gates = data.gates ?? {};
+    state.opening = data.opening ?? { open: true };
   } catch (err) {
     console.error(err);
     toast("Catalogue indisponible, réessaie dans un instant.");
@@ -66,6 +68,7 @@ async function init() {
   $('legalNotice').textContent = legal;
   $('footLegal').textContent = legal;
 
+  renderClosedBanner();
   renderCategories();
   renderGrid();
   renderCart();
@@ -97,6 +100,17 @@ function bindStaticHandlers() {
     el.addEventListener('click', closeSheets);
   }
   document.addEventListener('keydown', (e) => e.key === 'Escape' && closeSheets());
+}
+
+/** Boutique fermée : on le dit, et on empêche la commande. */
+function renderClosedBanner() {
+  const banner = $('closedBanner');
+  if (state.opening.open) {
+    banner.hidden = true;
+    return;
+  }
+  banner.textContent = state.opening.message ?? 'La boutique est fermée pour le moment.';
+  banner.hidden = false;
 }
 
 /* ── Vérification d'identité ─────────────────────────────── */
@@ -469,7 +483,8 @@ function renderCart() {
 
   $('cartEmpty').hidden = lines.length > 0;
   $('noteField').hidden = lines.length === 0;
-  $('checkout').disabled = lines.length === 0;
+  $('checkout').disabled = lines.length === 0 || !state.opening.open;
+  $('checkout').textContent = state.opening.open ? 'Commander' : 'Boutique fermée';
   $('cartTotal').textContent = formatPrice(cartTotal());
 
   $('cartList').replaceChildren(...lines.map(cartRow));

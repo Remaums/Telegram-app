@@ -17,6 +17,7 @@ import { createOrder, listOrders, countOrdersSince, STATUSES } from './orders.js
 import { getSettings, isBlocked } from './settings.js';
 import { buildChallenge, solveChallenge, passIsValid } from './captcha.js';
 import { getVerification, isApproved } from './verification.js';
+import { isOpenNow } from './opening.js';
 import { adminRouter } from './admin.js';
 import { bot, notifyAdmin, notifyOrderPlaced } from './bot.js';
 import { storageKind } from './store.js';
@@ -110,6 +111,7 @@ app.get('/api/catalog', async (req, res, next) => {
         captcha: settings.captcha.enabled,
         verification: settings.verification.enabled,
       },
+      opening: { ...isOpenNow(settings.opening), message: settings.opening.message },
     });
   } catch (err) {
     next(err);
@@ -139,6 +141,12 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
     // ne serait qu'un décor qu'on contourne en sautant l'écran.
     if (settings.captcha.enabled && !passIsValid(req.get('X-Shop-Pass'), req.telegramUser.id)) {
       throw new HttpError(403, 'CAPTCHA_REQUIS');
+    }
+
+    // Fermée, la boutique refuse les commandes : le bandeau côté client ne
+    // suffirait pas, on peut garder l'app ouverte et valider plus tard.
+    if (!isOpenNow(settings.opening).open) {
+      throw new HttpError(503, settings.opening.message);
     }
 
     if (settings.verification.enabled) {
