@@ -154,9 +154,9 @@ function renderModes() {
   $('modeField').hidden = !(pickup && delivery);
   if (!(pickup && delivery)) return;
 
-  // Le tarif affiché est celui qui sera facturé : dès qu'une zone est
-  // reconnue, c'est le sien, pas celui des conditions générales.
-  const { fee } = conditions(cartTotal());
+  // Le tarif affiché est celui qui sera facturé : la zone reconnue l'emporte
+  // sur les conditions générales, et un franco atteint le ramène à zéro.
+  const fee = deliveryFeeIfDelivering(cartTotal());
   const options = [
     ['pickup', '🏠 Retrait', 'sur place'],
     ['delivery', '🛵 Livraison', fee ? formatPrice(fee) : 'offerte'],
@@ -206,13 +206,21 @@ function conditions(subtotal) {
   };
 }
 
-/** Frais réellement dus : le franco peut les annuler. */
-function deliveryFeeFor(subtotal) {
-  const { delivery } = state.fulfillment;
-  if (state.mode !== 'delivery' || !delivery) return 0;
+/**
+ * Ce que coûterait la livraison de ce panier, mode courant mis à part.
+ *
+ * Sert au bouton « Livraison » : il annonçait le tarif brut, si bien qu'il
+ * réclamait 5 € pendant que le total, franco atteint, n'en facturait aucun.
+ */
+function deliveryFeeIfDelivering(subtotal) {
+  if (!state.fulfillment.delivery) return 0;
   const { fee, franco } = conditions(subtotal);
-  if (franco !== null && subtotal >= franco) return 0;
-  return fee;
+  return franco !== null && subtotal >= franco ? 0 : fee;
+}
+
+/** Frais réellement dus : le mode retrait les annule aussi. */
+function deliveryFeeFor(subtotal) {
+  return state.mode === 'delivery' ? deliveryFeeIfDelivering(subtotal) : 0;
 }
 
 /** Dit tout de suite si on descend jusque chez lui, et à quelles conditions. */

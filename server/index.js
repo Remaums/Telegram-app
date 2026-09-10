@@ -163,7 +163,11 @@ async function resolveItems(items) {
     const product = await getProduct(item.id, { includeHidden: false });
     if (!product) throw new HttpError(400, `Produit indisponible : ${item.id}`);
 
-    const quantity = Number(item.quantity);
+    // `Number([2])` vaut 2 : sans ce filtre, un tableau passait pour une
+    // quantité valide. On n'accepte qu'un nombre, ou la chaîne d'un nombre.
+    const brut = item?.quantity;
+    const quantity =
+      typeof brut === 'number' || (typeof brut === 'string' && brut.trim() !== '') ? Number(brut) : NaN;
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
       throw new HttpError(400, `Quantité invalide pour ${product.name}.`);
     }
@@ -613,6 +617,23 @@ if (config.webhookSecret) {
 
 app.use((err, req, res, next) => {
   if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+
+  // Corps illisible ou trop gros : c'est la requête qui est fautive, pas le
+  // serveur. Sans ce cas, `express.json()` remontait ici et tout devenait un
+  // 500 — le client lisait « erreur interne » pour un JSON mal fermé, et
+  // chaque requête malformée écrivait une trace d'incident dans les journaux.
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Requête trop volumineuse.' });
+  }
+  if (err instanceof SyntaxError || err.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'JSON invalide.' });
+  }
+  // Tout ce qui porte déjà un statut de requête le garde : le perdre
+  // transformerait un refus explicite en panne.
+  if (Number.isInteger(err.status) && err.status >= 400 && err.status < 500) {
+    return res.status(err.status).json({ error: err.expose ? err.message : 'Requête refusée.' });
+  }
+
   console.error('Erreur serveur :', err);
   res.status(500).json({ error: 'Erreur interne.' });
 });

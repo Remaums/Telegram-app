@@ -190,11 +190,21 @@ export async function saveCategories(categories) {
     throw new HttpError(400, 'Il faut au moins une catégorie.');
   }
   return store.update((data) => {
-    data.categories = categories.map((c) => ({
-      id: slug(c.id ?? c.label),
-      label: String(c.label ?? '').slice(0, 40),
-      emoji: String(c.emoji ?? '•').slice(0, 4),
-    }));
+    // Deux catégories de même nom donnent le même identifiant : les produits
+    // de l'une se retrouveraient rangés dans l'autre, et le filtre afficherait
+    // deux onglets qui montrent la même chose. On garde la première.
+    const vus = new Set();
+    const propres = [];
+    for (const c of categories) {
+      const label = String(c.label ?? '').trim().slice(0, 40);
+      const id = slug(c.id ?? label);
+      if (!id || !label || vus.has(id)) continue;
+      vus.add(id);
+      propres.push({ id, label, emoji: String(c.emoji ?? '•').slice(0, 4) });
+    }
+    if (!propres.length) throw new HttpError(400, 'Il faut au moins une catégorie nommée.');
+
+    data.categories = propres;
     return data.categories;
   });
 }
@@ -208,6 +218,21 @@ export class HttpError extends Error {
   }
 }
 
+/**
+ * Un montant en centimes, ou rien.
+ *
+ * `Number(null)` et `Number('')` valent zéro : sans ce filtre, un champ prix
+ * resté vide créait un produit à 0 €, que n'importe qui pouvait alors
+ * commander gratuitement. Un zéro délibérément saisi, lui, reste accepté.
+ */
+function montant(value, message) {
+  const fourni =
+    typeof value === 'number' || (typeof value === 'string' && value.trim() !== '');
+  const cents = fourni ? Math.round(Number(value)) : NaN;
+  if (!Number.isFinite(cents) || cents < 0) throw new HttpError(400, message);
+  return cents;
+}
+
 function normalizeProduct(input) {
   const name = String(input.name ?? '').trim();
   if (!name) throw new HttpError(400, 'Le nom est obligatoire.');
@@ -215,17 +240,13 @@ function normalizeProduct(input) {
   const id = slug(input.id || name);
   if (!id) throw new HttpError(400, "L'identifiant est invalide.");
 
-  const price = Math.round(Number(input.price));
-  if (!Number.isFinite(price) || price < 0) throw new HttpError(400, 'Prix invalide.');
+  const price = montant(input.price, 'Prix invalide.');
 
   const variants = Array.isArray(input.variants) && input.variants.length
     ? input.variants.map((v) => {
         const label = String(v.label ?? '').trim();
         if (!label) throw new HttpError(400, 'Chaque format doit avoir un libellé.');
-        const vPrice = Math.round(Number(v.price));
-        if (!Number.isFinite(vPrice) || vPrice < 0) {
-          throw new HttpError(400, `Prix invalide pour le format « ${label} ».`);
-        }
+        const vPrice = montant(v.price, `Prix invalide pour le format « ${label} ».`);
         return {
           id: slug(v.id || label),
           label,

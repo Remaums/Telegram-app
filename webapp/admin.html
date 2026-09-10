@@ -111,10 +111,10 @@
       <label><input type="checkbox" id="fDelivery"> Livraison</label>
     </div>
     <div class="a-row">
-      <label class="a-field"><span>Frais de livraison (€)</span><input id="fDeliveryFee" type="number" step="0.01" min="0" inputmode="decimal"></label>
-      <label class="a-field"><span>Livraison offerte dès (€)</span><input id="fFreeFrom" type="number" step="0.01" min="0" inputmode="decimal" placeholder="jamais"></label>
+      <label class="a-field"><span>Frais de livraison (€)</span><input id="fDeliveryFee" type="text"   inputmode="decimal"></label>
+      <label class="a-field"><span>Livraison offerte dès (€)</span><input id="fFreeFrom" type="text"   inputmode="decimal" placeholder="jamais"></label>
     </div>
-    <label class="a-field"><span>Commande minimum (€)</span><input id="fMinimum" type="number" step="0.01" min="0" inputmode="decimal"></label>
+    <label class="a-field"><span>Commande minimum (€)</span><input id="fMinimum" type="text"   inputmode="decimal"></label>
     <button class="a-btn a-btn--primary a-btn--block" id="saveFulfillment" type="button">Enregistrer la livraison</button>
 
     <h2 class="a-h2">Vérification d'identité</h2>
@@ -211,8 +211,8 @@
       </label>
     </div>
     <div class="a-row">
-      <label class="a-field"><span id="fPromoValueLabel">Remise (%)</span><input id="fPromoValue" type="number" step="0.01" min="0" inputmode="decimal"></label>
-      <label class="a-field"><span>Panier minimum (€)</span><input id="fPromoMin" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0"></label>
+      <label class="a-field"><span id="fPromoValueLabel">Remise (%)</span><input id="fPromoValue" type="text"   inputmode="decimal"></label>
+      <label class="a-field"><span>Panier minimum (€)</span><input id="fPromoMin" type="text"   inputmode="decimal" placeholder="0"></label>
     </div>
     <div class="a-row">
       <label class="a-field"><span>Expire le</span><input id="fPromoExpires" type="date"></label>
@@ -270,7 +270,7 @@
 
       <div id="simplePricing">
         <div class="a-row">
-          <label class="a-field"><span>Prix (€)</span><input id="fPrice" type="number" step="0.01" min="0" inputmode="decimal"></label>
+          <label class="a-field"><span>Prix (€)</span><input id="fPrice" type="text"   inputmode="decimal"></label>
           <label class="a-field"><span>Stock</span><input id="fStock" type="number" min="0" inputmode="numeric"></label>
         </div>
       </div>

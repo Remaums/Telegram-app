@@ -252,6 +252,15 @@ body.admin {
 .a-catrow input:focus { outline: none; border-color: var(--neon); box-shadow: var(--glow-neon); }
 .a-category__emoji { width: 58px; flex: none !important; text-align: center; }
 
+/* Le « où et quand » d'une commande, sous les articles. */
+.a-order__ship {
+  list-style: none; margin: 8px 0 0; padding: 8px 10px;
+  border-radius: 11px; background: rgb(var(--panel-rgb) / .55);
+  border: 1px solid var(--line-soft);
+  font-size: 12.5px; font-weight: 700; line-height: 1.5; color: var(--muted);
+}
+.a-order__ship li:first-child { color: var(--cream); font-weight: 800; }
+
 .a-features { display: flex; flex-direction: column; gap: 7px; margin-bottom: 4px; }
 .a-feature {
   display: flex; align-items: flex-start; gap: 11px;

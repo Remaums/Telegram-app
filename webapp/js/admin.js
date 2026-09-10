@@ -263,6 +263,7 @@ function orderCard(order) {
         .map((i) => `<li>${i.quantity} × ${escapeHtml(i.name)}${i.variantLabel ? ` (${escapeHtml(i.variantLabel)})` : ''} — ${formatPrice(i.lineTotal)}</li>`)
         .join('')}
     </ul>
+    ${livraisonBloc(order)}
     ${order.note ? `<p class="a-order__note">💬 ${escapeHtml(order.note)}</p>` : ''}
     <div class="a-order__actions"></div>`;
 
@@ -291,6 +292,40 @@ function orderCard(order) {
   actions.append(ban);
 
   return card;
+}
+
+/**
+ * Où, quand, et pourquoi ce total-là.
+ *
+ * La carte ne montrait que la référence, le client et les articles : le
+ * vendeur qui prépare depuis la Mini App ne savait ni où livrer ni à quelle
+ * heure, et un total plus bas que la somme des lignes ressemblait à un bug.
+ */
+function livraisonBloc(order) {
+  const livraison = order.mode === 'delivery';
+  const lignes = [];
+
+  lignes.push(
+    livraison
+      ? `🛵 Livraison${order.zone ? ` — ${escapeHtml(order.zone.name)} (${escapeHtml(order.zone.postalCode ?? '')})` : ''}`
+      : '🏠 Retrait sur place'
+  );
+  if (order.slot?.label) lignes.push(`🕒 ${escapeHtml(order.slot.label)}`);
+  if (order.contact) lignes.push(`📍 ${escapeHtml(order.contact)}`);
+
+  // Le détail du calcul n'apparaît que s'il y a quelque chose à expliquer.
+  if (order.discount || order.deliveryFee) {
+    lignes.push(`Sous-total : ${formatPrice(order.subtotal ?? order.total)}`);
+    if (order.discount) {
+      lignes.push(
+        `Remise${order.promoCode ? ` ${escapeHtml(order.promoCode)}` : ''} : −${formatPrice(order.discount)}` +
+          `${order.discountLabel ? ` (${escapeHtml(order.discountLabel)})` : ''}`
+      );
+    }
+    if (order.deliveryFee) lignes.push(`Frais de livraison : ${formatPrice(order.deliveryFee)}`);
+  }
+
+  return `<ul class="a-order__ship">${lignes.map((l) => `<li>${l}</li>`).join('')}</ul>`;
 }
 
 async function changeStatus(reference, status, button) {
@@ -497,7 +532,7 @@ function addVariantRow(variant = null) {
   row.className = 'a-variant';
   row.innerHTML = `
     <input class="a-variant__label" placeholder="2 g" value="${escapeHtml(variant?.label ?? '')}">
-    <input class="a-variant__price" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Prix"
+    <input class="a-variant__price" type="text" inputmode="decimal" placeholder="Prix"
       value="${variant ? (variant.price / 100).toFixed(2) : ''}">
     <input class="a-variant__stock" type="number" min="0" inputmode="numeric" placeholder="Stock"
       value="${variant?.stock ?? 0}">
@@ -726,11 +761,11 @@ async function saveFulfillment() {
         fulfillment: {
           pickup: $('fPickup').checked,
           delivery: $('fDelivery').checked,
-          deliveryFee: toCents($('fDeliveryFee').value),
+          deliveryFee: montantOuZero($('fDeliveryFee').value),
           // Champ vide : pas de franco du tout, ce qui n'est pas la même
           // chose qu'un franco à 0 € (livraison toujours offerte).
           freeDeliveryFrom: franco === '' ? null : toCents(franco),
-          minimumOrder: toCents($('fMinimum').value),
+          minimumOrder: montantOuZero($('fMinimum').value),
         },
       },
     });
@@ -835,13 +870,13 @@ function zoneRow(zone = {}) {
            value="${escapeHtml((zone.postalCodes ?? []).join(', '))}" aria-label="Codes postaux">
     <div class="a-row">
       <label class="a-field"><span>Frais (€)</span>
-        <input class="a-zone__fee" type="number" step="0.01" min="0" inputmode="decimal"
+        <input class="a-zone__fee" type="text" inputmode="decimal"
                value="${((zone.fee ?? 0) / 100).toFixed(2)}"></label>
       <label class="a-field"><span>Minimum (€)</span>
-        <input class="a-zone__min" type="number" step="0.01" min="0" inputmode="decimal"
+        <input class="a-zone__min" type="text" inputmode="decimal"
                placeholder="général" value="${zone.minimumOrder == null ? '' : (zone.minimumOrder / 100).toFixed(2)}"></label>
       <label class="a-field"><span>Franco (€)</span>
-        <input class="a-zone__franco" type="number" step="0.01" min="0" inputmode="decimal"
+        <input class="a-zone__franco" type="text" inputmode="decimal"
                placeholder="général" value="${zone.freeFrom == null ? '' : (zone.freeFrom / 100).toFixed(2)}"></label>
     </div>`;
 
@@ -887,6 +922,11 @@ async function saveZones() {
 
 function optional(value) {
   return String(value).trim() === '' ? null : toCents(value);
+}
+
+/** Champ laissé vide : c'est zéro, et non « ne touche à rien ». */
+function montantOuZero(value) {
+  return String(value ?? '').trim() === '' ? 0 : toCents(value);
 }
 
 /* ── Créneaux ────────────────────────────────────────────── */
@@ -984,7 +1024,7 @@ function tierRow({ from = 0, percent = 5 } = {}) {
   row.className = 'a-tier';
   row.innerHTML = `
     <span class="a-tier__unit">dès</span>
-    <input class="a-tier__from" type="number" step="0.01" min="0" inputmode="decimal"
+    <input class="a-tier__from" type="text" inputmode="decimal"
            value="${(from / 100).toFixed(2)}" aria-label="Montant du palier en euros">
     <span class="a-tier__unit">€ →</span>
     <input class="a-tier__percent" type="number" min="1" max="90" inputmode="numeric"
@@ -1304,8 +1344,17 @@ function fillSelect(select, entries) {
   );
 }
 
+/**
+ * Un montant saisi, en centimes.
+ *
+ * `Number('')` vaut zéro : sans ce garde-fou, un champ prix resté vide — ou
+ * vidé par un `input[type=number]` qui refuse la virgule — enregistrait le
+ * produit à 0 €. NaN remonte maintenant jusqu'au message d'erreur.
+ */
 function toCents(value) {
-  const number = Number(String(value).replace(',', '.'));
+  const texte = String(value ?? '').trim().replace(',', '.');
+  if (!texte) return NaN;
+  const number = Number(texte);
   return Number.isFinite(number) ? Math.round(number * 100) : NaN;
 }
 
