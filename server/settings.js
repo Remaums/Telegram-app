@@ -16,6 +16,8 @@ const DEFAULTS = {
     freeDeliveryFrom: null,  // null = pas de franco
     minimumOrder: 0,
   },
+  // Seuil d'alerte : en dessous, le vendeur reçoit un message.
+  alerts: { lowStock: 3 },
   // Garde-fous contre les abus. Généreux par défaut : ils doivent gêner un
   // robot, pas un client qui commande deux fois dans la soirée.
   limits: {
@@ -50,6 +52,7 @@ export async function getSettings() {
     ...data,
     limits: { ...DEFAULTS.limits, ...(data.limits ?? {}) },
     fulfillment: { ...DEFAULTS.fulfillment, ...(data.fulfillment ?? {}) },
+    alerts: { ...DEFAULTS.alerts, ...(data.alerts ?? {}) },
     captcha: { ...DEFAULTS.captcha, ...(data.captcha ?? {}) },
     verification: { ...DEFAULTS.verification, ...(data.verification ?? {}) },
     opening: {
@@ -80,6 +83,11 @@ export async function saveSettings(patch) {
     }
     if (patch.verification) {
       data.verification = { enabled: Boolean(patch.verification.enabled) };
+    }
+    if (patch.alerts) {
+      data.alerts = {
+        lowStock: bounded(patch.alerts.lowStock, 0, 999, DEFAULTS.alerts.lowStock),
+      };
     }
     if (patch.fulfillment) {
       const current = { ...DEFAULTS.fulfillment, ...(data.fulfillment ?? {}) };

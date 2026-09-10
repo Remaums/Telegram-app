@@ -148,16 +148,21 @@ export async function reserveStock(lines) {
       throw new HttpError(409, `Stock insuffisant : ${details}`);
     }
 
+    // On renvoie ce qui reste après coup : c'est l'appelant qui décide
+    // d'alerter, la couche catalogue ne connaît pas Telegram.
+    const remaining = [];
     for (const line of lines) {
       const product = data.products.find((p) => p.id === line.id);
       if (product.variants?.length) {
         const variant = product.variants.find((v) => v.id === line.variantId);
         variant.stock = Number(variant.stock ?? 0) - line.quantity;
+        remaining.push({ id: product.id, name: product.name, variantLabel: variant.label, left: variant.stock });
       } else {
         product.stock = Number(product.stock ?? 0) - line.quantity;
+        remaining.push({ id: product.id, name: product.name, variantLabel: null, left: product.stock });
       }
     }
-    return true;
+    return remaining;
   });
 }
 

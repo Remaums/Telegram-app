@@ -19,8 +19,9 @@ import { buildChallenge, solveChallenge, passIsValid } from './captcha.js';
 import { getVerification, isApproved } from './verification.js';
 import { isOpenNow } from './opening.js';
 import { resolveFileUrl } from './photos.js';
+import { waitlistKey, subscribe, isSubscribed } from './waitlist.js';
 import { adminRouter } from './admin.js';
-import { bot, notifyAdmin, notifyOrderPlaced } from './bot.js';
+import { bot, notifyAdmin, notifyOrderPlaced, notifyLowStock } from './bot.js';
 import { storageKind } from './store.js';
 
 /** Vrai quand ce fichier est lancé directement (`npm start`), faux quand il
@@ -242,7 +243,7 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
 
     // Réservation tout-ou-rien : deux clients ne peuvent pas emporter
     // le dernier article en même temps.
-    await reserveStock(resolved);
+    const remaining = await reserveStock(resolved);
 
     let order;
     try {
@@ -261,6 +262,11 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       await restoreStock(resolved).catch(() => {});
       throw err;
     }
+
+    // Le vendeur découvrait ses ruptures en lisant une commande : on prévient
+    // dès que le seuil est franchi, pas au prochain coup d'œil au tableau.
+    const basses = remaining.filter((r) => r.left <= settings.alerts.lowStock);
+    if (basses.length) notifyLowStock(basses).catch(() => {});
 
     notifyAdmin(order).catch(() => {});
     notifyOrderPlaced(order).catch((err) =>
@@ -283,6 +289,39 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
 app.get('/api/orders', authenticate, async (req, res, next) => {
   try {
     res.json(await listOrders({ userId: req.telegramUser.id, limit: 10 }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ── Liste d'attente sur les ruptures ────────────────────── */
+
+app.post('/api/waitlist', authenticate, async (req, res, next) => {
+  try {
+    const { id, variantId } = req.body ?? {};
+    const product = await getProduct(id, { includeHidden: false });
+    if (!product) throw new HttpError(400, 'Produit indisponible.');
+
+    const variant = product.variants?.find((v) => v.id === variantId) ?? null;
+    if (product.variants?.length && !variant) throw new HttpError(400, 'Format invalide.');
+
+    // S'inscrire sur un article disponible n'aurait pas de sens : on le dit
+    // plutôt que d'enregistrer une attente qui ne se déclenchera jamais.
+    const available = variant ? Number(variant.stock ?? 0) : Number(product.stock ?? 0);
+    if (available > 0) throw new HttpError(400, "Cet article est disponible : pas besoin d'attendre.");
+
+    const key = waitlistKey(product.id, variant?.id ?? null);
+    const count = await subscribe(key, req.telegramUser.id);
+    res.status(201).json({ ok: true, waiting: count });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/waitlist', authenticate, async (req, res, next) => {
+  try {
+    const key = waitlistKey(req.query.id, req.query.variantId || null);
+    res.json({ subscribed: await isSubscribed(key, req.telegramUser.id) });
   } catch (err) {
     next(err);
   }

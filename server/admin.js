@@ -5,6 +5,7 @@ import { verifyInitData } from './telegram-auth.js';
 import {
   HttpError,
   getCatalog,
+  getProduct,
   createProduct,
   updateProduct,
   deleteProduct,
@@ -15,7 +16,8 @@ import {
 import { STATUSES, listOrders, getOrder, setStatus, stats } from './orders.js';
 import { getSettings, saveSettings, blockClient, unblockClient } from './settings.js';
 import { listVerifications, decideVerification, resetVerification } from './verification.js';
-import { notifyCustomer } from './bot.js';
+import { notifyCustomer, notifyBackInStock } from './bot.js';
+import { waitlistKey, takeSubscribers } from './waitlist.js';
 
 export const adminRouter = express.Router();
 
@@ -88,9 +90,58 @@ adminRouter.post(
   '/products/:id/stock',
   route(async (req, res) => {
     const { variantId = null, quantity } = req.body ?? {};
-    res.json(await setStock(req.params.id, variantId, quantity));
+
+    // Relevé AVANT l'écriture, et en valeurs : le magasin fichier renvoie une
+    // référence dans son cache, que setStock modifie ensuite — comparer deux
+    // objets reviendrait à comparer la même chose avec elle-même.
+    const avant = stockSnapshot(await getProduct(req.params.id));
+    const product = await setStock(req.params.id, variantId, quantity);
+
+    // Réassort : ceux qui attendaient l'article sont prévenus une fois.
+    await announceRestock(avant, product, variantId);
+
+    res.json(product);
   })
 );
+
+/** Relevé des stocks en valeurs, à l'abri des mutations du magasin. */
+function stockSnapshot(product) {
+  if (!product) return null;
+  return {
+    global: Number(product.stock ?? 0),
+    variants: Object.fromEntries((product.variants ?? []).map((v) => [v.id, Number(v.stock ?? 0)])),
+  };
+}
+
+/**
+ * Prévient les clients en attente quand un article repasse au-dessus de zéro.
+ *
+ * On ne notifie qu'au franchissement : remonter de 2 à 5 n'intéresse
+ * personne, et la liste est vidée dans la même transaction pour qu'un second
+ * réassort n'écrive pas deux fois aux mêmes.
+ */
+async function announceRestock(avant, after, variantId = null) {
+  if (!avant || !after) return;
+
+  const lines = after.variants?.length
+    ? after.variants.map((v) => ({
+        variantId: v.id,
+        label: v.label,
+        avant: avant.variants[v.id] ?? 0,
+        apres: Number(v.stock ?? 0),
+      }))
+    : [{ variantId: null, label: null, avant: avant.global, apres: Number(after.stock ?? 0) }];
+
+  for (const line of lines) {
+    if (variantId && line.variantId !== variantId) continue;
+    if (!(line.avant <= 0 && line.apres > 0)) continue;
+
+    const subscribers = await takeSubscribers(waitlistKey(after.id, line.variantId));
+    for (const userId of subscribers) {
+      notifyBackInStock(userId, after, line.label).catch(() => {});
+    }
+  }
+}
 
 adminRouter.put(
   '/categories',
@@ -117,9 +168,17 @@ adminRouter.post(
 
     const { order, changed } = await setStatus(reference, nextStatus);
 
-    // Une annulation remet les articles en rayon.
+    // Une annulation remet les articles en rayon — et peut donc débloquer
+    // des clients en attente, comme un réassort.
     if (changed && nextStatus === 'annulee') {
+      const avant = new Map();
+      for (const item of order.items) {
+        avant.set(item.id, stockSnapshot(await getProduct(item.id)));
+      }
       await restoreStock(order.items);
+      for (const item of order.items) {
+        await announceRestock(avant.get(item.id), await getProduct(item.id), item.variantId ?? null);
+      }
     }
 
     if (changed) {

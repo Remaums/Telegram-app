@@ -390,6 +390,36 @@ export async function notifyAdmin(order) {
   }
 }
 
+/** Prévient le vendeur que des articles passent sous son seuil d'alerte. */
+export async function notifyLowStock(entries) {
+  if (!config.adminChatId || !entries.length) return;
+
+  const lignes = entries
+    .map((e) => `• ${e.name}${e.variantLabel ? ` (${e.variantLabel})` : ''} — ${e.left === 0 ? 'épuisé' : `reste ${e.left}`}`)
+    .join('\n');
+
+  try {
+    await bot.api.sendMessage(config.adminChatId, `⚠️ Stock bas\n\n${lignes}`);
+  } catch (err) {
+    console.error('Alerte de stock impossible :', err.message);
+  }
+}
+
+/** Prévient un client qu'un article qu'il attendait est revenu. */
+export async function notifyBackInStock(userId, product, variantLabel) {
+  const quoi = `${product.name}${variantLabel ? ` (${variantLabel})` : ''}`;
+  try {
+    await bot.api.sendMessage(
+      Number(userId),
+      `🔔 ${quoi} est de retour en stock !`,
+      { reply_markup: config.webappUrl ? shopKeyboard() : undefined }
+    );
+  } catch (err) {
+    // Un client qui a bloqué le bot ne doit pas faire échouer le réassort.
+    console.warn(`Alerte de retour impossible pour ${userId} :`, err.message);
+  }
+}
+
 /** Prévient le client que le statut de sa commande a changé. */
 export async function notifyCustomer(order) {
   const status = STATUSES[order.status];

@@ -616,6 +616,7 @@ function renderSettings() {
   $('fVerification').checked = Boolean(settings.verification?.enabled);
   renderVerifications();
   $('fOrdersPerHour').value = settings.limits.ordersPerHour;
+  $('fLowStock').value = settings.alerts?.lowStock ?? 3;
   $('fUnitsPerOrder').value = settings.limits.unitsPerOrder;
 
   const list = $('blockedList');
@@ -741,6 +742,7 @@ async function saveGuards() {
           ordersPerHour: Number($('fOrdersPerHour').value),
           unitsPerOrder: Number($('fUnitsPerOrder').value),
         },
+        alerts: { lowStock: Number($('fLowStock').value) },
       },
     });
     renderSettings();

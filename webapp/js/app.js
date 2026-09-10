@@ -100,6 +100,7 @@ function bindStaticHandlers() {
   $('qtyMinus').addEventListener('click', () => setQty(state.currentQty - 1));
   $('qtyPlus').addEventListener('click', () => setQty(state.currentQty + 1));
   $('addToCart').addEventListener('click', addCurrentToCart);
+  $('notifyMe').addEventListener('click', joinWaitlist);
 
   for (const el of document.querySelectorAll('[data-close]')) {
     el.addEventListener('click', closeSheets);
@@ -440,19 +441,82 @@ function setQty(next) {
   $('qtyValue').textContent = state.currentQty;
 
   const addButton = $('addToCart');
+  const notify = $('notifyMe');
+
   if (available <= 0) {
-    addButton.disabled = true;
-    $('pPrice').textContent = '';
-    addButton.firstChild.textContent = 'Épuisé ';
+    // Épuisé : plutôt qu'un bouton mort, on propose d'être prévenu.
+    addButton.hidden = true;
+    $('qtyValue').closest('.qty').hidden = true;
+    notify.hidden = false;
+    refreshWaitlistButton();
     return;
   }
 
+  addButton.hidden = false;
+  $('qtyValue').closest('.qty').hidden = false;
+  notify.hidden = true;
   addButton.disabled = false;
   addButton.firstChild.textContent = 'Ajouter · ';
   $('pPrice').textContent = formatPrice(unitPrice(product, state.currentVariant) * state.currentQty);
 
   // On signale la fin de série : c'est ce qui fait bouger un panier.
   $('qtyPlus').disabled = state.currentQty >= available;
+}
+
+/* ── Liste d'attente ─────────────────────────────────────── */
+
+/** Le bouton dit si le client est déjà inscrit pour cet article. */
+async function refreshWaitlistButton() {
+  const notify = $('notifyMe');
+  notify.disabled = false;
+  notify.textContent = '🔔 Préviens-moi du retour';
+  if (!tg?.initData) return;
+
+  try {
+    const params = new URLSearchParams({ id: state.current.id });
+    if (state.currentVariant) params.set('variantId', state.currentVariant);
+    const res = await fetch(`/api/waitlist?${params}`, {
+      headers: { 'X-Telegram-Init-Data': tg.initData },
+    });
+    if (!res.ok) return;
+    if ((await res.json()).subscribed) {
+      notify.disabled = true;
+      notify.textContent = '🔔 Tu seras prévenu';
+    }
+  } catch (err) {
+    console.warn(err);
+  }
+}
+
+async function joinWaitlist() {
+  const notify = $('notifyMe');
+  notify.disabled = true;
+
+  try {
+    const res = await fetch('/api/waitlist', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Telegram-Init-Data': tg?.initData ?? '',
+      },
+      body: JSON.stringify({ id: state.current.id, variantId: state.currentVariant }),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      toast(data.error ?? 'Inscription impossible.');
+      notify.disabled = false;
+      return;
+    }
+
+    notify.textContent = '🔔 Tu seras prévenu';
+    toast('On t\'écrit dès que ça revient.');
+    haptic('success');
+  } catch (err) {
+    console.error(err);
+    toast('Inscription impossible pour le moment.');
+    notify.disabled = false;
+  }
 }
 
 /* ── Panier ──────────────────────────────────────────────── */

@@ -391,6 +391,20 @@ Une commande en livraison exige une adresse. Le mode, le sous-total et les
 frais sont enregistrés avec la commande, et repris dans le message envoyé au
 vendeur.
 
+### Alertes de stock
+
+Deux sens, réglés par un seul seuil (onglet Réglages) :
+
+- **Vers toi** : dès qu'une commande fait passer un article sous le seuil, le
+  bot t'écrit. Tu ne découvres plus la rupture en lisant une commande.
+- **Vers le client** : sur un article épuisé, un bouton « préviens-moi du
+  retour ». Dès que tu réassortis — ou qu'une annulation remet l'article en
+  rayon — le bot écrit à ceux qui attendaient, et la liste se vide.
+
+La liste ne garde qu'un identifiant Telegram par ligne de catalogue, et le
+message ne part qu'au franchissement de zéro : passer de 2 à 5 n'intéresse
+personne.
+
 ---
 
 ## Contrôles à l'entrée

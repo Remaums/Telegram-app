@@ -146,6 +146,15 @@
         <input id="fUnitsPerOrder" type="number" min="1" max="999" inputmode="numeric">
       </label>
     </div>
+    <label class="a-field">
+      <span>Alerte quand le stock descend à</span>
+      <input id="fLowStock" type="number" min="0" max="999" inputmode="numeric">
+    </label>
+    <p class="a-hint">
+      En dessous de ce seuil, le bot te prévient dès la commande qui l'a
+      franchi. Les clients peuvent aussi demander à être prévenus du retour
+      d'un article épuisé : ils le sont automatiquement au réassort.
+    </p>
     <button class="a-btn a-btn--primary a-btn--block" id="saveSettings" type="button">Enregistrer les garde-fous</button>
 
     <h2 class="a-h2">Vérifications</h2>
