@@ -3,4 +3,5 @@ node_modules/
 *.log
 server/data/orders.json
 server/data/catalog.json
+server/data/settings.json
 .DS_Store
