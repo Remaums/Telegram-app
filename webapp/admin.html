@@ -338,7 +338,25 @@
       </div>
 
       <label class="a-field"><span>Étiquettes (séparées par des virgules)</span><input id="fTags" placeholder="Indica, Nuit"></label>
-      <label class="a-field"><span>Image</span><select id="fImage"></select></label>
+      <!-- Image principale : la vignette de la grille. Le bouton d'envoi
+           n'apparaît que sur un produit déjà enregistré, comme la galerie. -->
+      <div class="a-vignette">
+        <span class="a-field__label">Image principale</span>
+        <div class="a-vignette__ligne">
+          <span class="a-vignette__apercu"><img id="fImageApercu" src="" alt=""></span>
+          <div class="a-vignette__actions">
+            <input id="imageFile" type="file" accept="image/*" hidden>
+            <button class="a-btn a-btn--sm a-btn--primary" id="pickImage" type="button" hidden>
+              📱 Depuis ma galerie
+            </button>
+            <select id="fImage"></select>
+          </div>
+        </div>
+        <div class="a-media__envoi" id="imageEnvoi" hidden>
+          <div class="a-media__barre"><div id="imageProgres"></div></div>
+          <span id="imageEtat"></span>
+        </div>
+      </div>
       <label class="a-field" id="imagePathField" hidden>
         <span>Chemin ou adresse de la photo</span>
         <input id="fImagePath" maxlength="300" placeholder="/assets/products/ma-photo.jpg">

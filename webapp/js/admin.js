@@ -120,9 +120,14 @@ function bindHandlers() {
 
   $('fHasVariants').addEventListener('change', syncPricingMode);
   $('fImage').addEventListener('change', syncImageField);
+  // L'aperçu suit aussi une adresse tapée à la main : c'est ce qui révèle
+  // tout de suite une adresse qui ne charge pas.
+  $('fImagePath').addEventListener('input', syncImageField);
   $('addMedia').addEventListener('click', ajouterMedia);
   $('pickMedia').addEventListener('click', () => $('mediaFile').click());
   $('mediaFile').addEventListener('change', envoyerDepuisLaGalerie);
+  $('pickImage').addEventListener('click', () => $('imageFile').click());
+  $('imageFile').addEventListener('change', envoyerLaVignette);
   $('addVariant').addEventListener('click', () => addVariantRow());
   $('saveProduct').addEventListener('click', saveProduct);
   $('deleteProduct').addEventListener('click', removeProduct);
@@ -541,6 +546,9 @@ function openEditor(product) {
   const known = IMAGES.some(([value]) => value === image);
   $('fImage').value = known ? image : CUSTOM_IMAGE;
   $('fImagePath').value = known ? '' : image;
+  // Comme la galerie : pas de produit, pas d'envoi possible — le fichier
+  // n'aurait aucune fiche à laquelle se rattacher.
+  $('pickImage').hidden = !product;
   syncImageField();
   $('fVisible').checked = product ? product.visible !== false : true;
 
@@ -669,6 +677,11 @@ function currentImage() {
 
 function syncImageField() {
   $('imagePathField').hidden = $('fImage').value !== CUSTOM_IMAGE;
+  // L'aperçu montre ce que verront les clients dans la grille.
+  const source = currentImage();
+  const apercu = $('fImageApercu');
+  apercu.src = source || '/assets/products/box.svg';
+  apercu.alt = '';
 }
 
 /* ── Réglages ────────────────────────────────────────────── */
@@ -1084,11 +1097,11 @@ async function envoyerDepuisLaGalerie(event) {
 }
 
 /** Un fichier, en corps brut, avec l'avancement rapporté au fur et à mesure. */
-function televerser(fichier, avance) {
+function televerser(fichier, avance, chemin = 'media') {
   return new Promise((resolve, rejeter) => {
     const requete = new XMLHttpRequest();
     const nom = encodeURIComponent(fichier.name || 'media');
-    requete.open('POST', `/api/admin/products/${state.editing.id}/media/upload?nom=${nom}`);
+    requete.open('POST', `/api/admin/products/${state.editing.id}/${chemin}/upload?nom=${nom}`);
     requete.setRequestHeader('Content-Type', fichier.type || 'application/octet-stream');
     requete.setRequestHeader('X-Telegram-Init-Data', tg?.initData ?? '');
 
@@ -1107,6 +1120,66 @@ function televerser(fichier, avance) {
 
     requete.send(fichier);
   });
+}
+
+/**
+ * Envoie la vignette du produit depuis la galerie du téléphone.
+ *
+ * Un seul fichier : une vignette, par définition, ne se choisit pas à
+ * plusieurs. Le reste emprunte le même chemin que la galerie.
+ */
+async function envoyerLaVignette(event) {
+  const fichier = event.target.files?.[0];
+  event.target.value = '';
+  if (!fichier) return;
+
+  const zone = $('imageEnvoi');
+  const barre = $('imageProgres');
+  zone.hidden = false;
+  $('pickImage').disabled = true;
+
+  try {
+    const produit = await televerser(
+      fichier,
+      (part) => {
+        barre.style.width = `${Math.round(part * 100)}%`;
+        $('imageEtat').textContent = part >= 1 ? 'Traitement…' : `Envoi · ${Math.round(part * 100)} %`;
+      },
+      'image'
+    );
+
+    // Le formulaire suit : sans ça, enregistrer la fiche réécrirait l'ancienne
+    // image par-dessus celle qu'on vient d'envoyer.
+    state.editing = produit;
+    montrerImage(produit.image);
+    const catalog = await api('/catalog');
+    state.products = catalog.products;
+    renderProducts();
+    renderStock();
+
+    toast('Image principale mise à jour');
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    zone.hidden = true;
+    barre.style.width = '0%';
+    $('pickImage').disabled = false;
+  }
+}
+
+/**
+ * Aligne le menu, le champ d'adresse et l'aperçu sur une image donnée.
+ *
+ * Une photo envoyée au bot n'est dans aucune des propositions du menu : elle
+ * bascule donc sur « ma photo », dont le champ porte alors l'adresse servie
+ * par la boutique.
+ */
+function montrerImage(image) {
+  const connue = IMAGES.some(([valeur]) => valeur === image);
+  $('fImage').value = connue ? image : CUSTOM_IMAGE;
+  $('fImagePath').value = connue ? '' : image;
+  syncImageField();
 }
 
 async function ajouterMedia() {

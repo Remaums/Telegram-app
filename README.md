@@ -283,6 +283,16 @@ n'y a rien de plus à sauvegarder. Une légende ambiguë (« neon » quand deux
 produits le contiennent) fait répondre la liste plutôt que d'écraser la
 mauvaise photo.
 
+**Ou depuis ta galerie**, sans quitter l'espace admin : dans l'éditeur de
+produit, sous l'aperçu de l'image, bouton **📱 Depuis ma galerie**. Tu choisis
+**une** photo — une vidéo est refusée en le disant, une vignette de catalogue ne
+se joue pas —, une barre montre l'avancement, puis l'aperçu, la grille et la
+liste des stocks se mettent à jour d'eux-mêmes. Même trajet que pour la
+galerie : le fichier traverse le serveur, repart vers ta conversation Telegram
+— où tu en gardes une copie — et seule la référence est conservée. Plafond
+**10 Mo**, celui d'une photo chez Telegram. Le bouton n'apparaît que sur un
+produit déjà enregistré : avant ça, il n'y a rien à quoi rattacher un fichier.
+
 **Ou par fichier**, deux autres chemins :
 
 - depuis l'espace admin : dans l'éditeur de produit, choisis « 📷 Ma photo » dans la

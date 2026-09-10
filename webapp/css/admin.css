@@ -348,6 +348,23 @@ body.admin {
 .a-media__actions button:disabled { opacity: .35; }
 .a-field--grow { flex: 1; min-width: 0; }
 
+/* L'image principale, avec son aperçu : c'est la vignette que verront les
+   clients dans la grille, autant la voir en la choisissant. */
+.a-vignette { margin: 4px 0 2px; }
+.a-vignette__ligne { display: flex; gap: 10px; align-items: stretch; margin-top: 5px; }
+.a-vignette__apercu {
+  flex: none; width: 64px; height: 64px; border-radius: 11px; overflow: hidden;
+  border: 1px solid var(--line-soft); background: rgb(var(--ink-rgb) / .5);
+  display: grid; place-items: center;
+}
+.a-vignette__apercu img { width: 100%; height: 100%; object-fit: cover; }
+.a-vignette__actions { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.a-vignette__actions select {
+  width: 100%; font: inherit; font-size: 13.5px; font-weight: 700; color: var(--cream);
+  background: rgb(var(--night-rgb) / .55); border: 1px solid var(--line-soft);
+  border-radius: 11px; padding: 9px 10px;
+}
+
 /* L'envoi depuis la galerie : une barre qui avance vaut mieux qu'un bouton
    grisé, surtout pour une vidéo de vingt mégaoctets sur un réseau de mobile. */
 .a-media__envoi {

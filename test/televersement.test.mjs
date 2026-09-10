@@ -146,6 +146,47 @@ check(
   (corps.error ?? '').slice(0, 70)
 );
 
+/* ── L'image principale ──────────────────────────────────── */
+
+const vignette = (octets, type, { init = admin, id = produit.id } = {}) =>
+  fetch(`${BASE}/api/admin/products/${id}/image/upload?nom=photo.jpg`, {
+    method: 'POST',
+    headers: { 'Content-Type': type, 'X-Telegram-Init-Data': init },
+    body: octets,
+  });
+
+// Une vignette de catalogue ne se joue pas : la vidéo est refusée là où la
+// galerie l'accepte, et le refus doit dire pourquoi plutôt que de renvoyer un
+// message de type générique.
+r = await vignette(Buffer.alloc(1024), 'video/mp4');
+corps = await r.json().catch(() => ({}));
+check("Une vidéo n'est pas une image principale", r.status === 400, `HTTP ${r.status}`);
+check('Et le refus le dit clairement', /vidéo ne s'affiche pas/i.test(corps.error ?? ''),
+  (corps.error ?? '').slice(0, 80));
+
+r = await vignette(Buffer.alloc(1024), 'application/pdf');
+check('Un PDF non plus', r.status === 400, `HTTP ${r.status}`);
+
+r = await vignette(Buffer.alloc(POIDS_MAX.photo + 1), 'image/jpeg');
+check('Le plafond photo vaut aussi pour la vignette', r.status === 413, `HTTP ${r.status}`);
+
+r = await vignette(Buffer.alloc(0), 'image/jpeg');
+check('Un corps vide est refusé', r.status === 400, `HTTP ${r.status}`);
+
+r = await vignette(Buffer.alloc(1024), 'image/jpeg', { id: 'produit-fantome' });
+check('Un produit inconnu répond 404', r.status === 404, `HTTP ${r.status}`);
+
+r = await vignette(Buffer.alloc(1024), 'image/jpeg', { init: client });
+check("Un client ne change pas la vignette", r.status === 403, `HTTP ${r.status}`);
+
+r = await vignette(Buffer.alloc(1024), 'image/jpeg');
+corps = await r.json().catch(() => ({}));
+check('Une photo valide atteint la remise à Telegram',
+  [200, 502, 409].includes(r.status), `HTTP ${r.status}`);
+check("Et l'échec se lit, plutôt que « erreur interne »",
+  r.status === 200 || !/interne/i.test(corps.error ?? ''), (corps.error ?? '').slice(0, 70));
+
+// La galerie pleine ne gêne pas la vignette : ce sont deux choses distinctes.
 /* ── La galerie pleine ───────────────────────────────────── */
 
 for (let i = 0; i < MEDIA_MAX; i++) {
@@ -159,6 +200,10 @@ r = await televerser(Buffer.alloc(1024), 'image/jpeg');
 corps = await r.json().catch(() => ({}));
 check('Galerie pleine : on refuse avant même de déranger Telegram',
   r.status === 400 && /pleine/i.test(corps.error ?? ''), corps.error);
+
+r = await vignette(Buffer.alloc(1024), 'image/jpeg');
+check("Une galerie pleine n'empêche pas de changer la vignette",
+  r.status !== 400, `HTTP ${r.status}`);
 
 // On rend le produit tel qu'on l'a trouvé.
 for (let i = MEDIA_MAX; i >= 0; i--) await call(`${chemin}/${i}`, { method: 'DELETE' });
