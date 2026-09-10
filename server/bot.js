@@ -693,6 +693,28 @@ export async function deposerMedia(chatId, kind, octets, nomFichier, legende) {
 }
 
 /**
+ * La fiche publique d'un client, telle que Telegram la donne.
+ *
+ * À la demande du vendeur, jamais en masse : c'est un aller-retour par client,
+ * et une fiche produit n'a pas besoin de la biographie de qui la lit. Telegram
+ * ne répond que pour quelqu'un qui a déjà parlé au bot — c'est sa règle, et
+ * elle nous convient : on ne va pas chercher des inconnus.
+ */
+export async function ficheTelegram(userId) {
+  const chat = await bot.api.getChat(Number(userId), AbortSignal.timeout(DELAI_ENVOI));
+  return {
+    id: chat.id,
+    prenom: chat.first_name ?? null,
+    nom: chat.last_name ?? null,
+    username: chat.username ?? null,
+    bio: chat.bio ?? null,
+    // La photo de profil est une référence, comme les médias produits : on ne
+    // la recopie pas, on la sert au besoin.
+    photo: chat.photo?.small_file_id ?? null,
+  };
+}
+
+/**
  * Retrouve après coup la vignette d'une vidéo déjà déposée.
  *
  * `getFile` ne la donne pas : la vignette n'apparaît que dans le message qui

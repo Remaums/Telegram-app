@@ -80,6 +80,12 @@ export async function reabonner(id) {
   });
 }
 
+/** Tous les désabonnés d'un coup : la fiche client les lit par paquet. */
+export async function listeDesabonnes() {
+  const data = await store.read();
+  return (data.desabonnes ?? []).map(String);
+}
+
 export async function estDesabonne(id) {
   const data = await store.read();
   return (data.desabonnes ?? []).map(String).includes(String(id));

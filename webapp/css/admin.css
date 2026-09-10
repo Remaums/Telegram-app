@@ -617,3 +617,45 @@ body.admin {
   background: rgb(var(--void-rgb) / .95); border: 1px solid var(--line-soft);
   color: var(--cream); box-shadow: var(--shadow-sm); white-space: nowrap;
 }
+
+/* ══ Clients ═══════════════════════════════════════════════
+   Une carte repliée dit qui, combien de fois, combien. Le reste
+   n'apparaît qu'à la demande : une fiche client entière par ligne
+   ferait défiler trois écrans pour retrouver quelqu'un. */
+.a-clients__compte { color: var(--muted); font-size: 12.5px; font-weight: 700; margin: 8px 2px 10px; }
+
+.a-client {
+  background: rgb(var(--panel-rgb) / .6);
+  border: 1px solid var(--line-soft);
+  border-radius: 16px; margin-bottom: 10px; overflow: hidden;
+}
+.a-client__tete {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 10px;
+  width: 100%; text-align: left; padding: 12px 14px;
+  background: none; border: 0; color: var(--cream); font: inherit; cursor: pointer;
+}
+.a-client__qui { font-size: 15px; font-weight: 800; overflow-wrap: anywhere; }
+.a-client__chiffre { font-size: 15px; font-weight: 800; color: var(--neon); white-space: nowrap; }
+.a-client__meta { grid-column: 1 / -1; font-size: 12px; font-weight: 600; color: var(--muted); }
+.a-client__detail { padding: 0 14px 14px; }
+.a-client__gris { color: var(--muted); }
+.a-client__h3 { font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 14px 0 6px; }
+.a-client__detail p, .a-client__detail ul { margin: 0; font-size: 13.5px; line-height: 1.45; }
+.a-client__detail ul { list-style: none; padding: 0; }
+.a-client__adresses li, .a-client__commandes li { padding: 8px 0; border-top: 1px solid var(--viz-grille, rgb(234 255 242 / .12)); }
+
+.a-client__chiffres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 4px 0 0; }
+.a-client__chiffres dt { font-size: 10.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.a-client__chiffres dd { margin: 2px 0 0; font-size: 15px; font-weight: 800; }
+
+.a-etat {
+  display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 800;
+  background: rgba(255, 255, 255, .08); border: 1px solid var(--line-soft);
+}
+.a-etat--ok { color: var(--neon); border-color: rgb(var(--neon-rgb) / .5); }
+.a-etat--ko { color: var(--red); border-color: rgb(var(--red-rgb) / .5); }
+
+.a-client__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.a-client__actions .a-btn { flex: 1 1 auto; text-align: center; text-decoration: none; }
+.a-client__telegram { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; font-size: 13.5px; }
+.a-client__photo { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 1px solid var(--line-soft); }

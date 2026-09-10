@@ -13,6 +13,9 @@ const state = {
   orders: [],
   stats: null,
   bilan: null,       // le regroupement des commandes sur la période choisie
+  clients: [],       // fiches reconstituées à partir des commandes
+  clientsTotal: 0,
+  clientOuvert: null,
   periode: 30,       // en jours ; commande tout le tableau de bord
   settings: null,
   verifications: [],
@@ -125,6 +128,7 @@ function bindHandlers() {
   // L'aperçu suit aussi une adresse tapée à la main : c'est ce qui révèle
   // tout de suite une adresse qui ne charge pas.
   $('fImagePath').addEventListener('input', syncImageField);
+  $('clientSearch').addEventListener('input', chercherDesClients);
   $('addMedia').addEventListener('click', ajouterMedia);
   $('pickMedia').addEventListener('click', () => $('mediaFile').click());
   $('mediaFile').addEventListener('change', envoyerDepuisLaGalerie);
@@ -150,6 +154,7 @@ async function refreshAll() {
     api('/promos'),
     api(`/bilan?jours=${state.periode}`),
   ]);
+  const fiches = await api('/clients').catch(() => ({ total: 0, clients: [] }));
   state.settings = settings;
   state.verifications = verifications;
   state.promos = promos;
@@ -159,8 +164,11 @@ async function refreshAll() {
   state.orders = orders;
   state.stats = stats;
   state.bilan = bilan;
+  state.clients = fiches.clients;
+  state.clientsTotal = fiches.total;
 
   renderBoard();
+  renderClients();
   renderOrderFilters();
   renderOrders();
   renderStock();
@@ -560,6 +568,212 @@ function renderOrderFilters() {
       return btn;
     })
   );
+}
+
+/* ── Clients ─────────────────────────────────────────────── */
+
+/**
+ * Les fiches clients.
+ *
+ * Rien n'est collecté pour cet écran : il regroupe ce que les commandes disent
+ * déjà. Une carte repliée porte l'essentiel — qui, combien de fois, combien —
+ * et s'ouvre sur le reste : adresses servies, produits habituels, états.
+ */
+function renderClients() {
+  const liste = state.clients;
+  $('clientCount').textContent = liste.length
+    ? `${state.clientsTotal} client${state.clientsTotal > 1 ? 's' : ''}` +
+      (state.clientsTotal > liste.length ? ` · les ${liste.length} plus récents` : '')
+    : '';
+
+  const conteneur = $('clientsList');
+  if (!liste.length) {
+    conteneur.innerHTML = `<p class="a-empty">${
+      $('clientSearch').value.trim() ? 'Personne ne correspond.' : 'Aucun client pour le moment.'
+    }</p>`;
+    return;
+  }
+  conteneur.replaceChildren(...liste.map(carteClient));
+}
+
+let rechercheEnAttente = null;
+
+/** La recherche part au serveur : elle porte sur toutes les fiches, pas sur
+ *  les deux cents envoyées. Une frappe rapide ne déclenche qu'un appel. */
+function chercherDesClients() {
+  clearTimeout(rechercheEnAttente);
+  rechercheEnAttente = setTimeout(async () => {
+    const q = $('clientSearch').value.trim();
+    try {
+      const fiches = await api(`/clients?q=${encodeURIComponent(q)}`);
+      state.clients = fiches.clients;
+      state.clientsTotal = fiches.total;
+      renderClients();
+    } catch (err) {
+      toast(err.message);
+    }
+  }, 250);
+}
+
+function carteClient(fiche) {
+  const carte = document.createElement('article');
+  carte.className = 'a-client';
+
+  const qui = fiche.username ? `@${fiche.username}` : fiche.nom ?? `#${fiche.id}`;
+  const depuis = fiche.derniere ? ilYA(fiche.derniere) : '—';
+  const etats = [
+    fiche.bloque ? '<span class="a-etat a-etat--ko">⛔ bloqué</span>' : '',
+    fiche.verification === 'approved' ? '<span class="a-etat a-etat--ok">🪪 vérifié</span>' : '',
+    fiche.verification === 'pending' ? '<span class="a-etat">🪪 en attente</span>' : '',
+    fiche.abonne ? '' : '<span class="a-etat">🔕 désabonné</span>',
+  ].filter(Boolean).join('');
+
+  carte.innerHTML = `
+    <button class="a-client__tete" type="button" aria-expanded="false">
+      <span class="a-client__qui">${escapeHtml(qui)}${fiche.nom && fiche.username ? ` · ${escapeHtml(fiche.nom)}` : ''}</span>
+      <span class="a-client__chiffre">${formatPrice(fiche.chiffre)}</span>
+      <span class="a-client__meta">${fiche.commandes} commande${fiche.commandes > 1 ? 's' : ''} · ${escapeHtml(depuis)}${etats ? ` · ${etats}` : ''}</span>
+    </button>
+    <div class="a-client__detail" hidden></div>`;
+
+  const tete = carte.querySelector('.a-client__tete');
+  const detail = carte.querySelector('.a-client__detail');
+  tete.addEventListener('click', () => {
+    const ouvert = detail.hidden;
+    detail.hidden = !ouvert;
+    tete.setAttribute('aria-expanded', String(ouvert));
+    if (ouvert && !detail.childElementCount) detail.append(detailClient(fiche));
+    haptic('light');
+  });
+  return carte;
+}
+
+/** Le détail d'une fiche : tout ce que la boutique sait, et rien de plus. */
+function detailClient(fiche) {
+  const bloc = document.createElement('div');
+
+  const chiffres = [
+    ['Commandes', String(fiche.commandes)],
+    ['Dépensé', formatPrice(fiche.chiffre)],
+    ['Panier moyen', formatPrice(fiche.panierMoyen)],
+    ['Annulées', String(fiche.annulees)],
+    ['Livraisons', `${fiche.livraisons} / ${fiche.livraisons + fiche.retraits}`],
+    ['Client depuis', fiche.premiere ? new Date(fiche.premiere).toLocaleDateString('fr-FR') : '—'],
+  ];
+
+  const adresses = fiche.adresses.length
+    ? fiche.adresses
+        .map((a) => {
+          const route = itineraire(a);
+          return (
+            '<li>' +
+            `${escapeHtml(a.street)}${a.complement ? `<br><span class="a-client__gris">${escapeHtml(a.complement)}</span>` : ''}` +
+            `<br>${escapeHtml(`${a.postalCode} ${a.city}`.trim())}` +
+            (route
+              ? `<span class="a-route">` +
+                `<a href="${escapeHtml(route.maps)}" target="_blank" rel="noopener">🗺 Maps</a>` +
+                `<a href="${escapeHtml(route.waze)}" target="_blank" rel="noopener">🚗 Waze</a>` +
+                `<a href="${escapeHtml(route.plans)}" target="_blank" rel="noopener">🧭 Plans</a></span>`
+              : '') +
+            '</li>'
+          );
+        })
+        .join('')
+    : '<li class="a-client__gris">Aucune livraison — retrait sur place.</li>';
+
+  bloc.innerHTML =
+    `<dl class="a-client__chiffres">${chiffres
+      .map(([label, valeur]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(valeur)}</dd></div>`)
+      .join('')}</dl>` +
+    (fiche.produits.length
+      ? `<h3 class="a-client__h3">Ce qu'il prend</h3><p>${fiche.produits
+          .map((p) => `${escapeHtml(p.nom)} <span class="a-client__gris">× ${p.quantite}</span>`)
+          .join(' · ')}</p>`
+      : '') +
+    `<h3 class="a-client__h3">Où livrer</h3><ul class="a-client__adresses">${adresses}</ul>` +
+    (fiche.telephones.length
+      ? `<h3 class="a-client__h3">Téléphone</h3><p>${fiche.telephones.map((t) => escapeHtml(t)).join(' · ')}</p>`
+      : '') +
+    `<h3 class="a-client__h3">Dernières commandes</h3><ul class="a-client__commandes">${fiche.dernieres
+      .map(
+        (c) =>
+          `<li><b>${escapeHtml(c.reference)}</b> · ${new Date(c.date).toLocaleDateString('fr-FR')} · ` +
+          `${formatPrice(c.total)} · ${escapeHtml(state.statuses[c.status]?.label ?? c.status)}</li>`
+      )
+      .join('')}</ul>` +
+    '<div class="a-client__actions"></div>' +
+    '<div class="a-client__telegram" hidden></div>';
+
+  const actions = bloc.querySelector('.a-client__actions');
+
+  // Ce que Telegram veut bien dire, à la demande : un appel par client, et
+  // seulement quand le vendeur le demande.
+  const tg = document.createElement('button');
+  tg.className = 'a-btn';
+  tg.type = 'button';
+  tg.textContent = '👤 Fiche Telegram';
+  tg.addEventListener('click', () => chargerFicheTelegram(fiche.id, bloc, tg));
+  actions.append(tg);
+
+  if (fiche.username) {
+    const ecrire = document.createElement('a');
+    ecrire.className = 'a-btn';
+    ecrire.href = `https://t.me/${fiche.username}`;
+    ecrire.target = '_blank';
+    ecrire.rel = 'noopener';
+    ecrire.textContent = '💬 Écrire';
+    actions.append(ecrire);
+  }
+
+  const ban = document.createElement('button');
+  ban.className = `a-btn ${fiche.bloque ? '' : 'a-btn--danger'}`.trim();
+  ban.type = 'button';
+  ban.textContent = fiche.bloque ? '↩︎ Débloquer' : '⛔ Bloquer';
+  ban.addEventListener('click', async () => {
+    await toggleBlock(fiche.id, !fiche.bloque, ban);
+    fiche.bloque = !fiche.bloque;
+    ban.textContent = fiche.bloque ? '↩︎ Débloquer' : '⛔ Bloquer';
+    ban.className = `a-btn ${fiche.bloque ? '' : 'a-btn--danger'}`.trim();
+    ban.disabled = false;
+  });
+  actions.append(ban);
+
+  return bloc;
+}
+
+async function chargerFicheTelegram(id, bloc, bouton) {
+  bouton.disabled = true;
+  bouton.textContent = '…';
+  const zone = bloc.querySelector('.a-client__telegram');
+  try {
+    const fiche = await api(`/clients/${id}/telegram`);
+    const nom = [fiche.prenom, fiche.nom].filter(Boolean).join(' ');
+    zone.innerHTML =
+      (fiche.photo ? `<img class="a-client__photo" src="/api/admin/clients/${encodeURIComponent(id)}/photo" alt="">` : '') +
+      '<div>' +
+      `<b>${escapeHtml(nom || 'Sans nom')}</b>` +
+      (fiche.username ? `<br>@${escapeHtml(fiche.username)}` : '') +
+      `<br><span class="a-client__gris">identifiant ${escapeHtml(String(fiche.id))}</span>` +
+      (fiche.bio ? `<br><span class="a-client__gris">« ${escapeHtml(fiche.bio)} »</span>` : '') +
+      '</div>';
+    zone.hidden = false;
+    bouton.remove();
+  } catch (err) {
+    zone.innerHTML = `<span class="a-client__gris">${escapeHtml(err.message)}</span>`;
+    zone.hidden = false;
+    bouton.disabled = false;
+    bouton.textContent = '👤 Fiche Telegram';
+  }
+}
+
+/** « il y a 3 jours », plutôt qu'une date à soustraire de tête. */
+function ilYA(iso) {
+  const jours = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (jours <= 0) return "aujourd'hui";
+  if (jours === 1) return 'hier';
+  if (jours < 31) return `il y a ${jours} jours`;
+  const mois = Math.round(jours / 30);
+  return `il y a ${mois} mois`;
 }
 
 function renderOrders() {

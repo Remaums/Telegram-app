@@ -31,6 +31,7 @@
 <nav class="a-tabs" role="tablist">
   <button class="a-tab" data-tab="board" role="tab" aria-selected="true">Tableau</button>
   <button class="a-tab" data-tab="orders" role="tab" aria-selected="false">Commandes<span class="a-tab__dot" id="pendingDot" hidden></span></button>
+  <button class="a-tab" data-tab="clients" role="tab" aria-selected="false">Clients</button>
   <button class="a-tab" data-tab="stock" role="tab" aria-selected="false">Stock</button>
   <button class="a-tab" data-tab="products" role="tab" aria-selected="false">Produits</button>
   <button class="a-tab" data-tab="categories" role="tab" aria-selected="false">Catégories</button>
@@ -68,6 +69,16 @@
   <section class="a-panel" id="panel-orders" hidden>
     <div class="a-filters" id="orderFilters"></div>
     <div id="ordersList"></div>
+  </section>
+
+  <!-- ══ Clients ══ ═══════════════════════════════════════════
+       Aucune donnée n'est collectée pour cet écran : il regroupe
+       ce que les commandes disent déjà. -->
+  <section class="a-panel" id="panel-clients" hidden>
+    <input class="a-search" id="clientSearch" type="search"
+           placeholder="Nom, pseudo, téléphone, rue, ville, référence…">
+    <p class="a-clients__compte" id="clientCount"></p>
+    <div id="clientsList"></div>
   </section>
 
   <!-- ══ Stock ══ -->

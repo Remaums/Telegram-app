@@ -609,6 +609,33 @@ lire ses ventes du mardi, alors que la longueur des barres dit déjà tout. Les
 graphiques sont écrits à la main en SVG : quatre courbes ne valent pas cinquante
 kilo-octets de bibliothèque chargés sur le réseau d'un téléphone.
 
+### Les clients
+
+L'onglet **Clients** reconstitue une fiche par personne **à partir des
+commandes** : combien de fois, combien dépensé, panier moyen, annulations,
+première et dernière commande, retrait ou livraison, ce qu'elle prend
+d'habitude, les adresses servies (la plus récente en tête, avec ses liens
+d'itinéraire), son téléphone, ses dernières références — et les trois états que
+la boutique connaît déjà : bloqué, vérifié, abonné aux annonces.
+
+La recherche porte sur **tout** le magasin, pas sur les fiches affichées : un
+prénom, un pseudo, un numéro tapé d'un bloc, une rue, une ville, une référence
+de commande. Sans accents ni casse. Les fiches restent repliées — une liste de
+fiches entières ferait défiler trois écrans pour retrouver quelqu'un.
+
+Deux boutons vont chercher plus loin, **à la demande et un client à la fois** :
+« Fiche Telegram » demande à Telegram le nom, le pseudo, la biographie et la
+photo du compte (Telegram ne répond que pour quelqu'un qui a déjà écrit au
+bot), et « Écrire » ouvre la conversation.
+
+> 🔒 **Rien n'est collecté pour cet écran.** Il ne fait que regrouper ce que les
+> commandes disent déjà. En particulier, la boutique **n'enregistre aucune
+> adresse IP**, ne fait **ni géolocalisation ni whois**, et ne pose aucun
+> traceur : ce qu'on ne garde pas ne peut ni fuir, ni être saisi, ni servir
+> contre quelqu'un. La géographie utile — la ville et le code postal de
+> livraison — vient de ce que le client a écrit lui-même, et c'est la seule qui
+> soit exacte : une adresse IP désigne le fournisseur d'accès, pas le domicile.
+
 ### Réglages
 
 Tout se règle depuis l'onglet **Réglages** de l'espace admin, sans redéployer.

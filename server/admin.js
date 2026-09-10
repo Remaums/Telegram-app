@@ -20,13 +20,16 @@ import {
 } from './catalog.js';
 import { STATUSES, listOrders, allOrders, getOrder, setStatus, stats } from './orders.js';
 import { bilan } from './bilan.js';
+import { ficheClients, chercherClients } from './clients.js';
+import { servirMedia } from './media-cache.js';
 import { getSettings, saveSettings, blockClient, unblockClient } from './settings.js';
 import { listVerifications, decideVerification, resetVerification } from './verification.js';
 import {
   notifyCustomer, notifyBackInStock, sendFileToAdmin, diffuser, botUsername,
-  deposerMedia, retrouverVignette, POIDS_MAX,
+  deposerMedia, retrouverVignette, ficheTelegram, POIDS_MAX,
 } from './bot.js';
 import { waitlistKey, takeSubscribers } from './waitlist.js';
+import { listeDesabonnes } from './annonces.js';
 import { listPromos, savePromo, deletePromo } from './promos.js';
 import { FEATURES } from './features.js';
 import { buildBackup, restoreBackup, inspectBackup, ordersToCsv } from './backup.js';
@@ -105,6 +108,86 @@ adminRouter.get(
         timezone: settings.opening?.hours?.timezone,
       })
     );
+  })
+);
+
+/* ── Clients ─────────────────────────────────────────────── */
+
+/**
+ * Les fiches clients, reconstituées à partir des commandes.
+ *
+ * Rien n'est collecté pour cette page : elle regroupe ce qui est déjà là. Ce
+ * qu'on ne garde pas ne peut ni fuir, ni être saisi, ni servir contre
+ * quelqu'un — et un fichier client est précisément ce qu'on ne veut pas tenir.
+ */
+async function toutesLesFiches() {
+  const [commandes, settings, verifications, desabonnes] = await Promise.all([
+    allOrders(),
+    getSettings(),
+    listVerifications(),
+    listeDesabonnes(),
+  ]);
+  return ficheClients(commandes, {
+    bloques: settings.blocked ?? [],
+    verifications: Object.fromEntries(verifications.map((v) => [String(v.id), v])),
+    desabonnes,
+  });
+}
+
+adminRouter.get(
+  '/clients',
+  route(async (req, res) => {
+    const fiches = chercherClients(await toutesLesFiches(), req.query.q ?? '');
+    // Une boutique qui tourne depuis deux ans a des milliers de fiches : on
+    // n'envoie pas tout à un téléphone, la recherche est là pour ça.
+    res.json({ total: fiches.length, clients: fiches.slice(0, 200) });
+  })
+);
+
+adminRouter.get(
+  '/clients/:id',
+  route(async (req, res) => {
+    const fiche = (await toutesLesFiches()).find((f) => f.id === String(req.params.id));
+    if (!fiche) throw new HttpError(404, 'Ce client n\'a jamais commandé ici.');
+    res.json(fiche);
+  })
+);
+
+/**
+ * La fiche que Telegram veut bien donner d'un client.
+ *
+ * À la demande, jamais en masse : c'est un appel à Telegram par client, et
+ * personne n'a besoin de la biographie de trois cents personnes pour préparer
+ * une commande. Telegram ne répond que pour quelqu'un qui a déjà parlé au bot.
+ */
+adminRouter.get(
+  '/clients/:id/telegram',
+  route(async (req, res) => {
+    try {
+      res.json(await ficheTelegram(req.params.id));
+    } catch (err) {
+      const raison = err?.description ?? err?.message ?? '';
+      if (/chat not found/i.test(raison)) {
+        throw new HttpError(404, "Telegram ne connaît pas ce compte : il n'a jamais écrit au bot.");
+      }
+      throw new HttpError(502, `Telegram n'a pas répondu : ${raison || 'raison inconnue'}`);
+    }
+  })
+);
+
+/**
+ * La photo de profil d'un client, servie comme un média produit.
+ *
+ * Elle reste chez Telegram : on ne fait que relayer, avec la même copie locale
+ * que le reste. Un visage n'a pas à être recopié dans le dossier de la
+ * boutique pour être affiché une fois.
+ */
+adminRouter.get(
+  '/clients/:id/photo',
+  route(async (req, res) => {
+    const fiche = await ficheTelegram(req.params.id).catch(() => null);
+    if (!fiche?.photo) throw new HttpError(404, 'Pas de photo de profil.');
+    await servirMedia(req, res, { fileId: fiche.photo, kind: 'photo' });
   })
 );
 
