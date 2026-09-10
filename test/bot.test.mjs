@@ -67,6 +67,55 @@ check(
 check('Une commande livrée ne propose plus rien', statusKeyboard({ ...order, status: 'livree' }) === undefined);
 check('Une commande annulée ne propose plus rien', statusKeyboard({ ...order, status: 'annulee' }) === undefined);
 
+/* ── Où livrer, et par où y aller ────────────────────────── */
+
+// Recopier une adresse à la main dans une application de trajet, une par
+// commande, c'est la faute de frappe assurée — et une faute de frappe, ici,
+// c'est un livreur devant la mauvaise porte.
+const aLivrer = {
+  ...order,
+  mode: 'delivery',
+  address: { street: '12 rue des Lilas', complement: 'Bât B, 3e étage, code 1234', postalCode: '68100', city: 'Mulhouse' },
+  phone: '06 12 34 56 78',
+  contact: '12 rue des Lilas · Bât B, 3e étage, code 1234 · 68100 Mulhouse · 06 12 34 56 78',
+};
+
+const messageLivraison = orderMessage(aLivrer);
+check("L'adresse est écrite en clair", messageLivraison.includes('12 rue des Lilas'), '');
+check('Le complément aussi — étage et code de porte',
+  messageLivraison.includes('code 1234'));
+check('La ville et le code postal ne manquent pas',
+  messageLivraison.includes('68100 Mulhouse'));
+check('Le téléphone est sur sa propre ligne', /📞 06 12 34 56 78/.test(messageLivraison));
+
+const routes = buttons(aLivrer).filter((b) => b.url);
+check('Trois applications de trajet sont proposées', routes.length === 3,
+  routes.map((b) => b.text).join(' '));
+check('Toutes en HTTPS — Telegram rejette le message entier sinon',
+  routes.every((b) => /^https:\/\//.test(b.url)), routes.map((b) => b.url.split('/')[2]).join(' '));
+check('Chacune vise la même adresse',
+  routes.every((b) => b.url.includes(encodeURIComponent('12 rue des Lilas, 68100 Mulhouse'))));
+
+// Un géocodeur ne sait pas quoi faire d'un étage : beaucoup renoncent à
+// chercher plutôt que de l'ignorer.
+check("Le complément ne part pas dans l'itinéraire",
+  routes.every((b) => !b.url.toLowerCase().includes('etage') && !b.url.includes('1234')));
+
+check('Les boutons de statut sont toujours là',
+  buttons(aLivrer).filter((b) => b.callback_data).length === 2);
+
+// Même livrée, une commande garde son itinéraire : le vendeur peut relire le
+// message et repartir. Mais un retrait n'a nulle part où aller.
+check('Une commande livrée garde son itinéraire',
+  buttons({ ...aLivrer, status: 'livree' }).filter((b) => b.url).length === 3);
+check("Un retrait ne propose aucun itinéraire",
+  buttons({ ...order, mode: 'pickup' }).every((b) => !b.url));
+check("Une livraison sans adresse découpée non plus",
+  buttons({ ...order, mode: 'delivery', contact: '12 rue des Lilas, Colmar' }).every((b) => !b.url));
+check('Et son contact reste lisible dans le message',
+  orderMessage({ ...order, mode: 'delivery', contact: '12 rue des Lilas, Colmar' })
+    .includes('Adresse : 12 rue des Lilas, Colmar'));
+
 // Telegram limite la donnée de rappel à 64 octets.
 const longest = Math.max(...nouvelle.map((b) => Buffer.byteLength(b.callback_data)));
 check('Donnée de rappel sous la limite Telegram', longest <= 64, `${longest} octets`);

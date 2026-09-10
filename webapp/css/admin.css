@@ -523,3 +523,12 @@ body.admin {
      illisible, ou déborde du panneau. */
   white-space: pre-line; line-height: 1.5; overflow-wrap: anywhere;
 }
+
+/* Les liens d'itinéraire d'une commande à livrer : des cibles qu'on touche
+   avec le pouce, pas des mots soulignés au milieu d'une phrase. */
+.a-route { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.a-route a {
+  padding: 5px 10px; border-radius: 999px; text-decoration: none;
+  font-size: 12px; font-weight: 800; color: var(--cream);
+  background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .14);
+}

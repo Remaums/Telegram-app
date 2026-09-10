@@ -101,6 +101,81 @@ data = await r.json();
 check('Au-delà du franco, la livraison est offerte',
   r.status === 201 && data.deliveryFee === 0 && data.total === data.subtotal, `frais ${data.deliveryFee}`);
 
+/* ── L'adresse complète ──────────────────────────────────── */
+
+// Une ligne libre laissait passer « chez Marc » : cinq caractères, aucune
+// ville, et un livreur qui rappelle. L'adresse arrive donc découpée, et ce qui
+// manque est nommé.
+
+const { normalizeAddress, adresseIncomplete, liensItineraire } = await import('../server/delivery.js');
+
+check('Une adresse recopiée est nettoyée',
+  normalizeAddress({ street: '  12   rue des\n Lilas ', city: ' Mulhouse ', postalCode: ' 68100 ' }).street
+    === '12 rue des Lilas');
+
+for (const [quoi, adresse] of [
+  ['sans rue', { postalCode: '68100', city: 'Mulhouse' }],
+  ['une rue trop courte', { street: 'chez', postalCode: '68100', city: 'Mulhouse' }],
+  ['sans code postal', { street: '12 rue des Lilas', city: 'Mulhouse' }],
+  ['un code postal inventé', { street: '12 rue des Lilas', postalCode: 'ABCDE', city: 'Mulhouse' }],
+  ['sans ville', { street: '12 rue des Lilas', postalCode: '68100' }],
+]) {
+  check(`Refusée : ${quoi}`, Boolean(adresseIncomplete(normalizeAddress(adresse))),
+    adresseIncomplete(normalizeAddress(adresse)) ?? 'acceptée !');
+}
+
+// Un lieu-dit n'a pas de numéro de rue : lui refuser sa commande coûterait
+// plus cher qu'une adresse imprécise.
+check("Un lieu-dit sans numéro passe",
+  adresseIncomplete(normalizeAddress({ street: 'Lieu-dit Les Trois Épis', postalCode: '68410', city: 'Ammerschwihr' })) === null);
+
+check("Une adresse incomplète n'a pas d'itinéraire",
+  liensItineraire(normalizeAddress({ street: '12 rue des Lilas' })) === null);
+
+const complete = { street: '12 rue des Lilas', complement: 'Bât B, 3e étage', postalCode: '68100', city: 'Mulhouse' };
+
+r = await commande(lignes(pourAtteindre), { mode: 'delivery', address: { ...complete, city: '' } });
+data = await r.json();
+check('Une adresse sans ville est refusée', r.status === 400 && /ville/i.test(data.error), data.error);
+
+r = await commande(lignes(pourAtteindre), { mode: 'delivery', address: { ...complete, postalCode: 'nawak' } });
+data = await r.json();
+check('Un code postal inventé aussi', r.status === 400 && /postal/i.test(data.error), data.error);
+
+r = await commande(lignes(pourAtteindre), {
+  mode: 'delivery', address: complete, contact: '06 12 34 56 78',
+});
+data = await r.json();
+check('Une adresse complète passe', r.status === 201, `HTTP ${r.status} — ${data.error ?? ''}`);
+check("Et la commande la garde découpée",
+  data.address?.street === complete.street && data.address?.city === 'Mulhouse'
+    && data.address?.complement === 'Bât B, 3e étage',
+  JSON.stringify(data.address));
+check('Le téléphone est rangé à part', data.phone === '06 12 34 56 78', data.phone);
+check('Une ligne lisible reste disponible',
+  /12 rue des Lilas/.test(data.contact ?? '') && /68100 Mulhouse/.test(data.contact ?? ''), data.contact);
+
+// Le code postal de l'adresse fait foi : deux champs pour la même chose se
+// contrediraient un jour, et c'est celui-là que le client vient d'écrire.
+await call('/api/admin/settings', {
+  method: 'PUT',
+  body: { features: { zones: true }, zones: [{ name: 'Mulhouse', postalCodes: '68100', fee: 0 }] },
+});
+
+r = await commande(lignes(pourAtteindre), {
+  mode: 'delivery', address: { ...complete, postalCode: '75001', city: 'Paris' },
+});
+data = await r.json();
+check("Une adresse hors zone est refusée sur son propre code postal",
+  r.status === 400 && /75001/.test(data.error ?? ''), data.error);
+
+r = await commande(lignes(pourAtteindre), { mode: 'delivery', address: complete });
+data = await r.json();
+check('Une adresse dans la zone passe', r.status === 201, `HTTP ${r.status} — ${data.error ?? ''}`);
+check('Et la zone retenue porte ce code postal', data.zone?.postalCode === '68100', JSON.stringify(data.zone));
+
+await call('/api/admin/settings', { method: 'PUT', body: { features: { zones: false }, zones: [] } });
+
 /* ── Un mode désactivé n'est pas utilisable ──────────────── */
 
 await call('/api/admin/settings', { method: 'PUT', body: { fulfillment: { pickup: true, delivery: false } } });

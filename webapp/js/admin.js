@@ -343,6 +343,24 @@ function orderCard(order) {
  * vendeur qui prépare depuis la Mini App ne savait ni où livrer ni à quelle
  * heure, et un total plus bas que la somme des lignes ressemblait à un bug.
  */
+/**
+ * Les liens d'itinéraire d'une commande, ou rien.
+ *
+ * Le complément reste dehors : « 3e étage, code 1234 » n'aide aucun géocodeur,
+ * et beaucoup renoncent à chercher plutôt que de l'ignorer. Les commandes
+ * d'avant l'adresse découpée n'ont rien à ouvrir — leur ligne de contact
+ * s'affiche telle quelle.
+ */
+function itineraire(address) {
+  if (!address?.street || !address.city || !/^\d{2,6}$/.test(address.postalCode ?? '')) return null;
+  const q = encodeURIComponent(`${address.street}, ${address.postalCode} ${address.city}`);
+  return {
+    maps: `https://www.google.com/maps/dir/?api=1&destination=${q}`,
+    waze: `https://waze.com/ul?q=${q}&navigate=yes`,
+    plans: `https://maps.apple.com/?daddr=${q}`,
+  };
+}
+
 function livraisonBloc(order) {
   const livraison = order.mode === 'delivery';
   const lignes = [];
@@ -353,7 +371,26 @@ function livraisonBloc(order) {
       : '🏠 Retrait sur place'
   );
   if (order.slot?.label) lignes.push(`🕒 ${escapeHtml(order.slot.label)}`);
-  if (order.contact) lignes.push(`📍 ${escapeHtml(order.contact)}`);
+
+  // L'adresse sur plusieurs lignes, comme sur une enveloppe, et de quoi ouvrir
+  // un itinéraire : recopier une adresse à la main dans une application de
+  // trajet, une par commande, c'est la faute de frappe assurée.
+  const route = livraison ? itineraire(order.address) : null;
+  if (route) {
+    lignes.push(`📍 ${escapeHtml(order.address.street)}`);
+    if (order.address.complement) lignes.push(`&nbsp;&nbsp;&nbsp;${escapeHtml(order.address.complement)}`);
+    lignes.push(`&nbsp;&nbsp;&nbsp;${escapeHtml(`${order.address.postalCode} ${order.address.city}`.trim())}`);
+    if (order.phone) lignes.push(`📞 ${escapeHtml(order.phone)}`);
+    lignes.push(
+      '<span class="a-route">' +
+        `<a href="${escapeHtml(route.maps)}" target="_blank" rel="noopener">🗺 Maps</a>` +
+        `<a href="${escapeHtml(route.waze)}" target="_blank" rel="noopener">🚗 Waze</a>` +
+        `<a href="${escapeHtml(route.plans)}" target="_blank" rel="noopener">🧭 Plans</a>` +
+      '</span>'
+    );
+  } else if (order.contact) {
+    lignes.push(`📍 ${escapeHtml(order.contact)}`);
+  }
 
   // Le détail du calcul n'apparaît que s'il y a quelque chose à expliquer.
   if (order.discount || order.deliveryFee) {

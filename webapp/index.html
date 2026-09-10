@@ -196,19 +196,31 @@
         <span>Comment tu récupères</span>
         <div class="modes" id="modes" role="group" aria-label="Mode de récupération"></div>
       </div>
-      <label class="field" id="postalField" hidden>
-        <span>Code postal de livraison</span>
-        <input id="orderPostal" type="text" inputmode="numeric" maxlength="6" placeholder="68000"
-               autocomplete="postal-code">
+      <!-- Plusieurs champs sous un seul intitulé : un <label> ne désigne qu'un
+           contrôle, chaque ligne porte donc son propre aria-label. -->
+      <div class="field" id="addressField" hidden>
+        <span>Adresse de livraison</span>
+        <input id="orderStreet" type="text" maxlength="120" placeholder="12 rue des Lilas"
+               autocomplete="street-address" aria-label="Rue et numéro">
+        <input id="orderComplement" type="text" maxlength="120"
+               placeholder="Bâtiment, étage, code d'entrée (optionnel)"
+               autocomplete="address-line2" aria-label="Complément d'adresse">
+        <div class="champs-deux">
+          <input id="orderPostal" type="text" inputmode="numeric" maxlength="6" placeholder="68100"
+                 autocomplete="postal-code" aria-label="Code postal">
+          <input id="orderCity" type="text" maxlength="60" placeholder="Ville"
+                 autocomplete="address-level2" aria-label="Ville">
+        </div>
         <p class="promo__status" id="zoneStatus" hidden role="status"></p>
-      </label>
+      </div>
       <label class="field" id="slotField" hidden>
         <span id="slotFieldLabel">Créneau souhaité</span>
         <select id="orderSlot"></select>
       </label>
       <label class="field" id="contactField">
-        <span id="contactLabel">Téléphone ou adresse (optionnel)</span>
-        <input id="orderContact" type="text" maxlength="200" placeholder="Pour te joindre ou te livrer">
+        <span id="contactLabel">Téléphone (optionnel)</span>
+        <input id="orderContact" type="tel" maxlength="200" placeholder="Pour te joindre"
+               autocomplete="tel">
       </label>
       <div class="field" id="promoField">
         <span>Code promo</span>

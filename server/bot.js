@@ -3,6 +3,7 @@ import { config } from './config.js';
 import { listOrders, STATUSES, setStatus } from './orders.js';
 import { restoreStock, getCatalog, addProductMedia, MEDIA_MAX } from './catalog.js';
 import { matchProduct } from './photos.js';
+import { adresseEnClair, liensItineraire } from './delivery.js';
 import { getSettings, saveSettings } from './settings.js';
 import { requestVerification, decideVerification } from './verification.js';
 import { desabonner, reabonner, estDesabonne, consignerResultat } from './annonces.js';
@@ -828,7 +829,7 @@ export function orderMessage(order) {
     remise +
     frais +
     `Total : ${formatPrice(order.total)}\n` +
-    (order.contact ? `${livraison ? 'Adresse' : 'Contact'} : ${order.contact}\n` : '') +
+    adresseDuMessage(order) +
     (order.note ? `Note : ${order.note}` : '')
   );
 }
@@ -839,9 +840,37 @@ export function orderMessage(order) {
  * ne peut pas produire un enchaînement interdit. Rien quand la commande est
  * terminée — le clavier disparaît alors de lui-même.
  */
+/**
+ * Où livrer, écrit pour être lu et recopié.
+ *
+ * L'adresse sur sa propre ligne, le complément sous elle, la ville en
+ * dessous : c'est la forme d'une enveloppe, et c'est celle qu'on relit d'un
+ * coup d'œil au moment de partir. Les commandes d'avant ne portent qu'une
+ * ligne de contact — on la garde telle quelle.
+ */
+function adresseDuMessage(order) {
+  const livraison = order.mode === 'delivery';
+  if (livraison && order.address?.street) {
+    return (
+      `📍 ${adresseEnClair(order.address, '\n     ')}\n` +
+      (order.phone ? `📞 ${order.phone}\n` : '')
+    );
+  }
+  return order.contact ? `${livraison ? 'Adresse' : 'Contact'} : ${order.contact}\n` : '';
+}
+
+/**
+ * Les boutons d'une commande : le statut suivant, et par où y aller.
+ *
+ * Les trois applications de trajet valent mieux qu'une seule : Waze est le
+ * réflexe de beaucoup de livreurs, Plans s'ouvre tout seul sur un iPhone, et
+ * Maps reste le repli qui marche partout. Recopier une adresse à la main dans
+ * une application, une par commande, c'est la faute de frappe assurée.
+ */
 export function statusKeyboard(order) {
   const next = STATUSES[order.status]?.next ?? [];
-  if (!next.length) return undefined;
+  const route = order.mode === 'delivery' ? liensItineraire(order.address) : null;
+  if (!next.length && !route) return undefined;
 
   const keyboard = new InlineKeyboard();
   for (const status of next) {
@@ -849,6 +878,10 @@ export function statusKeyboard(order) {
       `${STATUSES[status].emoji} ${STATUSES[status].label}`,
       `st:${order.reference}:${status}`
     );
+  }
+  if (route) {
+    if (next.length) keyboard.row();
+    keyboard.url('🗺 Maps', route.maps).url('🚗 Waze', route.waze).url('🧭 Plans', route.plans);
   }
   return keyboard;
 }

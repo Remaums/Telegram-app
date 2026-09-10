@@ -32,7 +32,7 @@ function makeReference() {
 export async function createOrder({
   user, items, subtotal, discount = 0, discountLabel = null, promoCode = null,
   deliveryFee = 0, total, mode = 'pickup', contact, note, slot = null, zone = null,
-  guards = null,
+  address = null, phone = null, guards = null,
 }) {
   return store.update((orders) => {
     if (guards?.maxPerHour) {
@@ -69,6 +69,10 @@ export async function createOrder({
       },
       items,
       mode,
+      // L'adresse découpée, telle que le client l'a saisie : c'est elle qui
+      // sert à ouvrir un itinéraire, là où `contact` n'est bon qu'à lire.
+      address,
+      phone,
       subtotal: subtotal ?? total,
       // Remise appliquée, avec de quoi l'expliquer au client s'il rappelle :
       // le libellé du palier, ou le code qu'il a saisi.

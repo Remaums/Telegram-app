@@ -21,7 +21,10 @@ import { isOpenNow, nextChange } from './opening.js';
 import { servirMedia, etatDuCache } from './media-cache.js';
 import { waitlistKey, subscribe, isSubscribed } from './waitlist.js';
 import { bestDiscount, releasePromo } from './promos.js';
-import { findZone, findSlot, availableSlots, slotLabel } from './delivery.js';
+import {
+  findZone, findSlot, availableSlots, slotLabel,
+  normalizeAddress, adresseIncomplete, adresseEnClair,
+} from './delivery.js';
 import { adminRouter } from './admin.js';
 import { bot, notifyAdmin, notifyOrderPlaced, notifyLowStock } from './bot.js';
 import { storageKind, claimDataDir } from './store.js';
@@ -222,7 +225,7 @@ async function resolveItems(items) {
 
 app.post('/api/orders', authenticate, async (req, res, next) => {
   try {
-    const { items, contact, note, mode, promoCode, postalCode, slotId } = req.body ?? {};
+    const { items, contact, address: adresseRecue, note, mode, promoCode, postalCode, slotId } = req.body ?? {};
     const settings = await getSettings();
 
     if (isBlocked(settings, req.telegramUser.id)) {
@@ -261,22 +264,39 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       throw new HttpError(400, chosen === 'delivery' ? "La livraison n'est pas proposée." : "Le retrait n'est pas proposé.");
     }
 
-    const address = typeof contact === 'string' ? contact.trim().slice(0, 200) : '';
-    if (chosen === 'delivery' && address.length < 5) {
-      throw new HttpError(400, 'Indique une adresse de livraison.');
+    // « contact » ne porte plus que le téléphone : l'adresse arrive découpée,
+    // parce qu'un livreur a besoin d'une ville et d'un code postal, pas d'une
+    // ligne libre où « chez Marc » suffisait à passer.
+    const telephone = typeof contact === 'string' ? contact.trim().slice(0, 200) : '';
+
+    let adresse = null;
+    if (chosen === 'delivery') {
+      if (adresseRecue && typeof adresseRecue === 'object') {
+        adresse = normalizeAddress(adresseRecue);
+        const manque = adresseIncomplete(adresse);
+        if (manque) throw new HttpError(400, manque);
+      } else if (telephone.length < 5) {
+        // Une Mini App restée en cache envoie encore l'adresse en une ligne :
+        // on la prend telle quelle plutôt que de refuser une vraie commande.
+        throw new HttpError(400, 'Indique une adresse de livraison.');
+      }
     }
 
     // Zone de livraison : tant qu'aucune n'est déclarée, on livre partout aux
     // conditions générales. Dès qu'il y en a une, le code postal doit tomber
     // dedans — sinon la commande part vers une adresse qu'on ne dessert pas.
+    // Le code postal de l'adresse fait foi : deux champs pour la même chose se
+    // contrediraient un jour, et c'est celui-là que le client vient d'écrire.
+    const codePostal = adresse?.postalCode || postalCode;
+
     let zone = null;
     if (chosen === 'delivery' && settings.features.zones && settings.zones.length) {
-      zone = findZone(settings.zones, postalCode);
+      zone = findZone(settings.zones, codePostal);
       if (!zone) {
         throw new HttpError(
           400,
-          postalCode
-            ? `On ne livre pas encore le ${String(postalCode).trim()}. Retrait sur place, ou écris-nous.`
+          codePostal
+            ? `On ne livre pas encore le ${String(codePostal).trim()}. Retrait sur place, ou écris-nous.`
             : 'Indique ton code postal pour la livraison.'
         );
       }
@@ -369,8 +389,13 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
         deliveryFee,
         total: subtotal - remise.discount + deliveryFee,
         slot,
-        zone: zone ? { id: zone.id, name: zone.name, postalCode: String(postalCode).trim() } : null,
-        contact: address || null,
+        zone: zone ? { id: zone.id, name: zone.name, postalCode: String(codePostal).trim() } : null,
+        address: adresse,
+        phone: telephone || null,
+        // Une ligne lisible d'un coup d'œil, pour tout ce qui affiche déjà un
+        // contact : la carte de commande, l'export, le fil du client.
+        contact:
+          [adresse ? adresseEnClair(adresse, ' · ') : '', telephone].filter(Boolean).join(' · ') || null,
         note: typeof note === 'string' ? note.slice(0, 500) : null,
         // Ce qui se compte sur les commandes est vérifié au moment d'écrire.
         guards: {
@@ -413,6 +438,11 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       total: order.total,
       slot: order.slot,
       zone: order.zone,
+      // Ce que la boutique a retenu de l'adresse : le client doit pouvoir
+      // relire ce qui a été enregistré, pas seulement ce qu'il a tapé.
+      address: order.address,
+      phone: order.phone,
+      contact: order.contact,
       items: order.items,
     });
   } catch (err) {

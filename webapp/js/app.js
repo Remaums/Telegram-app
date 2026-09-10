@@ -347,7 +347,10 @@ function renderZoneStatus() {
   const el = $('zoneStatus');
   const code = $('orderPostal').value.trim();
 
-  if (!code) {
+  // Sans zone déclarée, la boutique livre partout : un code postal n'a alors
+  // rien à dire, et « on ne livre pas encore le 68100 » sous l'adresse d'une
+  // boutique qui livre partout fait renoncer pour rien.
+  if (!code || !state.zones.length) {
     el.hidden = true;
     return;
   }
@@ -1606,7 +1609,9 @@ function renderCart() {
   const livraison = state.mode === 'delivery';
   $('modeField').hidden = lines.length === 0 || !(state.fulfillment.pickup && state.fulfillment.delivery);
   $('contactField').hidden = lines.length === 0;
-  $('postalField').hidden = lines.length === 0 || !livraison || state.zones.length === 0;
+  // L'adresse est demandée dès qu'on livre, zones ou pas : c'est le livreur
+  // qui en a besoin, pas le calcul des frais.
+  $('addressField').hidden = lines.length === 0 || !livraison;
   $('slotField').hidden = lines.length === 0 || !state.slotsEnabled;
   $('slotFieldLabel').textContent = livraison ? 'Créneau de livraison' : 'Créneau de retrait';
   renderZoneStatus();
@@ -1619,8 +1624,8 @@ function renderCart() {
     : 'Créneau souhaité, point de retrait, question…';
 
   $('contactLabel').textContent = livraison
-    ? 'Adresse de livraison (obligatoire)'
-    : 'Téléphone ou adresse (optionnel)';
+    ? 'Téléphone (pour te prévenir à l\'arrivée)'
+    : 'Téléphone (optionnel)';
 
   // Bloquer le bouton plutôt que laisser partir une commande que le serveur
   // refusera : le client verrait un aller-retour pour rien.
@@ -1739,23 +1744,33 @@ async function checkout() {
   const lines = detailedCart();
   if (!lines.length) return;
 
+  const note = $('orderNote').value.trim();
+  const contact = $('orderContact').value.trim();
+  const adresse = adresseSaisie();
+
+  // On vérifie avant de toucher au bouton : désactivé puis abandonné en
+  // « Préparation… », il restait mort jusqu'à ce que le panier bouge, et le
+  // client n'avait plus rien sur quoi appuyer.
+  if (state.mode === 'delivery') {
+    // Le même reproche que le serveur, mais tout de suite, et le doigt posé
+    // sur le champ qui manque : un aller-retour pour rien décourage.
+    const manque = adresseIncomplete(adresse);
+    if (manque) {
+      toast(manque.texte);
+      $(manque.champ).focus();
+      return;
+    }
+  }
+
   const button = $('checkout');
   button.disabled = true;
   button.textContent = 'Préparation…';
 
-  const note = $('orderNote').value.trim();
-  const contact = $('orderContact').value.trim();
   // Figés avant l'envoi : la commande réussie efface le code consommé et le
   // créneau réservé, et le récapitulatif doit quand même les porter.
   const remise = currentDiscount(cartTotal());
   const creneau = state.slots.find((s) => s.id === state.slotId) ?? null;
   const zone = state.zone;
-
-  if (state.mode === 'delivery' && contact.length < 5) {
-    toast('Indique ton adresse de livraison.');
-    $('orderContact').focus();
-    return;
-  }
 
   // On enregistre la commande côté serveur pour avoir une référence et une
   // trace. Si le serveur ne répond pas, on continue quand même : l'essentiel
@@ -1773,8 +1788,9 @@ async function checkout() {
         items: lines.map((l) => ({ id: l.id, variantId: l.variantId, quantity: l.quantity })),
         mode: state.mode,
         promoCode: state.promo?.code ?? null,
-        postalCode: state.zone ? $('orderPostal').value.trim() : null,
+        postalCode: adresse.postalCode || null,
         slotId: state.slotId || null,
+        address: state.mode === 'delivery' ? adresse : null,
         contact,
         note,
       }),
@@ -1833,7 +1849,7 @@ async function checkout() {
     console.warn('Enregistrement de la commande impossible :', err);
   }
 
-  const message = buildOrderMessage(lines, note, reference, contact, remise, creneau, zone);
+  const message = buildOrderMessage(lines, note, reference, contact, remise, creneau, zone, adresse);
   state.lastMessage = message;
   openSellerChat(message);
 
@@ -1853,6 +1869,36 @@ async function checkout() {
     // encore des articles qu'on vient soi-même d'emporter.
     refreshCatalog();
   }
+}
+
+/** L'adresse telle qu'elle est écrite, sans juger de ce qui manque. */
+function adresseSaisie() {
+  const propre = (id) => $(id).value.replace(/\s+/g, ' ').trim();
+  return {
+    street: propre('orderStreet'),
+    complement: propre('orderComplement'),
+    postalCode: propre('orderPostal'),
+    city: propre('orderCity'),
+  };
+}
+
+/**
+ * Ce qui manque pour qu'un livreur trouve la porte.
+ *
+ * Les mêmes règles que le serveur, qui reste seul juge : celles-ci ne sont là
+ * que pour dire tout de suite quel champ remplir. Le numéro de rue n'est pas
+ * exigé — un lieu-dit n'en a pas, et refuser sa commande coûterait plus cher
+ * qu'une adresse imprécise.
+ */
+function adresseIncomplete(adresse) {
+  if (adresse.street.length < 5) {
+    return { champ: 'orderStreet', texte: 'Indique la rue et le numéro.' };
+  }
+  if (!/^\d{2,6}$/.test(adresse.postalCode)) {
+    return { champ: 'orderPostal', texte: 'Indique ton code postal.' };
+  }
+  if (adresse.city.length < 2) return { champ: 'orderCity', texte: 'Indique la ville.' };
+  return null;
 }
 
 /** Accusé de réception : sans lui, rien dans l'app ne dit que c'est parti. */
@@ -1896,7 +1942,7 @@ async function refreshCatalog() {
   }
 }
 
-function buildOrderMessage(lines, note, reference, contact, remise, creneau, zone) {
+function buildOrderMessage(lines, note, reference, contact, remise, creneau, zone, adresse) {
   const parts = [`Bonjour ! Je souhaite commander sur ${state.shop.shopName} 🌿`, ''];
 
   for (const line of lines) {
@@ -1916,7 +1962,15 @@ function buildOrderMessage(lines, note, reference, contact, remise, creneau, zon
   if (fee) parts.push(`Frais de livraison : ${formatPrice(fee)}`);
   parts.push(`Total : ${formatPrice(subtotal - remise.discount + fee)}`);
   if (reference) parts.push(`Réf : ${reference}`);
-  if (contact) parts.push(`${state.mode === 'delivery' ? 'Adresse' : 'Contact'} : ${contact}`);
+  if (state.mode === 'delivery' && adresse?.street) {
+    parts.push('', 'Adresse :');
+    parts.push(adresse.street);
+    if (adresse.complement) parts.push(adresse.complement);
+    parts.push(`${adresse.postalCode} ${adresse.city}`.trim());
+    if (contact) parts.push(`Téléphone : ${contact}`);
+  } else if (contact) {
+    parts.push(`Contact : ${contact}`);
+  }
   if (note) parts.push('', `Note : ${note}`);
 
   return parts.join('\n');

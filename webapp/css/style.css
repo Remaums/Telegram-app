@@ -650,6 +650,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .field select option { background: var(--night-2); color: var(--cream); }
 .field select option:disabled { color: rgb(var(--cream-rgb) / .4); }
 
+/* Une adresse tient en plusieurs lignes : elles se suivent sans intitulé
+   intermédiaire, comme sur une enveloppe. */
+.field input + input, .field input + .champs-deux { margin-top: 7px; }
+.champs-deux { display: grid; grid-template-columns: 5.5rem 1fr; gap: 7px; }
+
 .cart__total { flex: 1 1 auto; min-width: 0; line-height: 1.05; }
 .cart__total span { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); }
 .cart__total strong { font-size: 28px; }

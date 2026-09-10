@@ -56,6 +56,86 @@ export function findZone(zones, postalCode) {
   return (zones ?? []).find((zone) => zone.postalCodes.includes(code)) ?? null;
 }
 
+/* ══ Adresse de livraison ════════════════════════════════════ */
+
+/**
+ * Nettoie une adresse reçue du client. Rend toujours un objet.
+ *
+ * Les espaces multiples sont réduits : une adresse recopiée depuis une note
+ * arrive souvent avec des retours à la ligne, et elle finit dans une URL
+ * d'itinéraire où ils n'ont rien à faire.
+ */
+export function normalizeAddress(input) {
+  const propre = (valeur, max) => String(valeur ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+  const source = input && typeof input === 'object' ? input : {};
+  return {
+    street: propre(source.street, 120),
+    complement: propre(source.complement, 120),
+    postalCode: propre(source.postalCode, 10),
+    city: propre(source.city, 60),
+  };
+}
+
+/**
+ * Ce qui manque pour qu'un livreur trouve la porte.
+ *
+ * Le numéro de rue n'est pas exigé : un lieu-dit, un hameau, une résidence
+ * sans numéro existent, et refuser leur commande coûterait plus cher qu'une
+ * adresse imprécise. Le reste, si : sans ville ni code postal, une rue ne
+ * désigne rien — il y a une rue de la Gare dans presque chaque commune.
+ *
+ * @returns {string|null} le reproche à faire au client, ou null si l'adresse
+ *   tient debout.
+ */
+export function adresseIncomplete(address) {
+  const rue = address?.street ?? '';
+  if (rue.length < 5 || !/\p{L}/u.test(rue)) {
+    return 'Indique la rue et le numéro, par exemple « 12 rue des Lilas ».';
+  }
+  if (!/^\d{2,6}$/.test(address?.postalCode ?? '')) return 'Indique un code postal valide.';
+  if ((address?.city ?? '').length < 2) return 'Indique la ville.';
+  return null;
+}
+
+/**
+ * L'adresse telle qu'on la donne à un GPS.
+ *
+ * Le complément reste dehors : « 3e étage, code 1234 » n'aide aucun
+ * géocodeur, et beaucoup renoncent à chercher plutôt que de l'ignorer.
+ */
+export function adressePourGps(address) {
+  if (adresseIncomplete(address)) return '';
+  return `${address.street}, ${address.postalCode} ${address.city}`;
+}
+
+/** L'adresse en clair pour un humain, complément compris. */
+export function adresseEnClair(address, separateur = '\n') {
+  if (!address?.street) return '';
+  return [address.street, address.complement, `${address.postalCode} ${address.city}`.trim()]
+    .filter(Boolean)
+    .join(separateur);
+}
+
+/**
+ * Les liens d'itinéraire vers les applications de trajet courantes.
+ *
+ * Trois, parce qu'aucune ne va de soi : Waze est le réflexe de beaucoup de
+ * livreurs, Plans s'ouvre tout seul sur un iPhone, et Maps reste le repli qui
+ * marche partout, y compris dans un navigateur. Chacune ouvre l'application
+ * installée si elle l'est, son site sinon.
+ */
+export function liensItineraire(address) {
+  const destination = adressePourGps(address);
+  if (!destination) return null;
+
+  const q = encodeURIComponent(destination);
+  return {
+    maps: `https://www.google.com/maps/dir/?api=1&destination=${q}`,
+    waze: `https://waze.com/ul?q=${q}&navigate=yes`,
+    plans: `https://maps.apple.com/?daddr=${q}`,
+  };
+}
+
 /* ══ Créneaux ════════════════════════════════════════════════ */
 
 export function defaultSlots() {

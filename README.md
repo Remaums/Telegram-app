@@ -624,9 +624,31 @@ n'empêcherait pas de valider un panier resté ouvert.
 | Livraison offerte dès | franco : au-delà, les frais tombent à zéro |
 | Commande minimum | en dessous, le bouton Commander reste fermé |
 
-Une commande en livraison exige une adresse. Le mode, le sous-total et les
-frais sont enregistrés avec la commande, et repris dans le message envoyé au
-vendeur.
+Une commande en livraison exige une **adresse complète**, saisie en quatre
+champs plutôt qu'en une ligne libre : rue et numéro, complément (bâtiment,
+étage, code d'entrée), code postal, ville. Une ligne libre laissait passer
+« chez Marc » — cinq caractères, aucune ville, et un livreur qui rappelle. Ce
+qui manque est nommé un champ à la fois, le curseur posé dessus, avant même
+d'envoyer la commande. Le téléphone est demandé à part, et reste facultatif.
+
+> Le numéro de rue n'est pas exigé : un lieu-dit ou un hameau n'en a pas, et
+> refuser leur commande coûterait plus cher qu'une adresse imprécise. Le code
+> postal et la ville, eux, sont obligatoires — il y a une rue de la Gare dans
+> presque chaque commune.
+
+**Le message de commande porte trois boutons d'itinéraire** — 🗺 Maps, 🚗 Waze,
+🧭 Plans — qui ouvrent l'adresse dans l'application installée, ou sur le site
+sinon. Les mêmes liens figurent sur la carte de la commande dans l'espace
+admin. Recopier une adresse à la main dans une application de trajet, une par
+commande, c'est la faute de frappe assurée — et une faute de frappe, ici, c'est
+un livreur devant la mauvaise porte.
+
+Le complément ne part **pas** dans l'itinéraire : « 3e étage, code 1234 »
+n'aide aucun géocodeur, et beaucoup renoncent à chercher plutôt que de
+l'ignorer. Il reste affiché dans le message, sous l'adresse.
+
+Le mode, le sous-total et les frais sont enregistrés avec la commande, et
+repris dans le message envoyé au vendeur.
 
 ### Zones de livraison
 
