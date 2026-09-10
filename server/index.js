@@ -24,7 +24,7 @@ import { bestDiscount, releasePromo } from './promos.js';
 import { findZone, findSlot, availableSlots, slotLabel } from './delivery.js';
 import { adminRouter } from './admin.js';
 import { bot, notifyAdmin, notifyOrderPlaced, notifyLowStock } from './bot.js';
-import { storageKind } from './store.js';
+import { storageKind, claimDataDir } from './store.js';
 
 /** Vrai quand ce fichier est lancé directement (`npm start`), faux quand il
  *  est simplement importé — par la fonction serverless de `api/index.js`. */
@@ -645,6 +645,15 @@ export { app };
 export default app;
 
 if (standalone) {
+  // Le magasin fichier n'appartient qu'à un processus : deux instances sur le
+  // même dossier s'effacent l'une l'autre, sans le moindre message.
+  try {
+    claimDataDir?.();
+  } catch (err) {
+    console.error(`\n  ${err.message}\n`);
+    process.exit(1);
+  }
+
   app.listen(config.port, config.host, () => {
     console.log(`  Boutique servie sur http://${config.host}:${config.port}`);
     if (config.webappUrl) console.log(`  URL publique déclarée : ${config.webappUrl}`);

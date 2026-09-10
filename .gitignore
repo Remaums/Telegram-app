@@ -7,4 +7,5 @@ server/data/settings.json
 server/data/verifications.json
 server/data/waitlist.json
 server/data/promos.json
+server/data/.lock
 .DS_Store

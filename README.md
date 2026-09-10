@@ -362,6 +362,18 @@ document JSONB par magasin, et chaque écriture verrouille sa ligne le temps de 
 transaction. Les deux magasins exposent la même interface, `server/store.js`
 choisit — le reste du serveur ignore lequel tourne.
 
+> ⚠️ **Avec les fichiers JSON, une seule instance.** Chaque processus garde les
+> données en mémoire et réécrit le fichier entier : deux instances sur le même
+> dossier ne se voient pas, et la seconde efface silencieusement ce que la
+> première vient d'écrire — commandes comprises. La boutique **refuse donc de
+> démarrer** si une autre instance tient déjà le dossier (`server/data/.lock`).
+> Pour servir depuis plusieurs processus — `pm2 -i 2`, plusieurs conteneurs,
+> ou le serverless — il faut `DATABASE_URL` : Postgres verrouille la ligne le
+> temps de la transaction, et deux instances peuvent travailler ensemble sans
+> se marcher dessus. C'est vérifié par un test qui fait tourner deux serveurs
+> sur la même base et leur fait disputer le dernier article, le dernier
+> créneau et un code à usage unique.
+
 > 💾 **En local, pense à sauvegarder `server/data/`** : c'est là que vivent ton
 > catalogue et tes commandes. En ligne, c'est la base Postgres qu'il faut
 > sauvegarder (la plupart des fournisseurs le font pour toi).
