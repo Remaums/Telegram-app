@@ -20,6 +20,47 @@ c'est le mode le plus simple du projet.
 
 ---
 
+## Le chemin rapide : laisser le script faire
+
+Les étapes 2 à 8 ci-dessous sont mécaniques. Un script les exécute :
+
+```bash
+# Une fois le dépôt cloné (étape 3) :
+cd ~/Telegram-app
+bash deploy/installer.sh
+```
+
+Il installe Node si besoin, les dépendances, le service systemd réglé sur ton
+utilisateur et ton chemin réels, le pare-feu, et te demande lequel des trois
+accès HTTPS tu veux (tunnel Cloudflare, DuckDNS, ton domaine). Il se relance
+sans dégât : chaque étape regarde d'abord si elle a déjà été faite, et il ne
+remplace jamais un réglage existant sans te le demander.
+
+Ce qu'il ne peut pas faire à ta place, et qu'il te rappelle à la fin : créer le
+bot chez BotFather, y coller l'adresse de la Mini App, et relever ton
+identifiant Telegram.
+
+**Lis quand même les étapes qui suivent.** Le script fait les gestes ; elles
+expliquent pourquoi, ce qui compte le jour où quelque chose cloche.
+
+### Quand quelque chose cloche
+
+```bash
+bash deploy/diagnostic.sh
+```
+
+Sort en un seul bloc l'état de la machine : version de Node, état du service,
+quelles clefs de configuration sont remplies, si la boutique répond, l'état du
+certificat, et les dernières lignes du journal. C'est ce qu'on demande toujours
+en premier — autant l'avoir d'un coup.
+
+> 🔐 **Ce rapport ne contient aucun secret.** Le contenu de `.env` n'est jamais
+> affiché : pour chaque clef, il dit seulement « renseignée » ou « vide ». Les
+> tokens et mots de passe qui traîneraient dans les journaux sont masqués. Il
+> est fait pour être collé dans une conversation sans rien y laisser fuir.
+
+---
+
 ## 1. Créer le bot chez BotFather
 
 Dans Telegram, écris à **@BotFather** :

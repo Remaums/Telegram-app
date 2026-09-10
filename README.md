@@ -222,7 +222,8 @@ Deux chemins, selon ce que tu as sous la main :
 - **Un VPS** (Debian/Ubuntu) — le plus simple : le bot tourne en long polling,
   le catalogue vit dans des fichiers JSON, rien d'autre à installer. Pas encore
   de nom de domaine ? L'étape 6 du guide donne deux façons gratuites d'obtenir
-  une URL en HTTPS pour tester.
+  une URL en HTTPS pour tester. `deploy/installer.sh` fait les gestes
+  mécaniques, `deploy/diagnostic.sh` dit ce qui cloche.
   👉 **[Guide pas à pas : docs/vps.md](docs/vps.md)**
 - **Vercel** (serverless) — voir la section ci-dessous : le bot passe en
   webhook et le stockage en Postgres, car le disque y est en lecture seule.
