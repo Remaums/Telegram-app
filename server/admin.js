@@ -19,6 +19,7 @@ import { listVerifications, decideVerification, resetVerification } from './veri
 import { notifyCustomer, notifyBackInStock } from './bot.js';
 import { waitlistKey, takeSubscribers } from './waitlist.js';
 import { listPromos, savePromo, deletePromo } from './promos.js';
+import { FEATURES } from './features.js';
 
 export const adminRouter = express.Router();
 
@@ -58,7 +59,14 @@ const route = (handler) => async (req, res, next) => {
 adminRouter.get(
   '/session',
   route(async (req, res) => {
-    res.json({ user: req.telegramUser, statuses: STATUSES, currency: config.currency });
+    // Le catalogue des interrupteurs vient du serveur : ajouter une
+    // fonctionnalité n'oblige pas à retoucher le HTML de l'admin.
+    res.json({
+      user: req.telegramUser,
+      statuses: STATUSES,
+      currency: config.currency,
+      features: FEATURES,
+    });
   })
 );
 
@@ -123,6 +131,8 @@ function stockSnapshot(product) {
  */
 async function announceRestock(avant, after, variantId = null) {
   if (!avant || !after) return;
+  // Sans liste d'attente, personne n'attend : rien à annoncer.
+  if (!(await getSettings()).features.waitlist) return;
 
   const lines = after.variants?.length
     ? after.variants.map((v) => ({
@@ -182,7 +192,7 @@ adminRouter.post(
       }
     }
 
-    if (changed) {
+    if (changed && (await getSettings()).features.clientNotifications) {
       notifyCustomer(order).catch((err) =>
         console.error('Notification client impossible :', err.message)
       );

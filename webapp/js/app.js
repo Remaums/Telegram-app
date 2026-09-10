@@ -14,6 +14,7 @@ const state = {
   statuses: {},
   category: 'all',
   gates: {},
+  features: {},       // ce que la boutique propose en ce moment
   opening: { open: true },
   fulfillment: { pickup: true, delivery: false, deliveryFee: 0, freeDeliveryFrom: null, minimumOrder: 0 },
   tiers: [],          // remises automatiques par palier
@@ -62,11 +63,14 @@ async function init() {
     state.products = data.products;
     state.statuses = data.statuses ?? {};
     state.gates = data.gates ?? {};
+    state.features = data.features ?? {};
     state.opening = data.opening ?? { open: true };
     state.fulfillment = data.fulfillment ?? state.fulfillment;
     state.tiers = data.discounts?.tiers ?? [];
     state.zones = data.zones ?? [];
     state.slotsEnabled = Boolean(data.slots?.enabled);
+    gateAge();
+    applyFeatures();
     state.mode = state.fulfillment.pickup ? 'pickup' : 'delivery';
   } catch (err) {
     console.error(err);
@@ -166,6 +170,12 @@ function renderModes() {
       return btn;
     })
   );
+}
+
+/** Retire de l'interface ce que la boutique n'offre pas en ce moment. */
+function applyFeatures() {
+  $('ordersBtn').hidden = state.features.orderHistory === false;
+  $('promoField').hidden = state.features.promos === false;
 }
 
 /* ── Zones et créneaux ───────────────────────────────────── */
@@ -566,6 +576,12 @@ function writePass(pass) {
 }
 
 function gateAge() {
+  // Appelée avant le catalogue au premier affichage : sans réponse du serveur
+  // on garde la porte fermée, plus prudent que de l'ouvrir par défaut.
+  if (state.features.ageGate === false) {
+    $('agegate').hidden = true;
+    return;
+  }
   let confirmed = false;
   try { confirmed = localStorage.getItem(AGE_KEY) === '1'; } catch {}
   $('agegate').hidden = confirmed;
@@ -701,11 +717,12 @@ function setQty(next) {
   const notify = $('notifyMe');
 
   if (available <= 0) {
-    // Épuisé : plutôt qu'un bouton mort, on propose d'être prévenu.
+    // Épuisé : plutôt qu'un bouton mort, on propose d'être prévenu — sauf si
+    // la liste d'attente est coupée, auquel cas il n'y a rien à promettre.
     addButton.hidden = true;
     $('qtyValue').closest('.qty').hidden = true;
-    notify.hidden = false;
-    refreshWaitlistButton();
+    notify.hidden = state.features.waitlist === false;
+    if (!notify.hidden) refreshWaitlistButton();
     return;
   }
 
@@ -856,7 +873,7 @@ function renderCart() {
 
   $('cartEmpty').hidden = lines.length > 0;
   $('noteField').hidden = lines.length === 0;
-  $('promoField').hidden = lines.length === 0;
+  $('promoField').hidden = lines.length === 0 || state.features.promos === false;
 
   const livraison = state.mode === 'delivery';
   $('modeField').hidden = lines.length === 0 || !(state.fulfillment.pickup && state.fulfillment.delivery);

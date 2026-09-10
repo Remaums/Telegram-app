@@ -3,12 +3,17 @@ import { HttpError } from './catalog.js';
 import { defaultHours, normalizeHours } from './opening.js';
 import { normalizeTiers } from './promos.js';
 import { normalizeZones, normalizeSlots, defaultSlots } from './delivery.js';
+import { defaultFeatures, normalizeFeatures } from './features.js';
 
 /**
  * Réglages de la boutique : ce qui se change en exploitation, sans toucher au
  * code ni redéployer. Le fichier est créé au premier accès avec ces valeurs.
  */
 const DEFAULTS = {
+  // Ce qui est allumé ou éteint. Source de vérité unique : les anciens
+  // `captcha.enabled`, `verification.enabled`, `slots.enabled` et
+  // `opening.hours.enabled` en sont désormais le reflet, pas l'inverse.
+  features: defaultFeatures(),
   // Retrait, livraison, frais et minimum de commande. Les montants sont en
   // centimes, comme partout ailleurs dans le projet.
   fulfillment: {
@@ -57,6 +62,11 @@ const store = createStore('settings.json', () => structuredClone(DEFAULTS));
 /** Réglages complets : les valeurs par défaut comblent les champs absents. */
 export async function getSettings() {
   const data = await store.read();
+  // Une boutique installée avant le tableau de bord n'a pas de bloc
+  // `features` : ses anciens interrupteurs le remplissent, personne ne voit
+  // sa configuration changer sous ses pieds.
+  const features = normalizeFeatures(data.features, legacyFeatures(data));
+
   return {
     ...DEFAULTS,
     ...data,
@@ -65,15 +75,19 @@ export async function getSettings() {
     alerts: { ...DEFAULTS.alerts, ...(data.alerts ?? {}) },
     discounts: { tiers: normalizeTiers(data.discounts?.tiers) },
     zones: normalizeZones(data.zones),
-    slots: normalizeSlots(data.slots),
-    captcha: { ...DEFAULTS.captcha, ...(data.captcha ?? {}) },
-    verification: { ...DEFAULTS.verification, ...(data.verification ?? {}) },
+    slots: { ...normalizeSlots(data.slots), enabled: features.slots },
+    features,
+    // Reflets : le reste du serveur peut continuer à lire l'interrupteur là où
+    // il l'a toujours lu, sans que deux vérités puissent diverger.
+    captcha: { enabled: features.captcha },
+    verification: { enabled: features.verification },
     opening: {
       ...DEFAULTS.opening,
       ...(data.opening ?? {}),
       hours: {
         ...DEFAULTS.opening.hours,
         ...(data.opening?.hours ?? {}),
+        enabled: features.hours,
         days: normalizeHours(data.opening?.hours?.days),
       },
     },
@@ -91,12 +105,19 @@ export async function saveSettings(patch) {
         unitsPerOrder: bounded(patch.limits.unitsPerOrder, 1, 999, DEFAULTS.limits.unitsPerOrder),
       };
     }
-    if (patch.captcha) {
-      data.captcha = { enabled: Boolean(patch.captcha.enabled) };
-    }
-    if (patch.verification) {
-      data.verification = { enabled: Boolean(patch.verification.enabled) };
-    }
+    // Les anciennes formes restent acceptées — un script ou un test qui
+    // envoie `captcha: { enabled: false }` doit continuer à marcher — mais
+    // elles atterrissent toutes au même endroit.
+    data.features = normalizeFeatures(
+      {
+        captcha: patch.captcha?.enabled,
+        verification: patch.verification?.enabled,
+        slots: patch.slots?.enabled,
+        hours: patch.opening?.hours?.enabled,
+        ...(patch.features ?? {}),
+      },
+      normalizeFeatures(data.features, legacyFeatures(data))
+    );
     if (patch.zones) {
       data.zones = normalizeZones(patch.zones);
     }
@@ -155,6 +176,22 @@ export async function saveSettings(patch) {
     }
     return { ...DEFAULTS, ...data };
   });
+}
+
+/**
+ * Interrupteurs d'une boutique antérieure au tableau de bord.
+ *
+ * Sert de socle quand `features` n'existe pas encore dans le fichier : sans
+ * ça, une boutique qui tournait CAPTCHA coupé le verrait se rallumer au
+ * premier démarrage après la mise à jour.
+ */
+function legacyFeatures(data) {
+  return {
+    captcha: data.captcha?.enabled,
+    verification: data.verification?.enabled,
+    slots: data.slots?.enabled,
+    hours: data.opening?.hours?.enabled,
+  };
 }
 
 /** Prive un client de commande ; le geste se fait depuis une commande reçue. */

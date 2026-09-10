@@ -252,6 +252,19 @@ body.admin {
 .a-catrow input:focus { outline: none; border-color: var(--neon); box-shadow: var(--glow-neon); }
 .a-category__emoji { width: 58px; flex: none !important; text-align: center; }
 
+.a-features { display: flex; flex-direction: column; gap: 7px; margin-bottom: 4px; }
+.a-feature {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 11px 12px; border-radius: 14px;
+  border: 1px solid var(--line-soft); background: rgb(var(--panel-rgb) / .45);
+}
+.a-feature input { flex: none; width: 21px; height: 21px; margin-top: 1px; accent-color: var(--neon); }
+.a-feature__text { min-width: 0; }
+.a-feature__text b { display: block; font-size: 14.5px; font-weight: 800; }
+.a-feature__text small { display: block; margin-top: 2px; font-size: 12.5px; font-weight: 600; color: var(--muted); line-height: 1.35; }
+/* Une fonctionnalité active se repère d'un coup d'œil dans la liste. */
+.a-feature:has(input:checked) { border-color: rgb(var(--neon-rgb) / .5); background: rgb(var(--neon-rgb) / .07); }
+
 .a-zone {
   border: 1px solid var(--line-soft); border-radius: 14px;
   padding: 11px 12px 2px; margin-bottom: 10px;

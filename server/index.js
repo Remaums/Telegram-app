@@ -114,17 +114,20 @@ app.get('/api/catalog', async (req, res, next) => {
       products,
       statuses: STATUSES,
       gates: {
+        age: settings.features.ageGate,
         captcha: settings.captcha.enabled,
         verification: settings.verification.enabled,
       },
+      // La Mini App masque ce qui est éteint ; le serveur, lui, refuse.
+      features: settings.features,
       opening: { ...isOpenNow(settings.opening), message: settings.opening.message },
       fulfillment: settings.fulfillment,
       // Les paliers sont publics : c'est une promesse d'affichage (« −10 %
       // dès 100 € »), pas un secret. Les codes, eux, ne sortent jamais d'ici.
-      discounts: { tiers: settings.discounts.tiers },
+      discounts: { tiers: settings.features.tiers ? settings.discounts.tiers : [] },
       // Les zones sont une information de service : le client doit savoir si
       // on descend chez lui, et à quelles conditions, avant de remplir son panier.
-      zones: settings.zones,
+      zones: settings.features.zones ? settings.zones : [],
       slots: { enabled: settings.slots.enabled },
     });
   } catch (err) {
@@ -222,8 +225,10 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
     // Un client authentifié pourrait sinon enchaîner les commandes en boucle
     // et vider le stock sans jamais rien retirer.
     const lastHour = Date.now() - 60 * 60 * 1000;
-    const recent = await countOrdersSince(req.telegramUser.id, lastHour);
-    if (recent >= settings.limits.ordersPerHour) {
+    const recent = settings.features.limits
+      ? await countOrdersSince(req.telegramUser.id, lastHour)
+      : 0;
+    if (settings.features.limits && recent >= settings.limits.ordersPerHour) {
       throw new HttpError(
         429,
         `Trop de commandes en une heure (${settings.limits.ordersPerHour} maximum). Réessaie plus tard, ou écris-nous.`
@@ -248,7 +253,7 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
     // conditions générales. Dès qu'il y en a une, le code postal doit tomber
     // dedans — sinon la commande part vers une adresse qu'on ne dessert pas.
     let zone = null;
-    if (chosen === 'delivery' && settings.zones.length) {
+    if (chosen === 'delivery' && settings.features.zones && settings.zones.length) {
       zone = findZone(settings.zones, postalCode);
       if (!zone) {
         throw new HttpError(
@@ -260,7 +265,7 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       }
     }
 
-    if (units > settings.limits.unitsPerOrder) {
+    if (settings.features.limits && units > settings.limits.unitsPerOrder) {
       throw new HttpError(
         400,
         `Commande trop grosse : ${settings.limits.unitsPerOrder} articles au maximum. Contacte-nous pour une commande en gros.`
@@ -287,10 +292,10 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
     // Un code refusé fait échouer la commande plutôt que de passer en silence
     // au prix fort — le client l'a tapé, il doit savoir pourquoi il ne prend pas.
     const remise = await bestDiscount({
-      code: promoCode,
+      code: settings.features.promos ? promoCode : null,
       subtotal,
       userId: req.telegramUser.id,
-      tiers: settings.discounts.tiers,
+      tiers: settings.features.tiers ? settings.discounts.tiers : [],
     });
 
     // Minimum et franco se jugent sur le panier AVANT remise : sinon un code
@@ -350,13 +355,19 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
 
     // Le vendeur découvrait ses ruptures en lisant une commande : on prévient
     // dès que le seuil est franchi, pas au prochain coup d'œil au tableau.
-    const basses = remaining.filter((r) => r.left <= settings.alerts.lowStock);
+    const basses = settings.features.stockAlerts
+      ? remaining.filter((r) => r.left <= settings.alerts.lowStock)
+      : [];
     if (basses.length) notifyLowStock(basses).catch(() => {});
 
+    // Le vendeur est prévenu quoi qu'il arrive : c'est lui qui prépare la
+    // commande. Seul le fil du client est optionnel.
     notifyAdmin(order).catch(() => {});
-    notifyOrderPlaced(order).catch((err) =>
-      console.warn('Confirmation client impossible :', err.message)
-    );
+    if (settings.features.clientNotifications) {
+      notifyOrderPlaced(order).catch((err) =>
+        console.warn('Confirmation client impossible :', err.message)
+      );
+    }
 
     res.status(201).json({
       reference: order.reference,
@@ -378,6 +389,8 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
 
 app.get('/api/orders', authenticate, async (req, res, next) => {
   try {
+    const settings = await getSettings();
+    if (!settings.features.orderHistory) return res.json([]);
     res.json(await listOrders({ userId: req.telegramUser.id, limit: 10 }));
   } catch (err) {
     next(err);
@@ -434,6 +447,9 @@ app.post('/api/promo', authenticate, async (req, res, next) => {
   try {
     const { items, code } = req.body ?? {};
     const settings = await getSettings();
+    if (code && !settings.features.promos) {
+      throw new HttpError(400, 'Les codes promo ne sont pas actifs en ce moment.');
+    }
     const { resolved } = await resolveItems(items);
     const subtotal = resolved.reduce((sum, i) => sum + i.lineTotal, 0);
 
@@ -441,7 +457,7 @@ app.post('/api/promo', authenticate, async (req, res, next) => {
       code,
       subtotal,
       userId: req.telegramUser.id,
-      tiers: settings.discounts.tiers,
+      tiers: settings.features.tiers ? settings.discounts.tiers : [],
     });
 
     res.json({
@@ -461,6 +477,11 @@ app.post('/api/promo', authenticate, async (req, res, next) => {
 
 app.post('/api/waitlist', authenticate, async (req, res, next) => {
   try {
+    const settings = await getSettings();
+    if (!settings.features.waitlist) {
+      throw new HttpError(403, "La liste d'attente n'est pas activée.");
+    }
+
     const { id, variantId } = req.body ?? {};
     const product = await getProduct(id, { includeHidden: false });
     if (!product) throw new HttpError(400, 'Produit indisponible.');
@@ -483,6 +504,9 @@ app.post('/api/waitlist', authenticate, async (req, res, next) => {
 
 app.get('/api/waitlist', authenticate, async (req, res, next) => {
   try {
+    const settings = await getSettings();
+    if (!settings.features.waitlist) return res.json({ subscribed: false });
+
     const key = waitlistKey(req.query.id, req.query.variantId || null);
     res.json({ subscribed: await isSubscribed(key, req.telegramUser.id) });
   } catch (err) {
@@ -502,6 +526,9 @@ app.get('/api/waitlist', authenticate, async (req, res, next) => {
  */
 app.get('/api/photo/:id', async (req, res, next) => {
   try {
+    const settings = await getSettings();
+    if (!settings.features.photos) return res.status(404).json({ error: 'Photos désactivées.' });
+
     const product = await getProduct(req.params.id);
     if (!product?.photoFileId) return res.status(404).json({ error: 'Pas de photo pour ce produit.' });
 

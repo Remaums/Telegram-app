@@ -79,6 +79,15 @@
 
   <!-- ══ Réglages ══ -->
   <section class="a-panel" id="panel-settings" hidden>
+    <h2 class="a-h2">Fonctionnalités</h2>
+    <p class="a-hint">
+      Tout se coupe et se rallume ici, sans redéployer. Ce qui est éteint
+      disparaît de la boutique <b>et est refusé par le serveur</b> : masquer un
+      bouton ne fermerait rien. Les réglages d'une fonctionnalité éteinte sont
+      conservés — la rallumer les retrouve intacts.
+    </p>
+    <div class="a-features" id="featureList"></div>
+
     <h2 class="a-h2">Ouverture</h2>
     <div class="a-toggle">
       <label><input type="checkbox" id="fOpen"> Boutique ouverte</label>
@@ -87,9 +96,6 @@
       <span>Message affiché quand elle est fermée</span>
       <input id="fClosedMessage" maxlength="300">
     </label>
-    <div class="a-toggle">
-      <label><input type="checkbox" id="fHours"> Horaires automatiques</label>
-    </div>
     <div id="hoursBlock" hidden>
       <label class="a-field">
         <span>Fuseau horaire</span>
@@ -111,18 +117,7 @@
     <label class="a-field"><span>Commande minimum (€)</span><input id="fMinimum" type="number" step="0.01" min="0" inputmode="decimal"></label>
     <button class="a-btn a-btn--primary a-btn--block" id="saveFulfillment" type="button">Enregistrer la livraison</button>
 
-    <h2 class="a-h2">Entrée de la boutique</h2>
-    <div class="a-toggle">
-      <label><input type="checkbox" id="fCaptcha"> Épreuve anti-robot à l'ouverture</label>
-    </div>
-    <p class="a-hint">
-      Une grille de tuiles à toucher avant de pouvoir commander. La vérification
-      se fait côté serveur : décocher rouvre la boutique immédiatement.
-    </p>
-
-    <div class="a-toggle">
-      <label><input type="checkbox" id="fVerification"> Vérification d'identité avant de commander</label>
-    </div>
+    <h2 class="a-h2">Vérification d'identité</h2>
     <p class="a-hint">
       Le client envoie sa pièce dans la conversation du bot ; tu la vois arriver
       avec deux boutons, Valider ou Refuser. <b>Le document n'est ni téléchargé
@@ -170,9 +165,6 @@
     <button class="a-btn a-btn--primary a-btn--block" id="saveZones" type="button">Enregistrer les zones</button>
 
     <h2 class="a-h2">Créneaux</h2>
-    <div class="a-toggle">
-      <label><input type="checkbox" id="fSlots"> Faire choisir un créneau</label>
-    </div>
     <p class="a-hint">
       Le client réserve une plage, tu vois l'ordre de préparation dans la
       commande. Chaque créneau a une capacité : une fois atteinte, il s'affiche

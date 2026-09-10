@@ -367,6 +367,42 @@ choisit — le reste du serveur ignore lequel tourne.
 
 Tout se règle depuis l'onglet **Réglages** de l'espace admin, sans redéployer.
 
+### Fonctionnalités
+
+Le premier bloc de l'onglet Réglages est un tableau de bord : **une case par
+fonctionnalité**, qui s'applique immédiatement — pas de bouton « Enregistrer »,
+car une case cochée mais pas encore enregistrée est un piège.
+
+| Fonctionnalité | Ce qui disparaît quand elle est coupée |
+|---|---|
+| Porte d'âge | l'écran « as-tu 18 ans ? » |
+| Épreuve anti-robot | la grille de tuiles avant de commander |
+| Vérification d'identité | la demande de pièce dans le bot |
+| Horaires automatiques | la fermeture programmée (l'interrupteur manuel reste) |
+| Zones de livraison | on livre partout aux conditions générales |
+| Créneaux | plus de plage horaire à choisir |
+| Remises par palier | plus de remise automatique |
+| Codes promo | le champ « code promo » du panier |
+| Liste d'attente | le bouton « préviens-moi du retour » |
+| Alertes de stock | le bot ne te signale plus les seuils franchis |
+| Garde-fous anti-abus | plus de plafond horaire ni d'articles |
+| Photos par le bot | envoyer une photo au bot ne change plus rien |
+| « Mes commandes » | l'écran d'historique du client |
+| Suivi envoyé au client | confirmation et messages de statut |
+
+Deux règles tiennent tout ça :
+
+> 🔒 **Ce qui est éteint est refusé par le serveur**, pas seulement masqué dans
+> la Mini App. Chaque case est vérifiée dans une route ou un envoi — cacher un
+> bouton ne fermerait rien, l'appel resterait possible.
+
+> 💾 **Les réglages d'une fonctionnalité éteinte sont conservés.** Couper les
+> créneaux ne vide pas la grille de la semaine, couper les zones ne les efface
+> pas : rallumer retrouve tout intact.
+
+Le vendeur, lui, est prévenu de chaque commande quoi qu'il arrive : c'est lui
+qui la prépare. Seul le fil du client est optionnel.
+
 ### Ouverture
 
 Un interrupteur immédiat (`/ouvrir` et `/fermer` marchent aussi depuis la

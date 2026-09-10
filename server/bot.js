@@ -120,7 +120,20 @@ bot.callbackQuery(/^vfset:(on|off)$/, async (ctx) => {
  * évite que le premier gestionnaire avale l'image du second.
  */
 bot.on(['message:photo', 'message:document'], async (ctx) => {
-  if (isAdmin(ctx.from.id)) return handleProductPhoto(ctx);
+  const settings = await getSettings();
+
+  if (isAdmin(ctx.from.id)) {
+    if (!settings.features.photos) {
+      return ctx.reply('Les photos par le bot sont désactivées (Réglages → Fonctionnalités).');
+    }
+    return handleProductPhoto(ctx);
+  }
+
+  // Sans vérification active, une pièce d'identité reçue serait une donnée
+  // sensible qu'on n'a aucune raison de manipuler : on le dit tout de suite.
+  if (!settings.features.verification) {
+    return ctx.reply("Merci, mais aucune pièce d'identité n'est demandée pour commander ici.");
+  }
   return handleIdentityDocument(ctx);
 });
 
@@ -385,7 +398,7 @@ bot.callbackQuery(/^st:([A-Za-z0-9-]+):([a-z]+)$/, async (ctx) => {
 
     // Une annulation remet les articles en rayon, comme dans l'espace admin.
     if (changed && next === 'annulee') await restoreStock(order.items);
-    if (changed) {
+    if (changed && (await getSettings()).features.clientNotifications) {
       notifyCustomer(order).catch((err) =>
         console.error('Notification client impossible :', err.message)
       );

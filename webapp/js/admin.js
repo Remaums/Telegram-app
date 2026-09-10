@@ -15,6 +15,7 @@ const state = {
   settings: null,
   verifications: [],
   promos: [],
+  featureList: [],   // catalogue des interrupteurs, servi par le serveur
   tab: 'board',
   orderFilter: '',
   editing: null, // produit en cours d'édition, null = création
@@ -41,6 +42,7 @@ async function init() {
     const session = await api('/session');
     state.currency = session.currency;
     state.statuses = session.statuses;
+    state.featureList = session.features ?? [];
     $('adminName').textContent = session.user.first_name ?? 'Admin';
     $('gate').hidden = true;
   } catch (err) {
@@ -77,16 +79,10 @@ function bindHandlers() {
   $('addZone').addEventListener('click', () => addZoneRow());
   $('saveZones').addEventListener('click', saveZones);
   $('saveSlots').addEventListener('click', saveSlots);
-  $('fSlots').addEventListener('change', () => {
-    $('slotsBlock').hidden = !$('fSlots').checked;
-  });
   $('addTier').addEventListener('click', () => addTierRow());
   $('saveTiers').addEventListener('click', saveTiers);
   $('savePromo').addEventListener('click', savePromo);
   $('fPromoType').addEventListener('change', syncPromoValueLabel);
-  $('fHours').addEventListener('change', () => {
-    $('hoursBlock').hidden = !$('fHours').checked;
-  });
   $('newProductBtn').addEventListener('click', () => openEditor(null));
 
   $('fHasVariants').addEventListener('change', syncPricingMode);
@@ -608,12 +604,15 @@ function renderSettings() {
   const settings = state.settings;
   if (!settings) return;
 
+  renderFeatures();
+
   const opening = settings.opening ?? { open: true, hours: {} };
   $('fOpen').checked = Boolean(opening.open);
   $('fClosedMessage').value = opening.message ?? '';
-  $('fHours').checked = Boolean(opening.hours?.enabled);
   $('fTimezone').value = opening.hours?.timezone ?? 'Europe/Paris';
-  $('hoursBlock').hidden = !$('fHours').checked;
+  // La grille ne s'affiche que si les horaires sont allumés : la régler pour
+  // rien donnerait l'impression qu'ils s'appliquent.
+  $('hoursBlock').hidden = !settings.features?.hours;
   renderHours(opening.hours?.days ?? {});
 
   const fulfillment = settings.fulfillment ?? {};
@@ -630,8 +629,6 @@ function renderSettings() {
   renderTiers(settings.discounts?.tiers ?? []);
   renderPromos();
 
-  $('fCaptcha').checked = Boolean(settings.captcha?.enabled);
-  $('fVerification').checked = Boolean(settings.verification?.enabled);
   renderVerifications();
   $('fOrdersPerHour').value = settings.limits.ordersPerHour;
   $('fLowStock').value = settings.alerts?.lowStock ?? 3;
@@ -704,7 +701,7 @@ async function saveOpening() {
         opening: {
           open: $('fOpen').checked,
           message: $('fClosedMessage').value.trim(),
-          hours: { enabled: $('fHours').checked, timezone: $('fTimezone').value.trim(), days },
+          hours: { timezone: $('fTimezone').value.trim(), days },
         },
       },
     });
@@ -754,8 +751,6 @@ async function saveGuards() {
     state.settings = await api('/settings', {
       method: 'PUT',
       body: {
-        captcha: { enabled: $('fCaptcha').checked },
-        verification: { enabled: $('fVerification').checked },
         limits: {
           ordersPerHour: Number($('fOrdersPerHour').value),
           unitsPerOrder: Number($('fUnitsPerOrder').value),
@@ -770,6 +765,55 @@ async function saveGuards() {
     toast(err.message);
   } finally {
     button.disabled = false;
+  }
+}
+
+/* ── Tableau de bord des fonctionnalités ─────────────────── */
+
+function renderFeatures() {
+  const values = state.settings?.features ?? {};
+
+  $('featureList').replaceChildren(
+    ...state.featureList.map(({ key, label, hint }) => {
+      const row = document.createElement('label');
+      row.className = 'a-feature';
+
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = Boolean(values[key]);
+      input.addEventListener('change', () => toggleFeature(key, input));
+
+      const text = document.createElement('span');
+      text.className = 'a-feature__text';
+      text.innerHTML = `<b>${escapeHtml(label)}</b><small>${escapeHtml(hint)}</small>`;
+
+      row.append(input, text);
+      return row;
+    })
+  );
+}
+
+/**
+ * Un interrupteur s'applique tout de suite.
+ *
+ * Pas de bouton « Enregistrer » : sur un tableau de bord, un état coché mais
+ * pas encore enregistré est un piège — on croit avoir coupé une fonctionnalité
+ * qui tourne toujours. En cas d'échec, la case revient à sa position réelle.
+ */
+async function toggleFeature(key, input) {
+  const wanted = input.checked;
+  input.disabled = true;
+  try {
+    state.settings = await api('/settings', { method: 'PUT', body: { features: { [key]: wanted } } });
+    renderSettings();
+    const label = state.featureList.find((f) => f.key === key)?.label ?? key;
+    toast(`${label} ${wanted ? 'activé' : 'désactivé'}`);
+    haptic('success');
+  } catch (err) {
+    input.checked = !wanted;
+    toast(err.message);
+  } finally {
+    input.disabled = false;
   }
 }
 
@@ -848,7 +892,6 @@ function optional(value) {
 /* ── Créneaux ────────────────────────────────────────────── */
 
 function renderSlots(slots) {
-  $('fSlots').checked = Boolean(slots.enabled);
   $('slotsBlock').hidden = !slots.enabled;
   $('fSlotLead').value = slots.leadMinutes ?? 60;
   $('fSlotDays').value = slots.daysAhead ?? 7;
@@ -914,7 +957,6 @@ async function saveSlots() {
       method: 'PUT',
       body: {
         slots: {
-          enabled: $('fSlots').checked,
           leadMinutes: Number($('fSlotLead').value),
           daysAhead: Number($('fSlotDays').value),
           days,
@@ -922,7 +964,7 @@ async function saveSlots() {
       },
     });
     renderSettings();
-    toast($('fSlots').checked ? 'Créneaux enregistrés' : 'Créneaux désactivés');
+    toast('Créneaux enregistrés');
     haptic('success');
   } catch (err) {
     toast(err.message);

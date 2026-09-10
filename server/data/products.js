@@ -18,6 +18,44 @@ export const categories = [
 
 export const products = [
   {
+    id: 'plasma-static-banana-kush',
+    stock: null, // le stock est porté par les variantes
+    name: 'Plasma Static — Banana Kush',
+    category: 'resines',
+    price: 2000,
+    image: '/assets/products/plasma-banana-kush.jpg',
+    badge: '2K26',
+    tags: ['Premium', 'Banana Kush'],
+    short: 'Premium 2K26, nez banane mûre.',
+    description:
+      "La Plasma Static millésime 2K26 en version Banana Kush. Texture souple, nez de banane " +
+      "mûre et de sucre chaud, fumée douce et longue. Servie sous scellé d'origine.",
+    variants: [
+      { id: '1.2g', label: '1,2 g', price: 2000, stock: 20 },
+      { id: '5g', label: '5 g', price: 7000, stock: 10 },
+      { id: '10g', label: '10 g', price: 13000, stock: 5 },
+    ],
+  },
+  {
+    id: 'plasma-static-bubble-gum',
+    stock: null, // le stock est porté par les variantes
+    name: 'Plasma Static — Bubble Gum',
+    category: 'resines',
+    price: 2000,
+    image: '/assets/products/plasma-bubble-gum.jpg',
+    badge: '2K26',
+    tags: ['Premium', 'Bubble Gum'],
+    short: 'Premium 2K26, nez bonbon rose.',
+    description:
+      "La Plasma Static millésime 2K26 en version Bubble Gum. Nez de chewing-gum rose et de " +
+      "fruits confits, attaque sucrée, finale ronde. Servie sous scellé d'origine.",
+    variants: [
+      { id: '1.2g', label: '1,2 g', price: 2000, stock: 20 },
+      { id: '5g', label: '5 g', price: 7000, stock: 10 },
+      { id: '10g', label: '10 g', price: 13000, stock: 5 },
+    ],
+  },
+  {
     id: 'kartoon-kush',
     stock: null, // le stock est porté par les variantes
     name: 'Néon Kush',
