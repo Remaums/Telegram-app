@@ -682,6 +682,13 @@ if (standalone) {
     if (config.webappUrl) console.log(`  URL publique déclarée : ${config.webappUrl}`);
     console.log(`  Stockage : ${storageKind}`);
     console.log(`  Admins autorisés : ${config.adminIds.join(', ') || 'aucun'}`);
+    // Une boutique sans administrateur se gère depuis nulle part : ni produits,
+    // ni stocks, ni commandes. Autant le dire au démarrage plutôt que de le
+    // laisser découvrir par un /admin qui refuse.
+    if (config.adminIds.length === 0) {
+      console.warn('  ⚠ Aucun administrateur : /admin refusera tout le monde et rien ne sera gérable.');
+      console.warn('    Renseigne ADMIN_IDS dans .env (envoie /start au bot pour connaître ton identifiant).');
+    }
   });
 
   // Un secret de webhook traînant dans l'environnement n'empêche plus rien,

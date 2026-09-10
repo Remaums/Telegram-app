@@ -108,7 +108,20 @@ bot.command('annonces', async (ctx) => {
 
 bot.command('admin', async (ctx) => {
   if (!isAdmin(ctx.from.id)) {
-    return ctx.reply("Cet espace est réservé à l'administrateur.");
+    // « Réservé à l'administrateur » laisse sans recours celui qui EST le
+    // patron mais dont l'identifiant n'a pas été déclaré — le cas de loin le
+    // plus fréquent à l'installation. On lui donne donc ce qui lui manque :
+    // son identifiant, et où l'écrire.
+    const rien = config.adminIds.length === 0;
+    return ctx.reply(
+      "Cet espace est réservé à l'administrateur.\n\n" +
+        `Ton identifiant Telegram : ${ctx.from.id}\n` +
+        (rien
+          ? "Aucun administrateur n'est déclaré pour l'instant."
+          : `Déclarés pour l'instant : ${config.adminIds.join(', ')}`) +
+        '\n\nSi la boutique est la tienne, ajoute ton identifiant à ADMIN_IDS ' +
+        'dans le fichier .env, puis redémarre la boutique.'
+    );
   }
   // Mieux vaut expliquer que laisser Telegram rejeter le message : sans URL,
   // la commande ne répondait rien du tout.

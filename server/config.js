@@ -12,10 +12,21 @@ export const config = {
   // un aller-retour réseau au premier lien généré.
   botUsername: (process.env.BOT_USERNAME ?? '').replace(/^@/, ''),
   // Identifiants Telegram autorisés à ouvrir l'espace admin.
-  adminIds: (process.env.ADMIN_IDS ?? process.env.ADMIN_CHAT_ID ?? '')
-    .split(',')
-    .map((v) => v.trim())
-    .filter(Boolean),
+  //
+  // Les deux variables sont réunies, pas mises en concurrence. `??` ne bascule
+  // que sur null ou undefined : un `ADMIN_IDS=` vide — le geste naturel quand
+  // on efface l'exemple — vaut la chaîne vide, qui n'est pas nulle. Le repli
+  // vers ADMIN_CHAT_ID que promettait .env.example ne se produisait donc
+  // jamais, et la boutique se retrouvait sans aucun administrateur. Personne
+  // ne renseigne son ADMIN_CHAT_ID sans vouloir aussi ouvrir son espace admin.
+  adminIds: [
+    ...new Set(
+      [process.env.ADMIN_IDS, process.env.ADMIN_CHAT_ID]
+        .flatMap((v) => String(v ?? '').split(','))
+        .map((v) => v.trim())
+        .filter(Boolean)
+    ),
+  ],
   port: Number(process.env.PORT ?? 3000),
   // Derrière un reverse proxy (Nginx, Caddy), on n'écoute que en local :
   // HOST=127.0.0.1 ferme la porte à un accès direct au port.

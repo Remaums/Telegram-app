@@ -105,14 +105,16 @@ const check = (label, ok, detail = '') => {
   if (!ok) failures++;
 };
 
-async function avecUrl(webappUrl, commandes) {
+async function avecUrl(webappUrl, commandes, admins = { ADMIN_IDS: '424242' }) {
   const { stdout } = await run('node', [MOI], {
     cwd: RACINE,
     env: {
       ...process.env,
       WEBAPP_URL: webappUrl,
       BOT_TOKEN: process.env.BOT_TOKEN || '123456789:AAtest-token-local-pour-les-tests',
-      ADMIN_IDS: '424242',
+      ADMIN_IDS: '',
+      ADMIN_CHAT_ID: '',
+      ...admins,
       BOUTONS_SCENARIO: JSON.stringify(commandes),
     },
   });
@@ -172,6 +174,50 @@ async function avecUrl(webappUrl, commandes) {
     r[1].boutons && r[1].refus.length === 0, r[1].dit.slice(0, 45));
   check("Un client n'obtient pas l'espace admin",
     /réservé/i.test(r[2].dit) && !r[2].boutons, r[2].dit.slice(0, 45));
+}
+
+/* ── Qui a le droit d'ouvrir l'espace admin ──────────────── */
+
+const URL_OK = 'https://boutique.exemple.fr';
+
+{
+  // Le geste naturel à l'installation : on efface l'exemple d'ADMIN_IDS et on
+  // ne renseigne que son ADMIN_CHAT_ID. `.env.example` promet que ça marche.
+  const r = await avecUrl(URL_OK, [{ from: ADMIN, texte: '/admin' }],
+    { ADMIN_IDS: '', ADMIN_CHAT_ID: String(ADMIN.id) });
+  check("ADMIN_CHAT_ID seul suffit à être admin", r[0].boutons,
+    r[0].dit.slice(0, 70).replace(/\n/g, ' '));
+}
+
+{
+  // L'inverse, et les deux ensemble : aucune des deux ne doit masquer l'autre.
+  const r = await avecUrl(URL_OK, [{ from: ADMIN, texte: '/admin' }],
+    { ADMIN_IDS: String(ADMIN.id), ADMIN_CHAT_ID: '' });
+  check('ADMIN_IDS seul suffit aussi', r[0].boutons);
+
+  const deux = await avecUrl(URL_OK, [{ from: ADMIN, texte: '/admin' }],
+    { ADMIN_IDS: '111,222', ADMIN_CHAT_ID: String(ADMIN.id) });
+  check("ADMIN_CHAT_ID s'ajoute à une liste ADMIN_IDS déjà remplie", deux[0].boutons,
+    deux[0].dit.slice(0, 60).replace(/\n/g, ' '));
+}
+
+{
+  // Un refus doit donner de quoi se déclarer, pas seulement dire non.
+  const r = await avecUrl(URL_OK, [{ from: CLIENT, texte: '/admin' }],
+    { ADMIN_IDS: String(ADMIN.id) });
+  check('Un non-admin est refusé', !r[0].boutons && /réservé/i.test(r[0].dit));
+  check('Le refus lui donne son identifiant',
+    r[0].dit.includes(String(CLIENT.id)), r[0].dit.slice(0, 80).replace(/\n/g, ' '));
+  check('Et lui dit où le mettre', /ADMIN_IDS/.test(r[0].dit));
+}
+
+{
+  // Aucun admin déclaré : le cas où la boutique n'est gérable par personne.
+  const r = await avecUrl(URL_OK, [{ from: ADMIN, texte: '/admin' }],
+    { ADMIN_IDS: '', ADMIN_CHAT_ID: '' });
+  check("Sans aucun admin, /admin refuse", !r[0].boutons);
+  check("Et le dit franchement", /[Aa]ucun administrateur/.test(r[0].dit),
+    r[0].dit.slice(0, 80).replace(/\n/g, ' '));
 }
 
 console.log(`\n${failures ? `${failures} test(s) en échec` : 'Boutons Mini App : OK'}`);
