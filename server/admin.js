@@ -4,6 +4,9 @@ import { config } from './config.js';
 import { verifyInitData } from './telegram-auth.js';
 import {
   HttpError,
+  MEDIA_MAX,
+  addProductMedia,
+  removeProductMedia,
   getCatalog,
   getProduct,
   createProduct,
@@ -74,6 +77,7 @@ adminRouter.get(
       statuses: STATUSES,
       currency: config.currency,
       features: FEATURES,
+      mediaMax: MEDIA_MAX,
     });
   })
 );
@@ -161,6 +165,48 @@ async function announceRestock(avant, after, variantId = null) {
     }
   }
 }
+
+/* ── Galerie d'un produit ────────────────────────────────── */
+
+adminRouter.post(
+  '/products/:id/media',
+  route(async (req, res) => {
+    const { kind = 'photo', url } = req.body ?? {};
+    if (!url) throw new HttpError(400, "Donne l'adresse de la photo ou de la vidéo.");
+    res.json(await addProductMedia(req.params.id, { kind, url }));
+  })
+);
+
+adminRouter.delete(
+  '/products/:id/media/:index',
+  route(async (req, res) => res.json(await removeProductMedia(req.params.id, req.params.index)))
+);
+
+/**
+ * Réordonne la galerie.
+ *
+ * Le vendeur envoie l'ordre voulu ; on n'accepte qu'une permutation de ce qui
+ * existe déjà. Réordonner ne doit ni ajouter, ni perdre, ni dupliquer un
+ * média — sinon un glisser-déposer maladroit effacerait une vidéo.
+ */
+adminRouter.put(
+  '/products/:id/media',
+  route(async (req, res) => {
+    const produit = await getProduct(req.params.id);
+    if (!produit) throw new HttpError(404, 'Produit introuvable.');
+
+    const galerie = produit.media ?? [];
+    const ordre = Array.isArray(req.body?.ordre) ? req.body.ordre.map(Number) : null;
+    const permutation =
+      ordre &&
+      ordre.length === galerie.length &&
+      new Set(ordre).size === galerie.length &&
+      ordre.every((i) => Number.isInteger(i) && i >= 0 && i < galerie.length);
+
+    if (!permutation) throw new HttpError(400, "L'ordre demandé ne correspond pas à la galerie.");
+    res.json(await updateProduct(req.params.id, { media: ordre.map((i) => galerie[i]) }));
+  })
+);
 
 adminRouter.put(
   '/categories',

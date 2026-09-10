@@ -802,6 +802,60 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: linear-gradient(180deg, rgb(var(--ink-rgb) / .55), transparent);
 }
 
+/* ── Galerie de la fiche produit ─────────────────────────── */
+
+/* Un défilement horizontal aimanté plutôt qu'un carrousel en JavaScript : le
+   glissement du doigt est celui du système, donc fluide, et il marche même si
+   le script tombe. Les flèches ne servent qu'à la souris. */
+.galerie { position: relative; width: 100%; }
+.galerie__piste {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.galerie__piste::-webkit-scrollbar { display: none; }
+.galerie__media {
+  flex: 0 0 100%; scroll-snap-align: center;
+  display: grid; place-items: center; background: rgb(var(--ink-rgb) / .55);
+}
+.galerie__media img, .galerie__media video {
+  width: 100%; height: 250px; object-fit: cover; display: block;
+}
+/* La vidéo garde ses contrôles : on ne réinvente pas un lecteur. */
+.galerie__media video { background: #000; }
+
+.galerie__fleche {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: 34px; height: 34px; border-radius: 50%; border: 0;
+  background: rgb(var(--ink-rgb) / .62); color: var(--cream);
+  font-size: 20px; line-height: 1; backdrop-filter: blur(4px);
+}
+.galerie__fleche--gauche { left: 8px; }
+.galerie__fleche--droite { right: 8px; }
+/* Sur un écran tactile, le doigt suffit : les flèches masqueraient l'image. */
+@media (hover: none) { .galerie__fleche { display: none; } }
+
+.galerie__points {
+  position: absolute; left: 0; right: 0; bottom: 8px; z-index: 2;
+  display: flex; justify-content: center; gap: 6px; pointer-events: none;
+}
+.galerie__point {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: rgb(var(--cream-rgb) / .4); transition: background .2s, width .2s;
+}
+.galerie__point[aria-selected='true'] { background: var(--neon); width: 18px; border-radius: 4px; }
+
+/* La pastille « vidéo » dit ce qui attend, avant même de lancer la lecture. */
+.galerie__type {
+  position: absolute; top: 8px; left: 8px; z-index: 2;
+  padding: 3px 8px; border-radius: 999px;
+  background: rgb(var(--ink-rgb) / .72); color: var(--cream);
+  font-size: 11px; font-weight: 800; letter-spacing: .03em;
+}
+
+/* Quand la galerie est là, le décor de l'illustration n'a plus lieu d'être. */
+.pdetail__art:has(.galerie:not([hidden])) { padding: 0; overflow: hidden; }
+.pdetail__art:has(.galerie:not([hidden])) > #pImage { display: none; }
+
 .pdetail__art--photo { padding: 0; overflow: hidden; }
 .pdetail__art--photo img {
   width: 100%; max-width: none; height: 250px; object-fit: cover; filter: none;

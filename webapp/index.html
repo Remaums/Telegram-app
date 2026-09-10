@@ -138,7 +138,18 @@
   <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="pName">
     <button class="sheet__close" type="button" data-close aria-label="Fermer">✕</button>
     <div class="sheet__scroll">
-      <div class="pdetail__art"><img id="pImage" src="" alt=""></div>
+      <div class="pdetail__art">
+        <img id="pImage" src="" alt="">
+        <!-- La galerie prend la place de l'image dès qu'un produit en a une. -->
+        <div class="galerie" id="pGallery" hidden>
+          <div class="galerie__piste" id="pGalleryTrack"></div>
+          <button class="galerie__fleche galerie__fleche--gauche" id="pGalleryPrev"
+                  type="button" aria-label="Média précédent" hidden>‹</button>
+          <button class="galerie__fleche galerie__fleche--droite" id="pGalleryNext"
+                  type="button" aria-label="Média suivant" hidden>›</button>
+          <div class="galerie__points" id="pGalleryDots" role="tablist" aria-label="Médias"></div>
+        </div>
+      </div>
       <div class="pdetail__body">
         <div class="pdetail__tags" id="pTags"></div>
         <h2 class="pdetail__name goldtext" id="pName"></h2>

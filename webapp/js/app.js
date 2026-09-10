@@ -207,6 +207,9 @@ function bindStaticHandlers() {
     renderCart();
   });
 
+  $('pGalleryPrev').addEventListener('click', () => glisserGalerie(-1));
+  $('pGalleryNext').addEventListener('click', () => glisserGalerie(1));
+
   $('qtyMinus').addEventListener('click', () => setQty(state.currentQty - 1));
   $('qtyPlus').addEventListener('click', () => setQty(state.currentQty + 1));
   $('addToCart').addEventListener('click', addCurrentToCart);
@@ -887,9 +890,6 @@ function openProduct(product) {
     : null;
   state.currentQty = 1;
 
-  $('pImage').src = product.image;
-  $('pImage').alt = product.name;
-  $('pImage').closest('.pdetail__art').classList.toggle('pdetail__art--photo', isPhoto(product.image));
   $('pName').textContent = product.name;
   $('pDesc').textContent = product.description;
 
@@ -905,7 +905,119 @@ function openProduct(product) {
   renderVariants();
   setQty(1);
   openSheet('productSheet');
+  // La galerie se monte après l'ouverture, et non avant : `openSheet` referme
+  // les autres feuilles, et cette fermeture détache les vidéos — elle vidait
+  // donc la galerie qu'on venait tout juste de construire.
+  renderGalerie(product);
   haptic('light');
+}
+
+/**
+ * Monte la galerie du produit, ou retombe sur l'illustration unique.
+ *
+ * Le défilement est celui du navigateur, aimanté par CSS : le glissement du
+ * doigt reste celui du système, donc fluide, et il continue de marcher si le
+ * script échoue. Le JavaScript ne fait que les points, les flèches, et
+ * l'arrêt des vidéos.
+ */
+function renderGalerie(product) {
+  const art = $('pImage').closest('.pdetail__art');
+  const galerie = $('pGallery');
+  const piste = $('pGalleryTrack');
+  const points = $('pGalleryDots');
+
+  arreterLesVideos();
+  piste.replaceChildren();
+  points.replaceChildren();
+
+  const medias = Array.isArray(product.media) ? product.media : [];
+  if (!medias.length) {
+    // Pas de galerie : l'illustration d'origine reprend sa place.
+    galerie.hidden = true;
+    $('pImage').src = product.image;
+    $('pImage').alt = product.name;
+    art.classList.toggle('pdetail__art--photo', isPhoto(product.image));
+    return;
+  }
+
+  galerie.hidden = false;
+  art.classList.remove('pdetail__art--photo');
+
+  medias.forEach((media, rang) => {
+    const case_ = document.createElement('div');
+    case_.className = 'galerie__media';
+
+    if (media.kind === 'video') {
+      const video = document.createElement('video');
+      video.src = media.url ?? `/api/media/${product.id}/${rang}`;
+      video.controls = true;
+      video.preload = 'metadata';
+      video.playsInline = true;
+      // Ni lecture automatique ni son surprise : une fiche produit qui se met
+      // à parler dans un lieu public fait fermer la boutique.
+      case_.append(video);
+
+      const pastille = document.createElement('span');
+      pastille.className = 'galerie__type';
+      pastille.textContent = '▶ Vidéo';
+      case_.append(pastille);
+    } else {
+      const img = document.createElement('img');
+      img.src = media.url ?? `/api/media/${product.id}/${rang}`;
+      img.alt = media.legende || `${product.name} — visuel ${rang + 1}`;
+      img.loading = rang === 0 ? 'eager' : 'lazy';
+      case_.append(img);
+    }
+    piste.append(case_);
+
+    const point = document.createElement('span');
+    point.className = 'galerie__point';
+    point.setAttribute('role', 'tab');
+    point.setAttribute('aria-selected', String(rang === 0));
+    points.append(point);
+  });
+
+  const plusieurs = medias.length > 1;
+  points.hidden = !plusieurs;
+  $('pGalleryPrev').hidden = !plusieurs;
+  $('pGalleryNext').hidden = !plusieurs;
+
+  piste.scrollLeft = 0;
+  if (plusieurs) suivreLeDefilement(piste, points);
+}
+
+/** Allume le point du média affiché, sans écouter en continu. */
+function suivreLeDefilement(piste, points) {
+  let attente = null;
+  piste.onscroll = () => {
+    if (attente) return;
+    attente = setTimeout(() => {
+      attente = null;
+      const rang = Math.round(piste.scrollLeft / Math.max(1, piste.clientWidth));
+      [...points.children].forEach((p, i) => p.setAttribute('aria-selected', String(i === rang)));
+    }, 90);
+  };
+}
+
+/** Déplace la galerie d'un média. */
+function glisserGalerie(pas) {
+  const piste = $('pGalleryTrack');
+  piste.scrollBy({ left: pas * piste.clientWidth, behavior: 'smooth' });
+}
+
+/**
+ * Coupe toute vidéo en cours.
+ *
+ * Sans ça, fermer la fiche laissait le son continuer par-dessus le catalogue :
+ * le client entend une voix sans savoir d'où elle vient, et cherche le bouton
+ * pour l'arrêter.
+ */
+function arreterLesVideos() {
+  for (const video of document.querySelectorAll('#pGalleryTrack video')) {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+  }
 }
 
 function renderVariants() {
@@ -1561,6 +1673,9 @@ function openSheet(id) {
 }
 
 function closeSheets() {
+  // Une vidéo laissée en lecture continuerait de parler par-dessus le
+  // catalogue, sans que le client sache d'où vient le son.
+  arreterLesVideos();
   for (const sheet of document.querySelectorAll('.sheet')) sheet.hidden = true;
   document.body.style.overflow = '';
   tg?.BackButton?.hide();

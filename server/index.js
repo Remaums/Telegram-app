@@ -1,4 +1,6 @@
 import path from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { webhookCallback } from 'grammy';
@@ -559,6 +561,59 @@ app.get('/api/photo/:id', async (req, res, next) => {
   } catch (err) {
     console.error('Photo produit indisponible :', err.message);
     if (!res.headersSent) res.status(502).json({ error: 'Photo indisponible.' });
+    else next(err);
+  }
+});
+
+/**
+ * Sert un média de la galerie d'un produit.
+ *
+ * Même principe que la photo : le fichier reste chez Telegram, on relaie. Deux
+ * différences pour la vidéo. Elle se diffuse en flux plutôt qu'en un bloc —
+ * charger vingt mégaoctets en mémoire avant d'envoyer le premier octet ferait
+ * tousser un petit VPS et attendre le client. Et on répercute les en-têtes de
+ * plage : sans elles, impossible de se déplacer dans la vidéo, le lecteur ne
+ * sait que la rejouer depuis le début.
+ */
+app.get('/api/media/:id/:index', async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.features.photos) return res.status(404).json({ error: 'Médias désactivés.' });
+
+    const product = await getProduct(req.params.id);
+    const media = product?.media?.[Number(req.params.index)];
+    if (!media) return res.status(404).json({ error: 'Média introuvable.' });
+
+    // Un média hébergé ailleurs n'a pas à passer par nous.
+    if (!media.fileId) return res.redirect(302, media.url);
+
+    const url = await resolveFileUrl(media.fileId);
+    const upstream = await fetch(url, {
+      headers: req.headers.range ? { Range: req.headers.range } : undefined,
+    });
+    if (!upstream.ok && upstream.status !== 206) {
+      return res.status(502).json({ error: 'Média indisponible.' });
+    }
+
+    res.status(upstream.status === 206 ? 206 : 200);
+    for (const entete of ['content-type', 'content-length', 'content-range', 'accept-ranges']) {
+      const valeur = upstream.headers.get(entete);
+      if (valeur) res.setHeader(entete, valeur);
+    }
+    if (!upstream.headers.get('content-type')) {
+      res.setHeader('Content-Type', media.kind === 'video' ? 'video/mp4' : 'image/jpeg');
+    }
+    // Le contenu d'un fileId ne change jamais : on le laisse en cache un jour.
+    res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+
+    if (!upstream.body) return res.end();
+    await pipeline(Readable.fromWeb(upstream.body), res);
+  } catch (err) {
+    // Une coupure du client en pleine vidéo est normale : ce n'est pas un
+    // incident à consigner, et la réponse est déjà partie.
+    if (err?.code === 'ERR_STREAM_PREMATURE_CLOSE' || res.writableEnded) return;
+    console.error('Média produit indisponible :', err.message);
+    if (!res.headersSent) res.status(502).json({ error: 'Média indisponible.' });
     else next(err);
   }
 });

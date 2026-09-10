@@ -97,6 +97,74 @@ export async function setProductPhoto(id, fileId) {
   });
 }
 
+/**
+ * Ajoute un média à la galerie d'un produit.
+ *
+ * La première photo ajoutée sert aussi de vignette si le produit n'en avait
+ * pas : sans ça, le vendeur envoie sa photo, voit la fiche s'enrichir, et se
+ * demande pourquoi la grille montre encore un dessin.
+ */
+export async function addProductMedia(id, media) {
+  return store.update((data) => {
+    const index = data.products.findIndex((p) => p.id === id);
+    if (index === -1) throw new HttpError(404, 'Produit introuvable.');
+
+    const produit = data.products[index];
+    const avant = produit.media ?? [];
+
+    // Deux raisons de ne rien ajouter, et deux messages : « galerie pleine »
+    // sur une adresse refusée enverrait chercher au mauvais endroit.
+    if (!normalizeMedia([media]).length) {
+      throw new HttpError(
+        400,
+        "Cette adresse n'est pas utilisable : il faut un chemin commençant par « / » " +
+          'ou une adresse en « https:// ».'
+      );
+    }
+    if (avant.length >= MEDIA_MAX) {
+      throw new HttpError(400, `La galerie est pleine (${MEDIA_MAX} médias au maximum).`);
+    }
+
+    const galerie = normalizeMedia([...avant, media]);
+
+    const ajoute = galerie[galerie.length - 1];
+    const suite = { ...produit, media: galerie };
+
+    // Vignette reprise du premier média photo, tant que le vendeur n'en a pas
+    // choisi une lui-même.
+    const sansVignette = !produit.photoFileId && String(produit.image ?? '').startsWith('/assets/');
+    if (sansVignette && ajoute.kind === 'photo') {
+      if (ajoute.fileId) {
+        suite.photoFileId = ajoute.fileId;
+        suite.image = `/api/photo/${id}?v=${Date.now().toString(36)}`;
+      } else {
+        suite.image = ajoute.url;
+      }
+    }
+
+    data.products[index] = normalizeProduct({ ...suite, id });
+    return data.products[index];
+  });
+}
+
+/** Retire le média à cette position. */
+export async function removeProductMedia(id, position) {
+  return store.update((data) => {
+    const index = data.products.findIndex((p) => p.id === id);
+    if (index === -1) throw new HttpError(404, 'Produit introuvable.');
+
+    const galerie = [...(data.products[index].media ?? [])];
+    const rang = Number(position);
+    if (!Number.isInteger(rang) || rang < 0 || rang >= galerie.length) {
+      throw new HttpError(400, 'Ce média n\'existe pas.');
+    }
+    galerie.splice(rang, 1);
+
+    data.products[index] = normalizeProduct({ ...data.products[index], id, media: galerie });
+    return data.products[index];
+  });
+}
+
 export async function deleteProduct(id) {
   return store.update((data) => {
     const index = data.products.findIndex((p) => p.id === id);
@@ -307,6 +375,9 @@ function normalizeProduct(input) {
     image: String(input.image ?? '/assets/products/box.svg').slice(0, 300),
     // Photo envoyée au bot : on garde la référence Telegram, pas le fichier.
     photoFileId: input.photoFileId ? String(input.photoFileId).slice(0, 200) : undefined,
+    // Galerie de la fiche produit : photos et vidéos mêlées, dans l'ordre où
+    // le vendeur les a mises. La première photo sert aussi de vignette.
+    media: normalizeMedia(input.media),
     badge: input.badge ? String(input.badge).slice(0, 20) : undefined,
     tags: Array.isArray(input.tags) ? input.tags.slice(0, 6).map((t) => String(t).slice(0, 24)) : [],
     short: String(input.short ?? '').slice(0, 140),
@@ -314,6 +385,51 @@ function normalizeProduct(input) {
     visible: input.visible !== false,
     variants,
   };
+}
+
+/** Ce qu'une galerie de produit peut contenir. */
+export const MEDIA_MAX = 8;
+
+/**
+ * Range la galerie d'un produit.
+ *
+ * Deux origines possibles pour un média : une référence Telegram, quand le
+ * vendeur a envoyé la photo ou la vidéo au bot, et une adresse, quand il
+ * héberge ses visuels ailleurs. Les deux cohabitent dans la même liste, parce
+ * que du point de vue du client ce sont les mêmes vignettes à faire défiler.
+ *
+ * Le nombre est borné : une fiche produit n'est pas un album, et chaque média
+ * est une requête de plus à servir sur un VPS modeste.
+ */
+export function normalizeMedia(input) {
+  if (!Array.isArray(input)) return [];
+
+  const propres = [];
+  for (const brut of input.slice(0, MEDIA_MAX * 2)) {
+    if (!brut) continue;
+    const kind = brut.kind === 'video' ? 'video' : 'photo';
+    const fileId = brut.fileId ? String(brut.fileId).slice(0, 200) : '';
+    const url = brut.url ? String(brut.url).trim().slice(0, 300) : '';
+
+    // Sans l'un ou l'autre, le média ne désigne rien : on l'écarte plutôt que
+    // de laisser une vignette vide dans la fiche.
+    if (!fileId && !url) continue;
+
+    // Une adresse doit rester une adresse : `javascript:` dans un `src`
+    // s'exécuterait, et un chemin qui remonte l'arborescence n'a rien à faire
+    // là. On n'accepte que le relatif à la racine et le HTTPS.
+    if (url && !/^\/[^/]/.test(url) && !/^https:\/\//i.test(url)) continue;
+    if (url.includes('..')) continue;
+
+    const media = { kind };
+    if (fileId) media.fileId = fileId;
+    if (url) media.url = url;
+    if (brut.legende) media.legende = String(brut.legende).slice(0, 80);
+    propres.push(media);
+
+    if (propres.length >= MEDIA_MAX) break;
+  }
+  return propres;
 }
 
 /** Transforme un texte libre en identifiant utilisable dans une URL. */

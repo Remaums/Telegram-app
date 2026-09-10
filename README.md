@@ -194,6 +194,36 @@ se règle dans l'espace admin.
 
 Rien à redémarrer après : l'outil écrit dans le même magasin que la boutique.
 
+### Photos et vidéos d'une fiche produit
+
+Chaque produit porte une galerie : jusqu'à **huit médias**, photos et vidéos
+mêlées, que le client fait défiler du doigt sur la fiche. Le premier sert aussi
+de vignette dans la grille tant qu'aucune n'a été choisie.
+
+Deux façons d'en ajouter :
+
+- **Envoyer la photo ou la vidéo au bot**, avec le nom du produit en légende.
+  Le fichier reste chez Telegram — on n'enregistre que sa référence : rien à
+  écrire sur le disque, rien de plus à sauvegarder, et les médias suivent la
+  boutique si elle change d'hébergeur. Telegram ne laisse pas un bot
+  télécharger au-delà de **20 Mo** : une vidéo plus lourde est refusée en le
+  disant, plutôt qu'enregistrée pour ne jamais s'afficher.
+- **Coller une adresse** dans l'espace admin, sur la fiche du produit. Un
+  chemin local (`/assets/products/ma-photo.jpg`) ou une adresse en `https://`.
+
+Sur la fiche, l'ordre se règle avec les flèches et chaque média se retire d'un
+bouton. La vignette montre le vrai visuel, pas son nom de fichier : c'est la
+seule façon de repérer d'un coup d'œil celui qui ne charge pas.
+
+> 🔒 **Une adresse de média finit dans un attribut `src`.** Seuls un chemin
+> commençant par `/` et une adresse en `https://` sont acceptés : `javascript:`,
+> `data:` et les remontées de dossier sont refusés, et des tests le vérifient à
+> chaque exécution.
+
+Côté client, une vidéo ne démarre **jamais toute seule** et garde ses contrôles.
+Refermer la fiche coupe la lecture et détache la source — sinon le son
+continuerait par-dessus le catalogue, sans que le client sache d'où il vient.
+
 ### Les images
 
 Les illustrations sont des SVG originaux dans `webapp/assets/products/`, générés par

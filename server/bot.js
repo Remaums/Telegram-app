@@ -1,7 +1,7 @@
 import { Bot, InlineKeyboard, InputFile } from 'grammy';
 import { config } from './config.js';
 import { listOrders, STATUSES, setStatus } from './orders.js';
-import { restoreStock, getCatalog, setProductPhoto } from './catalog.js';
+import { restoreStock, getCatalog, addProductMedia, MEDIA_MAX } from './catalog.js';
 import { matchProduct } from './photos.js';
 import { getSettings, saveSettings } from './settings.js';
 import { requestVerification, decideVerification } from './verification.js';
@@ -233,7 +233,7 @@ bot.callbackQuery(/^vfset:(on|off)$/, async (ctx) => {
  * produit, un client fait vérifier sa pièce d'identité. Un seul point d'entrée
  * évite que le premier gestionnaire avale l'image du second.
  */
-bot.on(['message:photo', 'message:document'], async (ctx) => {
+bot.on(['message:photo', 'message:video', 'message:animation', 'message:document'], async (ctx) => {
   const settings = await getSettings();
 
   if (isAdmin(ctx.from.id)) {
@@ -241,6 +241,12 @@ bot.on(['message:photo', 'message:document'], async (ctx) => {
       return ctx.reply('Les photos par le bot sont désactivées (Réglages → Fonctionnalités).');
     }
     return handleProductPhoto(ctx);
+  }
+
+  // Une vidéo n'est jamais une pièce d'identité : la proposer au contrôle
+  // n'aurait aucun sens, et le vendeur seul envoie des visuels.
+  if (ctx.message.video || ctx.message.animation) {
+    return ctx.reply("Merci, mais on n'attend pas de vidéo de ta part.");
   }
 
   // Sans vérification active, une pièce d'identité reçue serait une donnée
@@ -263,7 +269,7 @@ async function handleProductPhoto(ctx) {
 
   if (!caption.trim()) {
     return ctx.reply(
-      '📸 Renvoie la photo en écrivant le produit en légende.\n\n' +
+      '📸 Renvoie la photo ou la vidéo en écrivant le produit en légende.\n\n' +
         `Par exemple : ${products[0]?.name ?? 'nom du produit'}`
     );
   }
@@ -281,20 +287,64 @@ async function handleProductPhoto(ctx) {
     );
   }
 
-  // La photo la plus grande est la dernière du tableau ; un document image
-  // (envoyé « sans compression ») convient aussi.
-  const fileId = ctx.message.photo?.at(-1)?.file_id ?? ctx.message.document?.file_id;
-  const mime = ctx.message.document?.mime_type;
-  if (ctx.message.document && mime && !mime.startsWith('image/')) {
-    return ctx.reply("Ce fichier n'est pas une image.");
+  const media = mediaDuMessage(ctx.message);
+  if (media.erreur) return ctx.reply(media.erreur);
+
+  // Telegram ne laisse pas un bot télécharger au-delà de vingt mégaoctets :
+  // une vidéo plus lourde s'enregistrerait sans broncher et ne s'afficherait
+  // jamais. Mieux vaut refuser en disant quoi faire.
+  if (media.octets && media.octets > 20 * 1024 * 1024) {
+    return ctx.reply(
+      `Cette vidéo pèse ${Math.round(media.octets / 1024 / 1024)} Mo, et Telegram ` +
+        "ne laisse pas un bot en télécharger plus de 20.\n\n" +
+        'Raccourcis-la, ou baisse sa qualité avant de la renvoyer.'
+    );
   }
 
   try {
-    await setProductPhoto(match.id, fileId);
-    await ctx.reply(`✅ Photo mise à jour pour « ${match.name} ».`);
+    const produit = await addProductMedia(match.id, { kind: media.kind, fileId: media.fileId });
+    const combien = produit.media.length;
+    await ctx.reply(
+      `✅ ${media.kind === 'video' ? 'Vidéo ajoutée' : 'Photo ajoutée'} à « ${match.name} » ` +
+        `(${combien} média${combien > 1 ? 's' : ''} sur ${MEDIA_MAX}).\n\n` +
+        "L'ordre et la suppression se règlent dans l'espace admin, sur la fiche du produit."
+    );
   } catch (err) {
-    await ctx.reply(`Impossible d'enregistrer la photo : ${err.message}`);
+    await ctx.reply(`Impossible d'enregistrer : ${err.message}`);
   }
+}
+
+/**
+ * Reconnaît ce que le message transporte.
+ *
+ * Telegram range la même chose à trois endroits selon la façon de l'envoyer :
+ * `photo` pour une image compressée, `video` pour une vidéo, `document` pour un
+ * envoi « sans compression ». Un GIF arrive en `animation`, et se comporte
+ * comme une vidéo muette.
+ */
+function mediaDuMessage(message) {
+  if (message.photo) {
+    // Le dernier élément est la plus grande taille disponible.
+    const grande = message.photo.at(-1);
+    return { kind: 'photo', fileId: grande.file_id, octets: grande.file_size };
+  }
+  if (message.video) {
+    return { kind: 'video', fileId: message.video.file_id, octets: message.video.file_size };
+  }
+  if (message.animation) {
+    return { kind: 'video', fileId: message.animation.file_id, octets: message.animation.file_size };
+  }
+  if (message.document) {
+    const mime = message.document.mime_type ?? '';
+    if (mime.startsWith('image/')) {
+      return { kind: 'photo', fileId: message.document.file_id, octets: message.document.file_size };
+    }
+    if (mime.startsWith('video/')) {
+      return { kind: 'video', fileId: message.document.file_id, octets: message.document.file_size };
+    }
+    return { erreur: "Ce fichier n'est ni une image ni une vidéo." };
+  }
+  return { erreur: "Je n'ai pas reconnu ce fichier." };
 }
 
 /**

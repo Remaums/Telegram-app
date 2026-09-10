@@ -344,6 +344,28 @@
         <input id="fImagePath" maxlength="300" placeholder="/assets/products/ma-photo.jpg">
       </label>
 
+      <!-- Galerie : n'apparaît que sur un produit déjà enregistré, puisqu'un
+           média a besoin d'un produit auquel se rattacher. -->
+      <div class="a-media" id="mediaBlock" hidden>
+        <span class="a-field__label">Photos et vidéos de la fiche</span>
+        <p class="a-hint" id="mediaHint"></p>
+        <div class="a-media__list" id="mediaList"></div>
+        <div class="a-row">
+          <label class="a-field a-field--grow">
+            <span>Adresse d'une photo ou d'une vidéo</span>
+            <input id="fMediaUrl" maxlength="300" placeholder="https://… ou /assets/products/ma-photo.jpg">
+          </label>
+          <label class="a-field">
+            <span>Type</span>
+            <select id="fMediaKind">
+              <option value="photo">Photo</option>
+              <option value="video">Vidéo</option>
+            </select>
+          </label>
+        </div>
+        <button class="a-btn a-btn--ghost a-btn--block" id="addMedia" type="button">+ Ajouter à la galerie</button>
+      </div>
+
       <div class="a-toggle">
         <label><input type="checkbox" id="fVisible" checked> Visible dans la boutique</label>
         <label><input type="checkbox" id="fHasVariants"> Plusieurs formats</label>

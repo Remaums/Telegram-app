@@ -312,6 +312,42 @@ body.admin {
 .a-link .a-row { gap: 8px; }
 .a-link .a-btn { min-width: 0; }
 
+/* ── Galerie d'un produit ─────────────────────────────────── */
+
+.a-media {
+  margin: 4px 0 2px; padding: 11px 12px; border-radius: 14px;
+  border: 1px solid var(--line-soft); background: rgb(var(--panel-rgb) / .45);
+}
+.a-media__list { display: flex; flex-direction: column; gap: 7px; margin: 8px 0; }
+.a-media__item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 8px; border-radius: 11px;
+  border: 1px solid var(--line-soft); background: rgb(var(--night-rgb) / .45);
+}
+/* La vignette est l'information utile : on la montre en vrai, plutôt que de
+   faire confiance à un nom de fichier. */
+.a-media__vignette {
+  flex: none; width: 48px; height: 48px; border-radius: 8px; overflow: hidden;
+  background: rgb(var(--ink-rgb) / .6); display: grid; place-items: center;
+  font-size: 18px;
+}
+.a-media__vignette img, .a-media__vignette video { width: 100%; height: 100%; object-fit: cover; }
+.a-media__texte { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; }
+.a-media__texte b {
+  display: block; font-size: 13px;
+  /* La police d'affiche ne porte pas les emoji : sans cette pile, « 🖼 » et
+     « 🎬 » sortent en carrés vides. */
+  font-family: 'Baloo 2', 'Noto Color Emoji', 'Apple Color Emoji', system-ui, sans-serif;
+}
+.a-media__texte span { color: var(--muted); overflow-wrap: anywhere; }
+.a-media__actions { flex: none; display: flex; gap: 4px; }
+.a-media__actions button {
+  width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line-soft);
+  background: rgb(var(--panel-rgb) / .7); color: var(--cream); font-size: 13px; line-height: 1;
+}
+.a-media__actions button:disabled { opacity: .35; }
+.a-field--grow { flex: 1; min-width: 0; }
+
 .a-features { display: flex; flex-direction: column; gap: 7px; margin-bottom: 4px; }
 .a-feature {
   display: flex; align-items: flex-start; gap: 11px;

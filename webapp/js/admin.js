@@ -44,6 +44,7 @@ async function init() {
     state.currency = session.currency;
     state.statuses = session.statuses;
     state.featureList = session.features ?? [];
+    state.mediaMax = session.mediaMax ?? 8;
     $('adminName').textContent = session.user.first_name ?? 'Admin';
     $('gate').hidden = true;
   } catch (err) {
@@ -119,6 +120,7 @@ function bindHandlers() {
 
   $('fHasVariants').addEventListener('change', syncPricingMode);
   $('fImage').addEventListener('change', syncImageField);
+  $('addMedia').addEventListener('click', ajouterMedia);
   $('addVariant').addEventListener('click', () => addVariantRow());
   $('saveProduct').addEventListener('click', saveProduct);
   $('deleteProduct').addEventListener('click', removeProduct);
@@ -516,6 +518,9 @@ function openEditor(product) {
   // Un produit qui n'existe pas encore n'a pas de lien : il n'aurait nulle
   // part où mener.
   $('productLink').hidden = !product;
+  // Ni de galerie : un média a besoin d'un produit auquel se rattacher.
+  $('mediaBlock').hidden = !product;
+  if (product) renderMedia(product);
   $('editorError').hidden = true;
 
   fillSelect($('fCategory'), state.categories.map((c) => [c.id, `${c.emoji} ${c.label}`]));
@@ -938,6 +943,143 @@ function renderAnnonces() {
       return li;
     })
   );
+}
+
+/* ── Galerie d'un produit ────────────────────────────────── */
+
+/**
+ * Liste les médias de la fiche, vignettes comprises.
+ *
+ * On montre la vraie image plutôt que son adresse : c'est la seule façon de
+ * vérifier d'un coup d'œil qu'on a bien mis la bonne, et de repérer celle qui
+ * ne charge pas.
+ */
+function renderMedia(product) {
+  state.editing = product;
+  const liste = $('mediaList');
+  const medias = product.media ?? [];
+  const plafond = state.mediaMax ?? 8;
+
+  $('mediaHint').textContent = medias.length
+    ? `${medias.length} média${medias.length > 1 ? 's' : ''} sur ${plafond}. Le premier s'affiche en premier dans la fiche.`
+    : "Aucun média : la fiche montre l'illustration du produit. Tu peux aussi envoyer une photo ou une vidéo au bot, avec le nom du produit en légende.";
+
+  if (!medias.length) return liste.replaceChildren();
+
+  liste.replaceChildren(
+    ...medias.map((media, rang) => {
+      const item = document.createElement('div');
+      item.className = 'a-media__item';
+
+      const vignette = document.createElement('span');
+      vignette.className = 'a-media__vignette';
+      const source = media.url ?? `/api/media/${product.id}/${rang}`;
+      if (media.kind === 'video') {
+        // `preload=metadata` : on veut la première image, pas la vidéo entière.
+        const v = document.createElement('video');
+        v.src = source;
+        v.preload = 'metadata';
+        v.muted = true;
+        vignette.append(v);
+      } else {
+        const img = document.createElement('img');
+        img.src = source;
+        img.alt = '';
+        // Une adresse qui ne charge pas doit se voir, pas laisser un carré vide.
+        img.addEventListener('error', () => {
+          vignette.replaceChildren();
+          vignette.textContent = '⚠';
+          vignette.title = 'Ce média ne se charge pas';
+        });
+        vignette.append(img);
+      }
+
+      const texte = document.createElement('span');
+      texte.className = 'a-media__texte';
+      texte.innerHTML =
+        `<b>${rang + 1}. ${media.kind === 'video' ? '🎬 Vidéo' : '🖼 Photo'}` +
+        `${rang === 0 ? ' · en tête' : ''}</b>` +
+        `<span>${escapeHtml(media.url ?? 'envoyé au bot')}</span>`;
+
+      const actions = document.createElement('span');
+      actions.className = 'a-media__actions';
+
+      const monter = document.createElement('button');
+      monter.type = 'button';
+      monter.textContent = '↑';
+      monter.title = 'Monter';
+      monter.disabled = rang === 0;
+      monter.addEventListener('click', () => deplacerMedia(product.id, rang, rang - 1));
+
+      const descendre = document.createElement('button');
+      descendre.type = 'button';
+      descendre.textContent = '↓';
+      descendre.title = 'Descendre';
+      descendre.disabled = rang === medias.length - 1;
+      descendre.addEventListener('click', () => deplacerMedia(product.id, rang, rang + 1));
+
+      const retirer = document.createElement('button');
+      retirer.type = 'button';
+      retirer.textContent = '✕';
+      retirer.title = 'Retirer';
+      retirer.addEventListener('click', () => retirerMedia(product.id, rang));
+
+      actions.append(monter, descendre, retirer);
+      item.append(vignette, texte, actions);
+      return item;
+    })
+  );
+}
+
+async function ajouterMedia() {
+  const url = $('fMediaUrl').value.trim();
+  if (!url) return toast("Donne l'adresse de la photo ou de la vidéo");
+
+  const bouton = $('addMedia');
+  bouton.disabled = true;
+  try {
+    const produit = await api(`/products/${state.editing.id}/media`, {
+      method: 'POST',
+      body: { kind: $('fMediaKind').value, url },
+    });
+    $('fMediaUrl').value = '';
+    await rafraichirApresMedia(produit);
+    toast('Média ajouté');
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    bouton.disabled = false;
+  }
+}
+
+async function retirerMedia(id, rang) {
+  try {
+    await rafraichirApresMedia(await api(`/products/${id}/media/${rang}`, { method: 'DELETE' }));
+    toast('Média retiré');
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+async function deplacerMedia(id, de, vers) {
+  const medias = state.editing?.media ?? [];
+  const ordre = medias.map((_, i) => i);
+  [ordre[de], ordre[vers]] = [ordre[vers], ordre[de]];
+  try {
+    await rafraichirApresMedia(await api(`/products/${id}/media`, { method: 'PUT', body: { ordre } }));
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+/** Remet la liste à jour, et le catalogue derrière — la vignette a pu changer. */
+async function rafraichirApresMedia(produit) {
+  renderMedia(produit);
+  const catalog = await api('/catalog');
+  state.products = catalog.products;
+  renderProducts();
+  renderStock();
 }
 
 /* ── Liens directs et QR codes ───────────────────────────── */
