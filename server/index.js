@@ -13,16 +13,14 @@ import {
   reserveStock,
   restoreStock,
 } from './catalog.js';
-import {
-  createOrder, listOrders, countOrdersSince, countOrdersForSlot, slotCounts, STATUSES,
-} from './orders.js';
+import { createOrder, listOrders, slotCounts, STATUSES } from './orders.js';
 import { getSettings, isBlocked } from './settings.js';
 import { buildChallenge, solveChallenge, passIsValid } from './captcha.js';
 import { getVerification, isApproved } from './verification.js';
 import { isOpenNow } from './opening.js';
 import { resolveFileUrl } from './photos.js';
 import { waitlistKey, subscribe, isSubscribed } from './waitlist.js';
-import { bestDiscount, consumePromo } from './promos.js';
+import { bestDiscount, releasePromo } from './promos.js';
 import { findZone, findSlot, availableSlots, slotLabel } from './delivery.js';
 import { adminRouter } from './admin.js';
 import { bot, notifyAdmin, notifyOrderPlaced, notifyLowStock } from './bot.js';
@@ -220,23 +218,8 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       }
     }
 
-    // Vérifié avant la limite horaire : un panier vide est une erreur de
-    // saisie, pas une commande, et ne doit pas consommer le quota.
     if (!Array.isArray(items) || items.length === 0) {
       throw new HttpError(400, 'Panier vide.');
-    }
-
-    // Un client authentifié pourrait sinon enchaîner les commandes en boucle
-    // et vider le stock sans jamais rien retirer.
-    const lastHour = Date.now() - 60 * 60 * 1000;
-    const recent = settings.features.limits
-      ? await countOrdersSince(req.telegramUser.id, lastHour)
-      : 0;
-    if (settings.features.limits && recent >= settings.limits.ordersPerHour) {
-      throw new HttpError(
-        429,
-        `Trop de commandes en une heure (${settings.limits.ordersPerHour} maximum). Réessaie plus tard, ou écris-nous.`
-      );
     }
 
     const { resolved, units } = await resolveItems(items);
@@ -295,11 +278,15 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
     // Remise : le code saisi ou le palier automatique, le meilleur des deux.
     // Un code refusé fait échouer la commande plutôt que de passer en silence
     // au prix fort — le client l'a tapé, il doit savoir pourquoi il ne prend pas.
+    // `reserve` prend la place du code dans la même opération que sa
+    // vérification : contrôler puis consommer plus tard laissait huit
+    // commandes simultanées emporter le même code à usage unique.
     const remise = await bestDiscount({
       code: settings.features.promos ? promoCode : null,
       subtotal,
       userId: req.telegramUser.id,
       tiers: settings.features.tiers ? settings.discounts.tiers : [],
+      reserve: true,
     });
 
     // Minimum et franco se jugent sur le panier AVANT remise : sinon un code
@@ -314,21 +301,30 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
     // instant. Une page restée ouverte toute la nuit ne peut donc pas réserver
     // un créneau d'hier, et un créneau complet est refusé plutôt que surbooké.
     let slot = null;
+    let capaciteCreneau = 0;
     if (settings.slots.enabled) {
       const options = { timezone: settings.opening.hours.timezone };
       const found = findSlot(settings.slots, slotId, options);
       if (!found) {
         throw new HttpError(400, "Choisis un créneau — celui-ci n'est plus proposé.");
       }
-      if ((await countOrdersForSlot(found.id)) >= found.capacity) {
-        throw new HttpError(409, `Le créneau ${slotLabel(found)} est complet. Prends-en un autre.`);
-      }
+      // La capacité est vérifiée au moment d'écrire, pas ici : compter avant
+      // laissait passer toute une rafale de commandes simultanées.
       slot = { id: found.id, date: found.date, from: found.from, to: found.to, label: slotLabel(found) };
+      capaciteCreneau = found.capacity;
     }
 
     // Réservation tout-ou-rien : deux clients ne peuvent pas emporter
     // le dernier article en même temps.
-    const remaining = await reserveStock(resolved);
+    let remaining;
+    try {
+      remaining = await reserveStock(resolved);
+    } catch (err) {
+      // Le code était déjà pris : le rendre, sinon il reste grillé par une
+      // commande qui n'a jamais existé.
+      if (remise.code) await releasePromo(remise.code, req.telegramUser.id).catch(() => {});
+      throw err;
+    }
 
     let order;
     try {
@@ -346,16 +342,19 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
         zone: zone ? { id: zone.id, name: zone.name, postalCode: String(postalCode).trim() } : null,
         contact: address || null,
         note: typeof note === 'string' ? note.slice(0, 500) : null,
+        // Ce qui se compte sur les commandes est vérifié au moment d'écrire.
+        guards: {
+          maxPerHour: settings.features.limits ? settings.limits.ordersPerHour : 0,
+          slot: slot ? { id: slot.id, capacity: capaciteCreneau, label: slot.label } : null,
+        },
       });
     } catch (err) {
-      // La commande n'a pas pu être écrite : on ne garde pas le stock réservé.
+      // La commande n'a pas pu être écrite : on ne garde ni le stock réservé
+      // ni le code consommé.
       await restoreStock(resolved).catch(() => {});
+      if (remise.code) await releasePromo(remise.code, req.telegramUser.id).catch(() => {});
       throw err;
     }
-
-    // Le code n'est décompté qu'une fois la commande écrite : une erreur en
-    // amont ne doit pas grignoter les usages restants.
-    if (remise.code) await consumePromo(remise.code, req.telegramUser.id).catch(() => {});
 
     // Le vendeur découvrait ses ruptures en lisant une commande : on prévient
     // dès que le seuil est franchi, pas au prochain coup d'œil au tableau.

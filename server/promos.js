@@ -62,9 +62,14 @@ export async function deletePromo(code) {
  */
 export async function checkPromo(code, subtotal, userId) {
   const key = normalizeCode(code);
-  const data = await store.read();
-  const promo = data[key];
+  const promo = (await store.read())[key];
+  verifier(promo, subtotal, userId);
+  return { code: key, discount: discountOf(promo, subtotal), label: labelOf(promo) };
+}
 
+/** Les conditions d'un code, en un seul endroit : l'aperçu et la réservation
+ *  doivent refuser exactement les mêmes cas. */
+function verifier(promo, subtotal, userId) {
   if (!promo || !promo.active) throw new HttpError(400, 'Code inconnu.');
   if (promo.expiresAt && promo.expiresAt < today()) throw new HttpError(400, 'Ce code a expiré.');
   if (promo.maxUses !== null && promo.uses >= promo.maxUses) {
@@ -76,20 +81,48 @@ export async function checkPromo(code, subtotal, userId) {
   if (subtotal < promo.minSubtotal) {
     throw new HttpError(400, `Ce code s'applique à partir de ${(promo.minSubtotal / 100).toFixed(2)} €.`);
   }
-
-  return { code: key, discount: discountOf(promo, subtotal), label: labelOf(promo) };
 }
 
-/** Consomme le code : à n'appeler qu'une fois la commande écrite. */
-export async function consumePromo(code, userId) {
+/**
+ * Vérifie et consomme le code en une seule opération.
+ *
+ * Contrôler puis consommer plus tard laissait huit commandes simultanées
+ * emporter un code marqué « un seul usage » : toutes lisaient le compteur à
+ * zéro avant qu'aucune ne l'incrémente. La vérification vit désormais dans la
+ * mutation qui incrémente — le magasin fichier ne peut pas interrompre une
+ * fonction synchrone, et Postgres tient la ligne verrouillée le temps de la
+ * transaction.
+ *
+ * @returns {{code: string, discount: number, label: string}}
+ */
+export async function reservePromo(code, subtotal, userId) {
   const key = normalizeCode(code);
   return store.update((data) => {
     const promo = data[key];
-    if (!promo) return null;
+    verifier(promo, subtotal, userId);
+
     promo.uses = (promo.uses ?? 0) + 1;
     if (promo.oncePerClient && !promo.usedBy.includes(String(userId))) {
       promo.usedBy.push(String(userId));
     }
+    return { code: key, discount: discountOf(promo, subtotal), label: labelOf(promo) };
+  });
+}
+
+/**
+ * Rend un code réservé.
+ *
+ * Sert quand la commande échoue après coup — stock envolé, créneau complet —
+ * ou quand la remise automatique s'avère plus avantageuse : sans ça, un code
+ * serait grillé par une commande qui n'a jamais existé.
+ */
+export async function releasePromo(code, userId) {
+  const key = normalizeCode(code);
+  return store.update((data) => {
+    const promo = data[key];
+    if (!promo) return null;
+    promo.uses = Math.max(0, (promo.uses ?? 0) - 1);
+    promo.usedBy = (promo.usedBy ?? []).filter((v) => v !== String(userId));
     return promo;
   });
 }
@@ -159,13 +192,23 @@ function today() {
  *
  * @returns {{discount: number, label: string|null, code: string|null, source: 'promo'|'tier'|null}}
  */
-export async function bestDiscount({ code, subtotal, userId, tiers }) {
+export async function bestDiscount({ code, subtotal, userId, tiers, reserve = false }) {
   const palier = tierDiscount(tiers, subtotal);
-  const promo = code ? await checkPromo(code, subtotal, userId) : null;
+  // `reserve` distingue l'aperçu de la commande : l'un ne fait que regarder,
+  // l'autre prend la place. Un aperçu qui consommerait le code le griller à
+  // chaque fois que le client tape son code pour voir.
+  const promo = code
+    ? reserve
+      ? await reservePromo(code, subtotal, userId)
+      : await checkPromo(code, subtotal, userId)
+    : null;
 
   if (promo && promo.discount >= palier.discount) {
     return { discount: promo.discount, label: promo.label, code: promo.code, source: 'promo' };
   }
+  // Le palier l'emporte : le code réservé pour rien est rendu tout de suite.
+  if (promo && reserve) await releasePromo(promo.code, userId).catch(() => {});
+
   if (palier.discount > 0) {
     return { discount: palier.discount, label: palier.label, code: null, source: 'tier' };
   }

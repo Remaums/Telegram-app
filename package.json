@@ -8,7 +8,7 @@
     "prestart": "node tools/check-node.cjs",
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node test/api.test.mjs && node test/admin.test.mjs && node test/concurrence.test.mjs && node test/vercel-compat.test.mjs && node test/bot.test.mjs && node test/limites.test.mjs && node test/captcha.test.mjs && node test/verification.test.mjs && node test/ouverture.test.mjs && node test/livraison.test.mjs && node test/photos.test.mjs && node test/attente.test.mjs && node test/promos.test.mjs && node test/creneaux.test.mjs && node test/fonctionnalites.test.mjs && node test/robustesse.test.mjs",
+    "test": "node test/api.test.mjs && node test/admin.test.mjs && node test/concurrence.test.mjs && node test/vercel-compat.test.mjs && node test/bot.test.mjs && node test/limites.test.mjs && node test/captcha.test.mjs && node test/verification.test.mjs && node test/ouverture.test.mjs && node test/livraison.test.mjs && node test/photos.test.mjs && node test/attente.test.mjs && node test/promos.test.mjs && node test/creneaux.test.mjs && node test/fonctionnalites.test.mjs && node test/robustesse.test.mjs && node test/courses.test.mjs",
     "doctor": "node tools/doctor.mjs",
     "webhook": "node tools/set-webhook.mjs"
   },

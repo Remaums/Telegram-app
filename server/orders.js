@@ -18,11 +18,45 @@ function makeReference() {
   return `CS68-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 }
 
+/**
+ * Écrit une commande, et vérifie au passage ce qui se compte sur les commandes.
+ *
+ * `guards` porte les limites qui ne peuvent pas être contrôlées à l'avance :
+ * le plafond horaire d'un client et la capacité d'un créneau se lisent tous
+ * deux dans ce magasin. Les vérifier depuis une lecture séparée laissait
+ * passer une rafale entière — dix requêtes simultanées lisaient toutes
+ * « zéro commande » avant que la première n'écrive. Ici, le comptage et
+ * l'écriture sont dans la même mutation : le magasin fichier ne peut pas
+ * interrompre une fonction synchrone, et Postgres tient la ligne verrouillée.
+ */
 export async function createOrder({
   user, items, subtotal, discount = 0, discountLabel = null, promoCode = null,
   deliveryFee = 0, total, mode = 'pickup', contact, note, slot = null, zone = null,
+  guards = null,
 }) {
   return store.update((orders) => {
+    if (guards?.maxPerHour) {
+      const depuis = guards.since ?? Date.now() - 60 * 60 * 1000;
+      const recentes = orders.filter(
+        (o) => o.user.id === user.id && new Date(o.createdAt).getTime() >= depuis
+      ).length;
+      if (recentes >= guards.maxPerHour) {
+        throw new HttpError(
+          429,
+          `Trop de commandes en une heure (${guards.maxPerHour} maximum). Réessaie plus tard, ou écris-nous.`
+        );
+      }
+    }
+
+    if (guards?.slot) {
+      const prises = orders.filter(
+        (o) => o.slot?.id === guards.slot.id && o.status !== 'annulee'
+      ).length;
+      if (prises >= guards.slot.capacity) {
+        throw new HttpError(409, `Le créneau ${guards.slot.label} est complet. Prends-en un autre.`);
+      }
+    }
+
     const order = {
       reference: makeReference(),
       createdAt: new Date().toISOString(),

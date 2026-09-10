@@ -6,6 +6,8 @@ const tg = window.Telegram?.WebApp;
 const CART_KEY = 'kartoon.cart.v1';
 const AGE_KEY = 'kartoon.age.ok';
 const PASS_KEY = 'kartoon.pass';
+/** Lignes qu'on accepte de relire : au-delà, le serveur refuse la commande. */
+const CART_MAX_LINES = 50;
 
 const state = {
   shop: { shopName: 'COFFEE SHOP 68', currency: 'EUR', sellerUsername: '' },
@@ -852,13 +854,44 @@ async function joinWaitlist() {
 
 /* ── Panier ──────────────────────────────────────────────── */
 
+/**
+ * Relit le panier laissé par la visite précédente, en s'en méfiant.
+ *
+ * Ce contenu a pu être trafiqué, tronqué, ou écrit par une version plus
+ * ancienne de la boutique. Sans nettoyage, une ligne à `null` faisait planter
+ * le rendu, une quantité en texte affichait « NaN € » avec un bouton
+ * Commander toujours actif, et une quantité négative sortait un total négatif.
+ * Rien de tout ça n'aurait été accepté par le serveur — autant ne pas le
+ * montrer au client.
+ */
 function loadCart() {
+  let raw;
   try {
-    const raw = JSON.parse(localStorage.getItem(CART_KEY) ?? '[]');
-    return Array.isArray(raw) ? raw : [];
+    raw = JSON.parse(localStorage.getItem(CART_KEY) ?? '[]');
   } catch {
     return [];
   }
+  if (!Array.isArray(raw)) return [];
+
+  // Les doublons sont fusionnés plutôt qu'empilés : deux lignes du même
+  // article se comptaient deux fois dans le badge et dans le total.
+  const parCle = new Map();
+  for (const ligne of raw) {
+    if (!ligne || typeof ligne !== 'object') continue;
+
+    const id = typeof ligne.id === 'string' ? ligne.id.trim() : '';
+    if (!id) continue;
+
+    const variantId = typeof ligne.variantId === 'string' && ligne.variantId ? ligne.variantId : null;
+    const quantity = Math.floor(Number(ligne.quantity));
+    if (!Number.isFinite(quantity) || quantity < 1) continue;
+
+    const key = `${id}::${variantId ?? ''}`;
+    const dejaLa = parCle.get(key);
+    const total = Math.min(99, (dejaLa?.quantity ?? 0) + quantity);
+    parCle.set(key, { key, id, variantId, quantity: total });
+  }
+  return [...parCle.values()].slice(0, CART_MAX_LINES);
 }
 
 function saveCart() {
