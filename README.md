@@ -391,6 +391,43 @@ Une commande en livraison exige une adresse. Le mode, le sous-total et les
 frais sont enregistrés avec la commande, et repris dans le message envoyé au
 vendeur.
 
+### Zones de livraison
+
+Tant qu'aucune zone n'est déclarée, tu livres partout aux conditions
+ci-dessus. Dès qu'il y en a une, **seuls les codes postaux listés sont
+desservis** : le client saisit le sien dans le panier et voit immédiatement
+« Colmar centre · 3 € de livraison » ou « on ne livre pas encore le 75000 »,
+au lieu de valider une commande que tu devras annuler.
+
+| Champ de la zone | Laissé vide |
+|---|---|
+| Frais | gratuit pour cette zone |
+| Minimum | celui de la boutique |
+| Franco | celui de la boutique |
+
+Le secteur et le code postal sont enregistrés avec la commande et repris dans
+le message que tu reçois.
+
+### Créneaux
+
+Un interrupteur, puis une grille : par jour de la semaine, des plages avec une
+capacité. Le client choisit dans une liste des jours à venir, et la commande
+porte son créneau — tu vois d'un coup d'œil l'ordre de préparation.
+
+- **Délai avant un créneau** : on ne réserve pas celui qui commence dans cinq
+  minutes. Il ne s'applique qu'à la journée en cours.
+- **Jours proposés** : la profondeur de la fenêtre, jusqu'à quatorze jours.
+- **Capacité** : une fois atteinte, le créneau s'affiche « complet » et
+  **le serveur refuse de le surbooker** (HTTP 409). Il reste visible : le
+  faire disparaître donnerait l'impression d'un bug à qui l'avait vu une
+  minute plus tôt.
+
+Une commande annulée **libère sa place** : compter les annulations reviendrait
+à bloquer un créneau pour un client qui ne viendra pas. Le créneau demandé est
+revalidé au moment de commander contre la liste que la boutique proposerait à
+cet instant — une page restée ouverte toute la nuit ne peut donc pas réserver
+un créneau d'hier.
+
 ### Remises et codes promo
 
 Deux mécanismes, dans l'onglet Réglages :

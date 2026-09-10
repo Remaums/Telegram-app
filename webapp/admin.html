@@ -157,6 +157,42 @@
     </p>
     <button class="a-btn a-btn--primary a-btn--block" id="saveSettings" type="button">Enregistrer les garde-fous</button>
 
+    <h2 class="a-h2">Zones de livraison</h2>
+    <p class="a-hint">
+      Tant qu'aucune zone n'est déclarée, tu livres partout aux conditions
+      ci-dessus. Dès qu'il y en a une, <b>seuls les codes postaux listés sont
+      desservis</b> — les autres voient un refus clair au lieu d'une commande
+      que tu devras annuler. Frais, minimum et franco laissés vides retombent
+      sur les conditions générales.
+    </p>
+    <div id="zoneRows"></div>
+    <button class="a-btn a-btn--ghost a-btn--block" id="addZone" type="button">+ Ajouter une zone</button>
+    <button class="a-btn a-btn--primary a-btn--block" id="saveZones" type="button">Enregistrer les zones</button>
+
+    <h2 class="a-h2">Créneaux</h2>
+    <div class="a-toggle">
+      <label><input type="checkbox" id="fSlots"> Faire choisir un créneau</label>
+    </div>
+    <p class="a-hint">
+      Le client réserve une plage, tu vois l'ordre de préparation dans la
+      commande. Chaque créneau a une capacité : une fois atteinte, il s'affiche
+      complet et le serveur refuse de le surbooker.
+    </p>
+    <div id="slotsBlock" hidden>
+      <div class="a-row">
+        <label class="a-field">
+          <span>Délai avant un créneau (min)</span>
+          <input id="fSlotLead" type="number" min="0" max="10080" inputmode="numeric">
+        </label>
+        <label class="a-field">
+          <span>Jours proposés</span>
+          <input id="fSlotDays" type="number" min="1" max="14" inputmode="numeric">
+        </label>
+      </div>
+      <div id="slotRows"></div>
+    </div>
+    <button class="a-btn a-btn--primary a-btn--block" id="saveSlots" type="button">Enregistrer les créneaux</button>
+
     <h2 class="a-h2">Remises automatiques</h2>
     <p class="a-hint">
       Des paliers de panier, appliqués tout seuls et annoncés dans la boutique

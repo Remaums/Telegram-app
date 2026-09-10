@@ -294,6 +294,7 @@ export async function notifyOrderPlaced(order) {
   const text =
     `✅ Commande ${order.reference} enregistrée\n\n` +
     `${items}\n\n` +
+    (order.slot ? `🕒 ${order.slot.label}\n` : '') +
     remise +
     `Total : ${formatPrice(order.total)}\n\n` +
     'On revient vers toi très vite.';
@@ -327,10 +328,16 @@ export function orderMessage(order) {
       `${order.discountLabel ? ` (${order.discountLabel})` : ''}\n`
     : '';
 
+  // Le créneau vaut mieux en tête qu'en bas : c'est ce qui décide de l'ordre
+  // dans lequel le vendeur prépare ses commandes.
+  const creneau = order.slot ? `🕒 ${order.slot.label}\n` : '';
+  const secteur = order.zone ? ` — ${order.zone.name} (${order.zone.postalCode})` : '';
+
   return (
     `🧾 COMMANDE ${order.reference} — ${status?.emoji ?? ''} ${status?.label ?? order.status}\n\n` +
     `Client : ${who} (id ${order.user.id})\n` +
-    `Mode : ${livraison ? '🛵 livraison' : '🏠 retrait'}\n` +
+    `Mode : ${livraison ? '🛵 livraison' : '🏠 retrait'}${secteur}\n` +
+    creneau +
     `${items}\n\n` +
     remise +
     frais +

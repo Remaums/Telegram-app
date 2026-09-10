@@ -17,6 +17,11 @@ const state = {
   opening: { open: true },
   fulfillment: { pickup: true, delivery: false, deliveryFee: 0, freeDeliveryFrom: null, minimumOrder: 0 },
   tiers: [],          // remises automatiques par palier
+  zones: [],          // zones de livraison desservies
+  zone: null,         // celle qui couvre le code postal saisi
+  slotsEnabled: false,
+  slots: [],          // créneaux encore réservables
+  slotId: '',         // celui que le client a choisi
   promo: null,        // remise en cours : { code, discount, label, source }
   mode: 'pickup',
   captcha: null,      // épreuve en cours
@@ -60,6 +65,8 @@ async function init() {
     state.opening = data.opening ?? { open: true };
     state.fulfillment = data.fulfillment ?? state.fulfillment;
     state.tiers = data.discounts?.tiers ?? [];
+    state.zones = data.zones ?? [];
+    state.slotsEnabled = Boolean(data.slots?.enabled);
     state.mode = state.fulfillment.pickup ? 'pickup' : 'delivery';
   } catch (err) {
     console.error(err);
@@ -80,6 +87,7 @@ async function init() {
   renderCategories();
   renderGrid();
   renderCart();
+  loadSlots();
   gateCaptcha();
   gateVerification();
 }
@@ -101,6 +109,14 @@ function bindStaticHandlers() {
   $('checkout').addEventListener('click', checkout);
   $('promoApply').addEventListener('click', applyPromo);
   $('promoCode').addEventListener('keydown', (e) => e.key === 'Enter' && applyPromo());
+  $('orderPostal').addEventListener('input', () => {
+    state.zone = findZone($('orderPostal').value);
+    renderCart();
+  });
+  $('orderSlot').addEventListener('change', () => {
+    state.slotId = $('orderSlot').value;
+    renderCart();
+  });
   $('promoCode').addEventListener('input', () => {
     if (!promoError) return;
     promoError = null;
@@ -121,14 +137,17 @@ function bindStaticHandlers() {
 /* ── Retrait ou livraison ────────────────────────────────── */
 
 function renderModes() {
-  const { pickup, delivery, deliveryFee } = state.fulfillment;
+  const { pickup, delivery } = state.fulfillment;
   // Un seul mode possible : inutile de faire choisir.
   $('modeField').hidden = !(pickup && delivery);
   if (!(pickup && delivery)) return;
 
+  // Le tarif affiché est celui qui sera facturé : dès qu'une zone est
+  // reconnue, c'est le sien, pas celui des conditions générales.
+  const { fee } = conditions(cartTotal());
   const options = [
     ['pickup', '🏠 Retrait', 'sur place'],
-    ['delivery', '🛵 Livraison', deliveryFee ? formatPrice(deliveryFee) : 'offerte'],
+    ['delivery', '🛵 Livraison', fee ? formatPrice(fee) : 'offerte'],
   ];
 
   $('modes').replaceChildren(
@@ -149,12 +168,104 @@ function renderModes() {
   );
 }
 
+/* ── Zones et créneaux ───────────────────────────────────── */
+
+/** La zone qui couvre ce code postal, ou null si personne ne le dessert. */
+function findZone(postalCode) {
+  const code = String(postalCode ?? '').trim();
+  if (!/^\d{2,6}$/.test(code)) return null;
+  return state.zones.find((zone) => zone.postalCodes.includes(code)) ?? null;
+}
+
+/** Les zones remplacent les conditions générales là où elles en ont. */
+function conditions(subtotal) {
+  const { deliveryFee, freeDeliveryFrom, minimumOrder } = state.fulfillment;
+  const zone = state.zone;
+  return {
+    fee: zone ? zone.fee : deliveryFee,
+    franco: zone ? zone.freeFrom ?? freeDeliveryFrom : freeDeliveryFrom,
+    minimum: zone ? zone.minimumOrder ?? minimumOrder : minimumOrder,
+  };
+}
+
 /** Frais réellement dus : le franco peut les annuler. */
 function deliveryFeeFor(subtotal) {
-  const { delivery, deliveryFee, freeDeliveryFrom } = state.fulfillment;
+  const { delivery } = state.fulfillment;
   if (state.mode !== 'delivery' || !delivery) return 0;
-  if (freeDeliveryFrom !== null && subtotal >= freeDeliveryFrom) return 0;
-  return deliveryFee;
+  const { fee, franco } = conditions(subtotal);
+  if (franco !== null && subtotal >= franco) return 0;
+  return fee;
+}
+
+/** Dit tout de suite si on descend jusque chez lui, et à quelles conditions. */
+function renderZoneStatus() {
+  const el = $('zoneStatus');
+  const code = $('orderPostal').value.trim();
+
+  if (!code) {
+    el.hidden = true;
+    return;
+  }
+  if (!state.zone) {
+    el.textContent = `On ne livre pas encore le ${code}. Le retrait sur place reste possible.`;
+    el.hidden = false;
+    el.classList.add('promo__status--ko');
+    el.classList.remove('promo__status--ok');
+    return;
+  }
+
+  const details = [
+    state.zone.fee ? `${formatPrice(state.zone.fee)} de livraison` : 'livraison offerte',
+    state.zone.minimumOrder ? `minimum ${formatPrice(state.zone.minimumOrder)}` : null,
+  ].filter(Boolean);
+  el.textContent = `${state.zone.name} · ${details.join(' · ')}`;
+  el.hidden = false;
+  el.classList.add('promo__status--ok');
+  el.classList.remove('promo__status--ko');
+}
+
+/** Charge les créneaux encore réservables. Silencieux en cas d'échec : le
+ *  serveur revalide de toute façon, et une commande sans créneau vaut mieux
+ *  qu'un panier bloqué. */
+async function loadSlots() {
+  if (!state.slotsEnabled) return;
+  try {
+    const res = await fetch('/api/slots');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.slots = data.slots ?? [];
+    // Le créneau choisi a pu se remplir pendant que le panier était ouvert.
+    if (!state.slots.some((s) => s.id === state.slotId && !s.full)) state.slotId = '';
+    renderSlots();
+  } catch {
+    /* réseau capricieux : on garde ce qu'on a */
+  }
+}
+
+function renderSlots() {
+  const select = $('orderSlot');
+  const options = [
+    Object.assign(document.createElement('option'), {
+      value: '', textContent: state.slots.length ? 'Choisis un créneau' : 'Aucun créneau disponible',
+      disabled: true,
+    }),
+    ...state.slots.map((slot) =>
+      Object.assign(document.createElement('option'), {
+        value: slot.id,
+        // Un créneau complet reste affiché : le faire disparaître donnerait
+        // l'impression d'un bug à qui l'avait vu une minute plus tôt.
+        textContent: slot.full
+          ? `${slot.label} — complet`
+          : slot.left <= 2
+            ? `${slot.label} — ${slot.left} place${slot.left > 1 ? 's' : ''}`
+            : slot.label,
+        disabled: slot.full,
+      })
+    ),
+  ];
+  select.replaceChildren(...options);
+  select.value = state.slotId;
+  if (!select.value) select.selectedIndex = 0;
 }
 
 /* ── Remises ─────────────────────────────────────────────── */
@@ -739,23 +850,44 @@ function renderCart() {
   const subtotal = cartTotal();
   const fee = deliveryFeeFor(subtotal);
   const remise = currentDiscount(subtotal);
-  const { minimumOrder, freeDeliveryFrom } = state.fulfillment;
+  const { minimum, franco } = conditions(subtotal);
   // Minimum et franco se jugent sur le panier avant remise, comme le serveur.
-  const manque = Math.max(0, minimumOrder - subtotal);
+  const manque = Math.max(0, minimum - subtotal);
 
   $('cartEmpty').hidden = lines.length > 0;
   $('noteField').hidden = lines.length === 0;
   $('promoField').hidden = lines.length === 0;
-  $('modeField').hidden = lines.length === 0 || !(state.fulfillment.pickup && state.fulfillment.delivery);
-  $('contactField').hidden = lines.length === 0;
 
   const livraison = state.mode === 'delivery';
+  $('modeField').hidden = lines.length === 0 || !(state.fulfillment.pickup && state.fulfillment.delivery);
+  $('contactField').hidden = lines.length === 0;
+  $('postalField').hidden = lines.length === 0 || !livraison || state.zones.length === 0;
+  $('slotField').hidden = lines.length === 0 || !state.slotsEnabled;
+  $('slotFieldLabel').textContent = livraison ? 'Créneau de livraison' : 'Créneau de retrait';
+  renderZoneStatus();
+  renderModes();
+
+  // Avec un vrai sélecteur de créneau, inviter à en demander un dans la note
+  // enverrait deux réponses contradictoires au vendeur.
+  $('orderNote').placeholder = state.slotsEnabled
+    ? 'Point de retrait, code de la porte, question…'
+    : 'Créneau souhaité, point de retrait, question…';
+
   $('contactLabel').textContent = livraison
     ? 'Adresse de livraison (obligatoire)'
     : 'Téléphone ou adresse (optionnel)';
 
-  $('checkout').disabled = lines.length === 0 || !state.opening.open || manque > 0;
-  $('checkout').textContent = state.opening.open ? 'Commander' : 'Boutique fermée';
+  // Bloquer le bouton plutôt que laisser partir une commande que le serveur
+  // refusera : le client verrait un aller-retour pour rien.
+  const zoneManquante = livraison && state.zones.length > 0 && !state.zone;
+  const creneauManquant = state.slotsEnabled && !state.slotId;
+  $('checkout').disabled =
+    lines.length === 0 || !state.opening.open || manque > 0 || zoneManquante || creneauManquant;
+  $('checkout').textContent = !state.opening.open
+    ? 'Boutique fermée'
+    : creneauManquant && !zoneManquante && manque === 0 && lines.length
+      ? 'Choisis un créneau'
+      : 'Commander';
 
   const details = [
     remise.discount ? `remise ${formatPrice(remise.discount)} déduite` : null,
@@ -784,10 +916,11 @@ function renderCart() {
 
   const hint = $('cartHint');
   if (manque > 0 && lines.length) {
-    hint.textContent = `Commande minimum ${formatPrice(minimumOrder)} : il manque ${formatPrice(manque)}.`;
+    const ou = state.zone ? ` pour ${state.zone.name}` : '';
+    hint.textContent = `Commande minimum${ou} ${formatPrice(minimum)} : il manque ${formatPrice(manque)}.`;
     hint.hidden = false;
-  } else if (livraison && fee && freeDeliveryFrom !== null && lines.length) {
-    hint.textContent = `Livraison offerte à partir de ${formatPrice(freeDeliveryFrom)} : il manque ${formatPrice(freeDeliveryFrom - subtotal)}.`;
+  } else if (livraison && fee && franco !== null && lines.length) {
+    hint.textContent = `Livraison offerte à partir de ${formatPrice(franco)} : il manque ${formatPrice(franco - subtotal)}.`;
     hint.hidden = false;
   } else {
     hint.hidden = true;
@@ -873,6 +1006,8 @@ async function checkout() {
         items: lines.map((l) => ({ id: l.id, variantId: l.variantId, quantity: l.quantity })),
         mode: state.mode,
         promoCode: state.promo?.code ?? null,
+        postalCode: state.zone ? $('orderPostal').value.trim() : null,
+        slotId: state.slotId || null,
         contact,
         note,
       }),
@@ -887,6 +1022,9 @@ async function checkout() {
         $('promoCode').value = '';
         showPromoStatus('', null);
       }
+      // Une place vient d'être prise : la liste et le choix repartent à neuf.
+      state.slotId = '';
+      loadSlots();
     } else {
       const data = await res.json().catch(() => ({}));
       // Le laissez-passer a expiré : on refait l'épreuve plutôt que d'envoyer
@@ -906,6 +1044,9 @@ async function checkout() {
         button.textContent = 'Commander';
         return;
       }
+      // Créneau pris entre l'affichage et l'envoi : on recharge la liste
+      // plutôt que de laisser le client réessayer le même.
+      if (res.status === 409) await loadSlots();
       toast(data.error ?? 'Commande refusée.');
     }
   } catch (err) {
@@ -930,7 +1071,10 @@ function buildOrderMessage(lines, note, reference, contact, remise) {
 
   const subtotal = cartTotal();
   const fee = deliveryFeeFor(subtotal);
+  const creneau = state.slots.find((s) => s.id === state.slotId);
   parts.push('', state.mode === 'delivery' ? '🛵 Livraison' : '🏠 Retrait sur place');
+  if (state.zone) parts.push(`Secteur : ${state.zone.name}`);
+  if (creneau) parts.push(`Créneau : ${creneau.label}`);
   if (remise.discount) {
     parts.push(`Sous-total : ${formatPrice(subtotal)}`);
     parts.push(`Remise${remise.code ? ` ${remise.code}` : ''} : −${formatPrice(remise.discount)}`);
@@ -1042,6 +1186,9 @@ function openSheet(id) {
   document.body.style.overflow = 'hidden';
   tg?.BackButton?.show();
   syncMainButton();
+  // Les places partent pendant qu'on remplit son panier : on rafraîchit à
+  // l'ouverture plutôt que de servir la liste chargée au démarrage.
+  if (id === 'cartSheet') loadSlots();
 }
 
 function closeSheets() {

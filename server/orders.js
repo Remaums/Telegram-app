@@ -20,7 +20,7 @@ function makeReference() {
 
 export async function createOrder({
   user, items, subtotal, discount = 0, discountLabel = null, promoCode = null,
-  deliveryFee = 0, total, mode = 'pickup', contact, note,
+  deliveryFee = 0, total, mode = 'pickup', contact, note, slot = null, zone = null,
 }) {
   return store.update((orders) => {
     const order = {
@@ -43,6 +43,10 @@ export async function createOrder({
       promoCode,
       deliveryFee,
       total,
+      // Créneau réservé et zone desservie, tels qu'ils étaient au moment de la
+      // commande : les réglages peuvent changer, la commande ne doit pas.
+      slot,
+      zone,
       contact: contact ?? null,
       note: note || null,
     };
@@ -72,6 +76,33 @@ export async function countOrdersSince(userId, since) {
   const orders = await store.read();
   const floor = since instanceof Date ? since.getTime() : Number(since);
   return orders.filter((o) => o.user.id === userId && new Date(o.createdAt).getTime() >= floor).length;
+}
+
+/**
+ * Commandes déjà posées sur un créneau.
+ *
+ * Une commande annulée libère sa place : compter les annulations reviendrait à
+ * bloquer un créneau pour un client qui ne viendra pas.
+ */
+export async function countOrdersForSlot(slotId) {
+  const orders = await store.read();
+  return orders.filter((o) => o.slot?.id === slotId && o.status !== 'annulee').length;
+}
+
+/**
+ * Places déjà prises, par créneau, en une seule lecture.
+ *
+ * L'écran client demande une dizaine de créneaux d'un coup : les compter un
+ * par un relirait tout le magasin autant de fois.
+ */
+export async function slotCounts() {
+  const orders = await store.read();
+  const counts = new Map();
+  for (const order of orders) {
+    if (!order.slot?.id || order.status === 'annulee') continue;
+    counts.set(order.slot.id, (counts.get(order.slot.id) ?? 0) + 1);
+  }
+  return counts;
 }
 
 export async function getOrder(reference) {

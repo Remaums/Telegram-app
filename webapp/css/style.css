@@ -577,13 +577,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 .field { display: block; padding: 16px 14px 4px; }
 .field span { font-size: 13px; font-weight: 800; display: block; margin-bottom: 6px; color: var(--muted); }
-.field textarea, .field input {
+.field textarea, .field input, .field select {
   width: 100%; font: inherit; font-size: 14px; font-weight: 600; color: var(--cream);
   background: rgb(var(--ink-rgb) / .55); border: var(--line) solid var(--line-soft); border-radius: 14px;
   padding: 11px 13px; resize: none;
 }
 .field textarea::placeholder, .field input::placeholder { color: rgb(var(--cream-rgb) / .38); }
-.field textarea:focus, .field input:focus { outline: none; border-color: var(--neon); box-shadow: var(--glow-neon); }
+.field textarea:focus, .field input:focus, .field select:focus {
+  outline: none; border-color: var(--neon); box-shadow: var(--glow-neon);
+}
+.field select option { background: var(--night-2); color: var(--cream); }
+.field select option:disabled { color: rgb(var(--cream-rgb) / .4); }
 
 .cart__total { flex: none; line-height: 1.05; }
 .cart__total span { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); }

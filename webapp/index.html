@@ -160,6 +160,16 @@
         <span>Comment tu récupères</span>
         <div class="modes" id="modes" role="group" aria-label="Mode de récupération"></div>
       </div>
+      <label class="field" id="postalField" hidden>
+        <span>Code postal de livraison</span>
+        <input id="orderPostal" type="text" inputmode="numeric" maxlength="6" placeholder="68000"
+               autocomplete="postal-code">
+        <p class="promo__status" id="zoneStatus" hidden role="status"></p>
+      </label>
+      <label class="field" id="slotField" hidden>
+        <span id="slotFieldLabel">Créneau souhaité</span>
+        <select id="orderSlot"></select>
+      </label>
       <label class="field" id="contactField">
         <span id="contactLabel">Téléphone ou adresse (optionnel)</span>
         <input id="orderContact" type="text" maxlength="200" placeholder="Pour te joindre ou te livrer">

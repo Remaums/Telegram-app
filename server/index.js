@@ -13,7 +13,9 @@ import {
   reserveStock,
   restoreStock,
 } from './catalog.js';
-import { createOrder, listOrders, countOrdersSince, STATUSES } from './orders.js';
+import {
+  createOrder, listOrders, countOrdersSince, countOrdersForSlot, slotCounts, STATUSES,
+} from './orders.js';
 import { getSettings, isBlocked } from './settings.js';
 import { buildChallenge, solveChallenge, passIsValid } from './captcha.js';
 import { getVerification, isApproved } from './verification.js';
@@ -21,6 +23,7 @@ import { isOpenNow } from './opening.js';
 import { resolveFileUrl } from './photos.js';
 import { waitlistKey, subscribe, isSubscribed } from './waitlist.js';
 import { bestDiscount, consumePromo } from './promos.js';
+import { findZone, findSlot, availableSlots, slotLabel } from './delivery.js';
 import { adminRouter } from './admin.js';
 import { bot, notifyAdmin, notifyOrderPlaced, notifyLowStock } from './bot.js';
 import { storageKind } from './store.js';
@@ -119,6 +122,10 @@ app.get('/api/catalog', async (req, res, next) => {
       // Les paliers sont publics : c'est une promesse d'affichage (« −10 %
       // dès 100 € »), pas un secret. Les codes, eux, ne sortent jamais d'ici.
       discounts: { tiers: settings.discounts.tiers },
+      // Les zones sont une information de service : le client doit savoir si
+      // on descend chez lui, et à quelles conditions, avant de remplir son panier.
+      zones: settings.zones,
+      slots: { enabled: settings.slots.enabled },
     });
   } catch (err) {
     next(err);
@@ -180,7 +187,7 @@ async function resolveItems(items) {
 
 app.post('/api/orders', authenticate, async (req, res, next) => {
   try {
-    const { items, contact, note, mode, promoCode } = req.body ?? {};
+    const { items, contact, note, mode, promoCode, postalCode, slotId } = req.body ?? {};
     const settings = await getSettings();
 
     if (isBlocked(settings, req.telegramUser.id)) {
@@ -237,6 +244,22 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       throw new HttpError(400, 'Indique une adresse de livraison.');
     }
 
+    // Zone de livraison : tant qu'aucune n'est déclarée, on livre partout aux
+    // conditions générales. Dès qu'il y en a une, le code postal doit tomber
+    // dedans — sinon la commande part vers une adresse qu'on ne dessert pas.
+    let zone = null;
+    if (chosen === 'delivery' && settings.zones.length) {
+      zone = findZone(settings.zones, postalCode);
+      if (!zone) {
+        throw new HttpError(
+          400,
+          postalCode
+            ? `On ne livre pas encore le ${String(postalCode).trim()}. Retrait sur place, ou écris-nous.`
+            : 'Indique ton code postal pour la livraison.'
+        );
+      }
+    }
+
     if (units > settings.limits.unitsPerOrder) {
       throw new HttpError(
         400,
@@ -247,10 +270,16 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
     // Les montants sont recalculés ici, jamais repris du client : frais de
     // livraison, franco et minimum compris.
     const subtotal = resolved.reduce((sum, i) => sum + i.lineTotal, 0);
-    if (subtotal < fulfillment.minimumOrder) {
+
+    // Une zone lointaine peut exiger un panier plus gros et facturer plus cher
+    // que la boutique : ses valeurs priment, celles laissées vides retombent
+    // sur les conditions générales.
+    const minimum = zone?.minimumOrder ?? fulfillment.minimumOrder;
+    if (subtotal < minimum) {
       throw new HttpError(
         400,
-        `Commande minimum : ${(fulfillment.minimumOrder / 100).toFixed(2)} €. Il manque ${((fulfillment.minimumOrder - subtotal) / 100).toFixed(2)} €.`
+        `Commande minimum${zone ? ` pour ${zone.name}` : ''} : ${(minimum / 100).toFixed(2)} €. ` +
+          `Il manque ${((minimum - subtotal) / 100).toFixed(2)} €.`
       );
     }
 
@@ -267,9 +296,26 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
     // Minimum et franco se jugent sur le panier AVANT remise : sinon un code
     // ferait repasser la commande sous le minimum qu'elle venait d'atteindre,
     // et un franco gagné se perdrait en saisissant un code.
-    const francoAtteint =
-      fulfillment.freeDeliveryFrom !== null && subtotal >= fulfillment.freeDeliveryFrom;
-    const deliveryFee = chosen === 'delivery' && !francoAtteint ? fulfillment.deliveryFee : 0;
+    const franco = zone ? zone.freeFrom ?? fulfillment.freeDeliveryFrom : fulfillment.freeDeliveryFrom;
+    const francoAtteint = franco !== null && subtotal >= franco;
+    const tarif = zone ? zone.fee : fulfillment.deliveryFee;
+    const deliveryFee = chosen === 'delivery' && !francoAtteint ? tarif : 0;
+
+    // Créneau : revalidé contre la liste que la boutique proposerait à cet
+    // instant. Une page restée ouverte toute la nuit ne peut donc pas réserver
+    // un créneau d'hier, et un créneau complet est refusé plutôt que surbooké.
+    let slot = null;
+    if (settings.slots.enabled) {
+      const options = { timezone: settings.opening.hours.timezone };
+      const found = findSlot(settings.slots, slotId, options);
+      if (!found) {
+        throw new HttpError(400, "Choisis un créneau — celui-ci n'est plus proposé.");
+      }
+      if ((await countOrdersForSlot(found.id)) >= found.capacity) {
+        throw new HttpError(409, `Le créneau ${slotLabel(found)} est complet. Prends-en un autre.`);
+      }
+      slot = { id: found.id, date: found.date, from: found.from, to: found.to, label: slotLabel(found) };
+    }
 
     // Réservation tout-ou-rien : deux clients ne peuvent pas emporter
     // le dernier article en même temps.
@@ -287,6 +333,8 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
         promoCode: remise.code,
         deliveryFee,
         total: subtotal - remise.discount + deliveryFee,
+        slot,
+        zone: zone ? { id: zone.id, name: zone.name, postalCode: String(postalCode).trim() } : null,
         contact: address || null,
         note: typeof note === 'string' ? note.slice(0, 500) : null,
       });
@@ -319,6 +367,8 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
       promoCode: order.promoCode,
       deliveryFee: order.deliveryFee,
       total: order.total,
+      slot: order.slot,
+      zone: order.zone,
       items: order.items,
     });
   } catch (err) {
@@ -329,6 +379,43 @@ app.post('/api/orders', authenticate, async (req, res, next) => {
 app.get('/api/orders', authenticate, async (req, res, next) => {
   try {
     res.json(await listOrders({ userId: req.telegramUser.id, limit: 10 }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ── Créneaux ────────────────────────────────────────────── */
+
+/**
+ * Les créneaux encore réservables, avec les places qui restent.
+ *
+ * Ouverte sans authentification, comme le catalogue : c'est un horaire
+ * d'ouverture, pas une donnée personnelle. Un créneau complet reste dans la
+ * liste, marqué comme tel — le faire disparaître donnerait l'impression d'un
+ * bug à qui l'avait vu une minute plus tôt.
+ */
+app.get('/api/slots', async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.slots.enabled) return res.json({ enabled: false, slots: [] });
+
+    const counts = await slotCounts();
+    const slots = availableSlots(settings.slots, {
+      timezone: settings.opening.hours.timezone,
+    }).map((slot) => {
+      const taken = counts.get(slot.id) ?? 0;
+      return {
+        id: slot.id,
+        date: slot.date,
+        from: slot.from,
+        to: slot.to,
+        label: slotLabel(slot),
+        left: Math.max(0, slot.capacity - taken),
+        full: taken >= slot.capacity,
+      };
+    });
+
+    res.json({ enabled: true, slots });
   } catch (err) {
     next(err);
   }

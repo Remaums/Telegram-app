@@ -2,6 +2,7 @@ import { createStore } from './store.js';
 import { HttpError } from './catalog.js';
 import { defaultHours, normalizeHours } from './opening.js';
 import { normalizeTiers } from './promos.js';
+import { normalizeZones, normalizeSlots, defaultSlots } from './delivery.js';
 
 /**
  * Réglages de la boutique : ce qui se change en exploitation, sans toucher au
@@ -17,6 +18,11 @@ const DEFAULTS = {
     freeDeliveryFrom: null,  // null = pas de franco
     minimumOrder: 0,
   },
+  // Zones de livraison : chacune ses frais, son minimum et son franco. Vide =
+  // on livre partout aux conditions générales ci-dessus.
+  zones: [],
+  // Créneaux de retrait et de livraison, avec une capacité par créneau.
+  slots: defaultSlots(),
   // Seuil d'alerte : en dessous, le vendeur reçoit un message.
   alerts: { lowStock: 3 },
   // Remises automatiques par palier de panier. Les codes promo, eux, vivent
@@ -58,6 +64,8 @@ export async function getSettings() {
     fulfillment: { ...DEFAULTS.fulfillment, ...(data.fulfillment ?? {}) },
     alerts: { ...DEFAULTS.alerts, ...(data.alerts ?? {}) },
     discounts: { tiers: normalizeTiers(data.discounts?.tiers) },
+    zones: normalizeZones(data.zones),
+    slots: normalizeSlots(data.slots),
     captcha: { ...DEFAULTS.captcha, ...(data.captcha ?? {}) },
     verification: { ...DEFAULTS.verification, ...(data.verification ?? {}) },
     opening: {
@@ -88,6 +96,14 @@ export async function saveSettings(patch) {
     }
     if (patch.verification) {
       data.verification = { enabled: Boolean(patch.verification.enabled) };
+    }
+    if (patch.zones) {
+      data.zones = normalizeZones(patch.zones);
+    }
+    if (patch.slots) {
+      // Fusion avec l'existant : l'écran d'admin enregistre parfois le seul
+      // interrupteur, sans réexpédier toute la grille de la semaine.
+      data.slots = normalizeSlots({ ...normalizeSlots(data.slots), ...patch.slots });
     }
     if (patch.discounts) {
       data.discounts = { tiers: normalizeTiers(patch.discounts.tiers) };

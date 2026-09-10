@@ -74,6 +74,12 @@ function bindHandlers() {
   $('saveSettings').addEventListener('click', saveGuards);
   $('saveOpening').addEventListener('click', saveOpening);
   $('saveFulfillment').addEventListener('click', saveFulfillment);
+  $('addZone').addEventListener('click', () => addZoneRow());
+  $('saveZones').addEventListener('click', saveZones);
+  $('saveSlots').addEventListener('click', saveSlots);
+  $('fSlots').addEventListener('change', () => {
+    $('slotsBlock').hidden = !$('fSlots').checked;
+  });
   $('addTier').addEventListener('click', () => addTierRow());
   $('saveTiers').addEventListener('click', saveTiers);
   $('savePromo').addEventListener('click', savePromo);
@@ -619,6 +625,8 @@ function renderSettings() {
     : (fulfillment.freeDeliveryFrom / 100).toFixed(2);
   $('fMinimum').value = ((fulfillment.minimumOrder ?? 0) / 100).toFixed(2);
 
+  renderZones(settings.zones ?? []);
+  renderSlots(settings.slots ?? {});
   renderTiers(settings.discounts?.tiers ?? []);
   renderPromos();
 
@@ -757,6 +765,164 @@ async function saveGuards() {
     });
     renderSettings();
     toast('Réglages enregistrés');
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/* ── Zones de livraison ──────────────────────────────────── */
+
+function renderZones(zones) {
+  $('zoneRows').replaceChildren(...zones.map((zone) => zoneRow(zone)));
+}
+
+function zoneRow(zone = {}) {
+  const box = document.createElement('div');
+  box.className = 'a-zone';
+  box.innerHTML = `
+    <div class="a-zone__head">
+      <input class="a-zone__name" maxlength="40" placeholder="Nom du secteur"
+             value="${escapeHtml(zone.name ?? '')}" aria-label="Nom de la zone">
+    </div>
+    <input class="a-zone__codes" placeholder="Codes postaux : 68000, 68001…"
+           value="${escapeHtml((zone.postalCodes ?? []).join(', '))}" aria-label="Codes postaux">
+    <div class="a-row">
+      <label class="a-field"><span>Frais (€)</span>
+        <input class="a-zone__fee" type="number" step="0.01" min="0" inputmode="decimal"
+               value="${((zone.fee ?? 0) / 100).toFixed(2)}"></label>
+      <label class="a-field"><span>Minimum (€)</span>
+        <input class="a-zone__min" type="number" step="0.01" min="0" inputmode="decimal"
+               placeholder="général" value="${zone.minimumOrder == null ? '' : (zone.minimumOrder / 100).toFixed(2)}"></label>
+      <label class="a-field"><span>Franco (€)</span>
+        <input class="a-zone__franco" type="number" step="0.01" min="0" inputmode="decimal"
+               placeholder="général" value="${zone.freeFrom == null ? '' : (zone.freeFrom / 100).toFixed(2)}"></label>
+    </div>`;
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'a-btn a-btn--sm a-btn--danger';
+  remove.textContent = 'Retirer la zone';
+  remove.addEventListener('click', () => box.remove());
+  box.querySelector('.a-zone__head').append(remove);
+  return box;
+}
+
+function addZoneRow() {
+  $('zoneRows').append(zoneRow());
+}
+
+async function saveZones() {
+  const button = $('saveZones');
+  button.disabled = true;
+  try {
+    const zones = [...$('zoneRows').children].map((box) => ({
+      name: box.querySelector('.a-zone__name').value,
+      postalCodes: box.querySelector('.a-zone__codes').value,
+      fee: toCents(box.querySelector('.a-zone__fee').value),
+      // Vide veut dire « celui de la boutique », ce qui n'est pas zéro.
+      minimumOrder: optional(box.querySelector('.a-zone__min').value),
+      freeFrom: optional(box.querySelector('.a-zone__franco').value),
+    }));
+
+    state.settings = await api('/settings', { method: 'PUT', body: { zones } });
+    renderSettings();
+    // Une zone sans nom ou sans code postal est écartée à l'enregistrement :
+    // le dire évite de croire qu'elle est passée.
+    const gardees = state.settings.zones.length;
+    toast(gardees === zones.length ? 'Zones enregistrées' : `${gardees} zone(s) sur ${zones.length} retenue(s)`);
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function optional(value) {
+  return String(value).trim() === '' ? null : toCents(value);
+}
+
+/* ── Créneaux ────────────────────────────────────────────── */
+
+function renderSlots(slots) {
+  $('fSlots').checked = Boolean(slots.enabled);
+  $('slotsBlock').hidden = !slots.enabled;
+  $('fSlotLead').value = slots.leadMinutes ?? 60;
+  $('fSlotDays').value = slots.daysAhead ?? 7;
+
+  $('slotRows').replaceChildren(
+    ...DAYS.map(([key, label]) => {
+      const box = document.createElement('div');
+      box.className = 'a-slotday';
+      box.dataset.day = key;
+      box.innerHTML = `<div class="a-slotday__head"><span>${label}</span></div><div class="a-slotday__rows"></div>`;
+
+      const rows = box.querySelector('.a-slotday__rows');
+      for (const slot of slots.days?.[key] ?? []) rows.append(slotRow(slot));
+
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'a-btn a-btn--sm a-btn--ghost';
+      add.textContent = '+ créneau';
+      add.addEventListener('click', () => rows.append(slotRow()));
+      box.querySelector('.a-slotday__head').append(add);
+      return box;
+    })
+  );
+}
+
+function slotRow({ from = '18:00', to = '20:00', capacity = 10 } = {}) {
+  const row = document.createElement('div');
+  row.className = 'a-slot';
+  row.innerHTML = `
+    <input class="a-slot__from" type="time" value="${escapeHtml(from)}" aria-label="Début">
+    <span class="a-slot__unit">→</span>
+    <input class="a-slot__to" type="time" value="${escapeHtml(to)}" aria-label="Fin">
+    <input class="a-slot__cap" type="number" min="1" max="999" inputmode="numeric"
+           value="${Number(capacity)}" aria-label="Places">
+    <span class="a-slot__unit">pl.</span>`;
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'a-btn a-btn--sm a-btn--ghost';
+  remove.textContent = '✕';
+  remove.setAttribute('aria-label', 'Retirer ce créneau');
+  remove.addEventListener('click', () => row.remove());
+  row.append(remove);
+  return row;
+}
+
+async function saveSlots() {
+  const button = $('saveSlots');
+  button.disabled = true;
+  try {
+    const days = Object.fromEntries(
+      [...$('slotRows').children].map((box) => [
+        box.dataset.day,
+        [...box.querySelectorAll('.a-slot')].map((row) => ({
+          from: row.querySelector('.a-slot__from').value,
+          to: row.querySelector('.a-slot__to').value,
+          capacity: Number(row.querySelector('.a-slot__cap').value),
+        })),
+      ])
+    );
+
+    state.settings = await api('/settings', {
+      method: 'PUT',
+      body: {
+        slots: {
+          enabled: $('fSlots').checked,
+          leadMinutes: Number($('fSlotLead').value),
+          daysAhead: Number($('fSlotDays').value),
+          days,
+        },
+      },
+    });
+    renderSettings();
+    toast($('fSlots').checked ? 'Créneaux enregistrés' : 'Créneaux désactivés');
     haptic('success');
   } catch (err) {
     toast(err.message);

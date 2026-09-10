@@ -252,6 +252,40 @@ body.admin {
 .a-catrow input:focus { outline: none; border-color: var(--neon); box-shadow: var(--glow-neon); }
 .a-category__emoji { width: 58px; flex: none !important; text-align: center; }
 
+.a-zone {
+  border: 1px solid var(--line-soft); border-radius: 14px;
+  padding: 11px 12px 2px; margin-bottom: 10px;
+  background: rgb(var(--panel-rgb) / .4);
+}
+.a-zone__head { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.a-zone__name, .a-zone__codes {
+  min-width: 0; flex: 1; font: inherit; font-size: 14px; font-weight: 700;
+  color: var(--cream); background: rgb(var(--panel-rgb) / .6);
+  border: 1px solid var(--line-soft); border-radius: 10px; padding: 8px 10px;
+}
+.a-zone__codes { width: 100%; margin-bottom: 10px; font-size: 13px; letter-spacing: .02em; }
+.a-zone__name:focus, .a-zone__codes:focus { outline: none; border-color: var(--neon); box-shadow: var(--glow-neon); }
+.a-zone .a-field { margin-bottom: 10px; }
+.a-zone .a-field input { font-size: 14px; padding: 8px 10px; }
+
+/* Une journée de créneaux tient sur une ligne par plage : la semaine reste
+   lisible sans dérouler un accordéon par jour. */
+.a-slotday { border-top: 1px solid var(--line-soft); padding: 9px 0; }
+.a-slotday__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.a-slotday__head span { font-size: 13px; font-weight: 800; color: var(--muted); }
+.a-slotday__rows { display: flex; flex-direction: column; gap: 6px; margin-top: 7px; }
+.a-slotday__rows:empty { margin-top: 0; }
+.a-slot { display: flex; gap: 6px; align-items: center; }
+.a-slot input {
+  min-width: 0; font: inherit; font-size: 13.5px; font-weight: 700;
+  color: var(--cream); background: rgb(var(--panel-rgb) / .6);
+  border: 1px solid var(--line-soft); border-radius: 10px; padding: 7px 9px;
+}
+.a-slot__from, .a-slot__to { flex: 1; }
+.a-slot__cap { flex: 0 0 58px; text-align: center; }
+.a-slot input:focus { outline: none; border-color: var(--neon); box-shadow: var(--glow-neon); }
+.a-slot__unit { flex: none; font-size: 12px; font-weight: 800; color: var(--muted); }
+
 .a-tier { display: flex; gap: 7px; align-items: center; margin-bottom: 8px; }
 .a-tier input {
   min-width: 0; flex: 1; font: inherit; font-size: 14px; font-weight: 700;
