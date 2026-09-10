@@ -7,6 +7,7 @@ import {
   MEDIA_MAX,
   addProductMedia,
   setProductPhoto,
+  setProductMediaThumb,
   removeProductMedia,
   getCatalog,
   getProduct,
@@ -22,7 +23,7 @@ import { getSettings, saveSettings, blockClient, unblockClient } from './setting
 import { listVerifications, decideVerification, resetVerification } from './verification.js';
 import {
   notifyCustomer, notifyBackInStock, sendFileToAdmin, diffuser, botUsername,
-  deposerMedia, POIDS_MAX,
+  deposerMedia, retrouverVignette, POIDS_MAX,
 } from './bot.js';
 import { waitlistKey, takeSubscribers } from './waitlist.js';
 import { listPromos, savePromo, deletePromo } from './promos.js';
@@ -301,6 +302,45 @@ adminRouter.post(
       `🖼 ${produit.name} — nouvelle image principale.`);
 
     res.json(await setProductPhoto(req.params.id, depot.fileId));
+  })
+);
+
+/**
+ * Retrouve la vignette d'une vidéo ajoutée avant qu'on ne pense à la garder.
+ *
+ * Sans elle, la carte reste vide le temps que la vidéo arrive — quelques
+ * secondes sur un téléphone en 4G. Telegram ne la donne que dans le message
+ * qui porte la vidéo : on la lui renvoie donc, sans notification et sans
+ * retéléverser un octet, et le message est effacé aussitôt.
+ */
+adminRouter.post(
+  '/products/:id/media/:index/apercu',
+  route(async (req, res) => {
+    const produit = await getProduct(req.params.id);
+    if (!produit) throw new HttpError(404, 'Produit introuvable.');
+
+    const media = produit.media?.[Number(req.params.index)];
+    if (!media) throw new HttpError(400, "Ce média n'existe pas.");
+    if (media.kind !== 'video') throw new HttpError(400, "Une photo n'a pas besoin d'aperçu.");
+    if (!media.fileId) {
+      throw new HttpError(400, "Cette vidéo est hébergée ailleurs : son aperçu ne dépend pas de nous.");
+    }
+
+    let vignette;
+    try {
+      vignette = await retrouverVignette(req.telegramUser.id, media.fileId);
+    } catch (err) {
+      const raison = err?.description ?? err?.message ?? '';
+      if (/chat not found|bot was blocked/i.test(raison)) {
+        throw new HttpError(409, "Le bot ne peut pas t'écrire : ouvre sa conversation, envoie-lui /start, puis réessaie.");
+      }
+      throw new HttpError(502, `Telegram n'a pas rendu l'aperçu : ${raison || 'raison inconnue'}`);
+    }
+    if (!vignette) {
+      throw new HttpError(502, "Telegram n'a pas fabriqué d'aperçu pour cette vidéo. Renvoie-la depuis ta galerie.");
+    }
+
+    res.json(await setProductMediaThumb(req.params.id, req.params.index, vignette));
   })
 );
 

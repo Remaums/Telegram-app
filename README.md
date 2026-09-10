@@ -271,6 +271,20 @@ le vendeur est une décision.
 > `data:` et les remontées de dossier sont refusés, et des tests le vérifient à
 > chaque exécution.
 
+**Une vidéo montre son image d'attente tout de suite.** Telegram fabrique une
+vignette de quelques kilo-octets pour chaque vidéo qu'on lui confie : la
+boutique la garde et l'affiche en `poster`, sur la carte comme sur la fiche.
+L'image apparaît donc immédiatement pendant que la vidéo, elle, met le temps
+qu'il faut — sans elle le cadre reste noir, et un cadre noir se lit comme une
+panne. À défaut de vignette, l'illustration du produit tient la place : rien ne
+vaut mieux qu'un rectangle vide.
+
+Les vidéos ajoutées avant que la boutique ne pense à garder cette vignette
+n'en ont pas. Sur la fiche, dans l'espace admin, elles portent alors un bouton
+**🖼** qui va la chercher : le bot se renvoie la vidéo à lui-même — par sa
+référence, donc sans retéléverser un octet —, lit la vignette au passage et
+efface le message aussitôt.
+
 **Une copie locale évite de refaire le trajet.** Le catalogue ne stocke que la
 référence Telegram : sans rien d'autre, chaque première vue ferait
 client → boutique → Telegram → boutique → client, et l'entrepôt de fichiers de

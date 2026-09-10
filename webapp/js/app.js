@@ -1067,7 +1067,25 @@ function videoDeVitrine(product) {
 
   const rang = medias.findIndex((m) => m.kind === 'video');
   if (rang === -1) return null;
-  return medias[rang].url ?? `/api/media/${product.id}/${rang}`;
+  return {
+    url: medias[rang].url ?? `/api/media/${product.id}/${rang}`,
+    poster: posterDe(product, medias[rang], rang),
+  };
+}
+
+/**
+ * L'image à montrer en attendant que la vidéo arrive.
+ *
+ * Une vidéo de plusieurs mégaoctets met le temps qu'il faut, et sans `poster`
+ * le cadre reste noir pendant ce temps-là : le client croit la boutique en
+ * panne. Telegram fabrique justement une vignette de quelques kilo-octets pour
+ * chaque vidéo qu'on lui confie — elle arrive tout de suite. À défaut,
+ * l'illustration du produit tient la place : n'importe quoi vaut mieux qu'un
+ * rectangle vide.
+ */
+function posterDe(product, media, rang) {
+  if (media.thumbFileId) return `/api/media/${product.id}/${rang}/apercu`;
+  return product.image || '';
 }
 
 /**
@@ -1105,7 +1123,8 @@ function productCard(product) {
   // Muette et sans contrôles : la carte entière reste un bouton qui ouvre la
   // fiche, et aucun son ne sort d'une grille de catalogue.
   const visuel = video
-    ? `<video class="card__video" src="${escapeHtml(video)}" muted loop playsinline
+    ? `<video class="card__video" src="${escapeHtml(video.url)}" poster="${escapeHtml(video.poster)}"
+             muted loop playsinline
              preload="metadata" disablepictureinpicture tabindex="-1" aria-hidden="true"></video>
        <span class="card__film" aria-hidden="true">▶</span>`
     : `<img src="${product.image}" alt="" loading="lazy">`;
@@ -1205,6 +1224,10 @@ function renderGalerie(product) {
     if (media.kind === 'video') {
       const video = document.createElement('video');
       video.src = media.url ?? `/api/media/${product.id}/${rang}`;
+      // La vignette d'abord : la fiche montre quelque chose dès son ouverture,
+      // sans attendre le premier octet de la vidéo.
+      const apercu = posterDe(product, media, rang);
+      if (apercu) video.poster = apercu;
       video.controls = true;
       video.preload = 'metadata';
       video.playsInline = true;

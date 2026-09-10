@@ -991,8 +991,10 @@ function renderMedia(product) {
       const source = media.url ?? `/api/media/${product.id}/${rang}`;
       if (media.kind === 'video') {
         // `preload=metadata` : on veut la première image, pas la vidéo entière.
+        // Et la vignette de Telegram si on l'a, qui arrive avant tout le reste.
         const v = document.createElement('video');
         v.src = source;
+        if (media.thumbFileId) v.poster = `/api/media/${product.id}/${rang}/apercu`;
         v.preload = 'metadata';
         v.muted = true;
         vignette.append(v);
@@ -1039,11 +1041,45 @@ function renderMedia(product) {
       retirer.title = 'Retirer';
       retirer.addEventListener('click', () => retirerMedia(product.id, rang));
 
-      actions.append(monter, descendre, retirer);
+      actions.append(monter, descendre);
+
+      // Une vidéo d'avant, sans aperçu : la boutique peut aller le chercher.
+      // Sans lui, sa carte reste vide le temps que la vidéo arrive.
+      if (media.kind === 'video' && media.fileId && !media.thumbFileId) {
+        const apercu = document.createElement('button');
+        apercu.type = 'button';
+        apercu.textContent = '🖼';
+        apercu.title = "Retrouver l'aperçu de cette vidéo";
+        apercu.addEventListener('click', () => retrouverApercu(product.id, rang, apercu));
+        actions.append(apercu);
+      }
+
+      actions.append(retirer);
       item.append(vignette, texte, actions);
       return item;
     })
   );
+}
+
+/**
+ * Va chercher chez Telegram l'aperçu d'une vidéo déjà en galerie.
+ *
+ * Le bouton disparaît de lui-même une fois l'aperçu trouvé : il n'y a plus
+ * rien à demander.
+ */
+async function retrouverApercu(id, rang, bouton) {
+  bouton.disabled = true;
+  bouton.textContent = '…';
+  try {
+    const produit = await api(`/products/${id}/media/${rang}/apercu`, { method: 'POST' });
+    await rafraichirApresMedia(produit);
+    toast('Aperçu retrouvé');
+    haptic('success');
+  } catch (err) {
+    bouton.disabled = false;
+    bouton.textContent = '🖼';
+    toast(err.message);
+  }
 }
 
 /**

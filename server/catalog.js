@@ -147,6 +147,29 @@ export async function addProductMedia(id, media) {
   });
 }
 
+/**
+ * Note la vignette d'une vidéo déjà en galerie.
+ *
+ * Pour les vidéos ajoutées avant que la boutique ne pense à la garder : sans
+ * elle, la carte reste vide le temps que la vidéo arrive.
+ */
+export async function setProductMediaThumb(id, position, thumbFileId) {
+  return store.update((data) => {
+    const index = data.products.findIndex((p) => p.id === id);
+    if (index === -1) throw new HttpError(404, 'Produit introuvable.');
+
+    const galerie = [...(data.products[index].media ?? [])];
+    const rang = Number(position);
+    if (!Number.isInteger(rang) || rang < 0 || rang >= galerie.length) {
+      throw new HttpError(400, "Ce média n'existe pas.");
+    }
+    galerie[rang] = { ...galerie[rang], thumbFileId };
+
+    data.products[index] = normalizeProduct({ ...data.products[index], id, media: galerie });
+    return data.products[index];
+  });
+}
+
 /** Retire le média à cette position. */
 export async function removeProductMedia(id, position) {
   return store.update((data) => {
@@ -424,6 +447,9 @@ export function normalizeMedia(input) {
     const media = { kind };
     if (fileId) media.fileId = fileId;
     if (url) media.url = url;
+    // La vignette d'une vidéo : une petite image que Telegram fabrique
+    // lui-même, affichée en attendant que la vidéo arrive.
+    if (brut.thumbFileId) media.thumbFileId = String(brut.thumbFileId).slice(0, 200);
     if (brut.legende) media.legende = String(brut.legende).slice(0, 80);
     propres.push(media);
 

@@ -302,7 +302,11 @@ async function handleProductPhoto(ctx) {
   }
 
   try {
-    const produit = await addProductMedia(match.id, { kind: media.kind, fileId: media.fileId });
+    const produit = await addProductMedia(match.id, {
+      kind: media.kind,
+      fileId: media.fileId,
+      thumbFileId: media.thumbFileId,
+    });
     const combien = produit.media.length;
     await ctx.reply(
       `✅ ${media.kind === 'video' ? 'Vidéo ajoutée' : 'Photo ajoutée'} à « ${match.name} » ` +
@@ -322,6 +326,20 @@ async function handleProductPhoto(ctx) {
  * envoi « sans compression ». Un GIF arrive en `animation`, et se comporte
  * comme une vidéo muette.
  */
+/**
+ * La vignette que Telegram fabrique pour une vidéo.
+ *
+ * C'est une petite image JPEG — quelques kilo-octets — extraite du début du
+ * film. Elle vaut de l'or côté boutique : affichée en `poster`, elle apparaît
+ * tout de suite là où la vidéo, elle, met le temps qu'il faut pour arriver.
+ *
+ * `thumb` était son nom avant Bot API 7.0 : un serveur Bot API auto-hébergé
+ * plus ancien répond encore comme ça.
+ */
+function vignetteDe(media) {
+  return media?.thumbnail?.file_id ?? media?.thumb?.file_id ?? '';
+}
+
 function mediaDuMessage(message) {
   if (message.photo) {
     // Le dernier élément est la plus grande taille disponible.
@@ -329,10 +347,20 @@ function mediaDuMessage(message) {
     return { kind: 'photo', fileId: grande.file_id, octets: grande.file_size };
   }
   if (message.video) {
-    return { kind: 'video', fileId: message.video.file_id, octets: message.video.file_size };
+    return {
+      kind: 'video',
+      fileId: message.video.file_id,
+      thumbFileId: vignetteDe(message.video),
+      octets: message.video.file_size,
+    };
   }
   if (message.animation) {
-    return { kind: 'video', fileId: message.animation.file_id, octets: message.animation.file_size };
+    return {
+      kind: 'video',
+      fileId: message.animation.file_id,
+      thumbFileId: vignetteDe(message.animation),
+      octets: message.animation.file_size,
+    };
   }
   if (message.document) {
     const mime = message.document.mime_type ?? '';
@@ -340,7 +368,12 @@ function mediaDuMessage(message) {
       return { kind: 'photo', fileId: message.document.file_id, octets: message.document.file_size };
     }
     if (mime.startsWith('video/')) {
-      return { kind: 'video', fileId: message.document.file_id, octets: message.document.file_size };
+      return {
+        kind: 'video',
+        fileId: message.document.file_id,
+        thumbFileId: vignetteDe(message.document),
+        octets: message.document.file_size,
+      };
     }
     return { erreur: "Ce fichier n'est ni une image ni une vidéo." };
   }
@@ -546,7 +579,11 @@ export const POIDS_MAX = { photo: 10 * 1024 * 1024, video: 20 * 1024 * 1024 };
  * le vendeur récupère au passage une copie dans son fil — pratique le jour où
  * il cherche la photo d'origine.
  *
- * @returns {Promise<{kind: 'photo'|'video', fileId: string}>}
+ * Une vidéo revient avec la vignette que Telegram a fabriquée pour elle : elle
+ * servira de `poster` dans la boutique, et c'est ce qui s'affiche tout de suite
+ * là où la vidéo se fait attendre.
+ *
+ * @returns {Promise<{kind: 'photo'|'video', fileId: string, thumbFileId?: string}>}
  */
 export async function deposerMedia(chatId, kind, octets, nomFichier, legende) {
   const fichier = new InputFile(octets, nomFichier);
@@ -554,13 +591,43 @@ export async function deposerMedia(chatId, kind, octets, nomFichier, legende) {
 
   if (kind === 'video') {
     const message = await bot.api.sendVideo(chatId, fichier, options, AbortSignal.timeout(DELAI_ENVOI));
-    return { kind: 'video', fileId: message.video.file_id };
+    return {
+      kind: 'video',
+      fileId: message.video.file_id,
+      thumbFileId: vignetteDe(message.video),
+    };
   }
 
   const message = await bot.api.sendPhoto(chatId, fichier, options, AbortSignal.timeout(DELAI_ENVOI));
   // Telegram range les tailles de la plus petite à la plus grande : la
   // dernière est celle qu'on veut afficher.
   return { kind: 'photo', fileId: message.photo.at(-1).file_id };
+}
+
+/**
+ * Retrouve après coup la vignette d'une vidéo déjà déposée.
+ *
+ * `getFile` ne la donne pas : la vignette n'apparaît que dans le message qui
+ * porte la vidéo. On renvoie donc la vidéo au vendeur — par sa référence, donc
+ * sans retéléverser un octet —, on lit la vignette au passage, et on efface le
+ * message aussitôt. Sans notification : ce n'est pas un envoi qui le concerne,
+ * et il ne doit pas faire sonner son téléphone.
+ *
+ * Sert aux vidéos ajoutées avant que la boutique ne pense à garder la
+ * vignette. Une vidéo envoyée aujourd'hui l'apporte avec elle.
+ */
+export async function retrouverVignette(chatId, fileId) {
+  const message = await bot.api.sendVideo(
+    chatId,
+    fileId,
+    { disable_notification: true },
+    AbortSignal.timeout(DELAI_ENVOI)
+  );
+  const vignette = vignetteDe(message.video);
+  // L'effacement est un confort, pas une garantie : au-delà de 48 h Telegram
+  // le refuse, et ce n'est pas une raison pour perdre la vignette trouvée.
+  await bot.api.deleteMessage(chatId, message.message_id).catch(() => {});
+  return vignette;
 }
 
 /**

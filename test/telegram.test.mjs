@@ -21,6 +21,7 @@ const ADMIN_ID = Number((process.env.ADMIN_IDS ?? '424242').split(',')[0].trim()
 
 const { bot } = await import('../server/bot.js');
 const { createOrder, getOrder } = await import('../server/orders.js');
+const { getCatalog, removeProductMedia } = await import('../server/catalog.js');
 const { getSettings, saveSettings } = await import('../server/settings.js');
 
 let failures = 0;
@@ -162,6 +163,51 @@ await saveSettings({ features: { photos: false } });
 e = await jouer(message(ADMIN, undefined, { ...photo, caption: 'Dry Sift 68' }));
 check('Photos coupées : le bot le dit à l\'administrateur', /désactiv/i.test(dit(e)), dit(e).slice(0, 50));
 await saveSettings({ features: { photos: true } });
+
+/* ── La vignette d'une vidéo ─────────────────────────────── */
+
+// Telegram fabrique une petite image pour chaque vidéo qu'on lui confie. Elle
+// vaut quelques kilo-octets contre quelques mégaoctets : c'est elle qui
+// s'affiche pendant que la vidéo arrive, et sans elle la carte reste vide.
+const laVideo = (vignette) => ({
+  video: {
+    file_id: `BAAC-${Math.random().toString(36).slice(2)}`,
+    file_unique_id: 'v',
+    width: 320,
+    height: 240,
+    duration: 3,
+    file_size: 4096,
+    ...vignette,
+  },
+  caption: 'Dry Sift 68',
+});
+
+const galerieDe = async () => {
+  const p = (await getCatalog({ includeHidden: true })).products.find((x) => x.name === 'Dry Sift 68');
+  return { id: p.id, media: p.media ?? [] };
+};
+
+const auDepart = (await galerieDe()).media.length;
+
+e = await jouer(message(ADMIN, undefined, laVideo({ thumbnail: { file_id: 'AAQ-vignette', file_unique_id: 't' } })));
+check('Une vidéo envoyée au bot entre dans la galerie', /ajout/i.test(dit(e)), dit(e).slice(0, 40));
+let galerie = await galerieDe();
+check('Et sa vignette est gardée avec elle', galerie.media.at(-1)?.thumbFileId === 'AAQ-vignette',
+  JSON.stringify(galerie.media.at(-1)));
+
+// `thumb` était son nom avant Bot API 7.0 : un serveur auto-hébergé plus
+// ancien répond encore comme ça, et la vignette ne doit pas se perdre.
+await jouer(message(ADMIN, undefined, laVideo({ thumb: { file_id: 'AAQ-ancienne', file_unique_id: 't' } })));
+galerie = await galerieDe();
+check('L\'ancien nom du champ est compris aussi', galerie.media.at(-1)?.thumbFileId === 'AAQ-ancienne');
+
+// Une vidéo sans vignette ne doit pas en inventer une.
+await jouer(message(ADMIN, undefined, laVideo({})));
+galerie = await galerieDe();
+check("Une vidéo sans vignette n'en invente pas", galerie.media.at(-1)?.thumbFileId === undefined);
+
+// On rend la galerie telle qu'on l'a trouvée.
+for (let i = galerie.media.length - 1; i >= auDepart; i--) await removeProductMedia(galerie.id, i);
 
 /* ── L'historique suit son interrupteur ──────────────────── */
 

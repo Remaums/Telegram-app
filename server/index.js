@@ -584,6 +584,32 @@ app.get('/api/photo/:id', async (req, res, next) => {
  * répercutées : sans elles, impossible de se déplacer dans la vidéo, le
  * lecteur ne sait que la rejouer depuis le début.
  */
+/**
+ * Sert la vignette d'une vidéo : la petite image que Telegram fabrique pour
+ * elle, affichée en `poster` le temps que la vidéo arrive.
+ *
+ * Quelques kilo-octets contre quelques mégaoctets : c'est ce qui fait la
+ * différence entre une carte vide et une carte qui montre tout de suite ce
+ * qu'elle a à montrer.
+ */
+app.get('/api/media/:id/:index/apercu', async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.features.photos) return res.status(404).json({ error: 'Médias désactivés.' });
+
+    const product = await getProduct(req.params.id);
+    const media = product?.media?.[Number(req.params.index)];
+    if (!media?.thumbFileId) return res.status(404).json({ error: 'Pas de vignette pour ce média.' });
+
+    await servirMedia(req, res, { fileId: media.thumbFileId, kind: 'photo' });
+  } catch (err) {
+    if (err?.code === 'ERR_STREAM_PREMATURE_CLOSE' || res.writableEnded) return;
+    console.error('Vignette de média indisponible :', err.message);
+    if (!res.headersSent) res.status(502).json({ error: 'Vignette indisponible.' });
+    else next(err);
+  }
+});
+
 app.get('/api/media/:id/:index', async (req, res, next) => {
   try {
     const settings = await getSettings();
