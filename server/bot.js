@@ -528,6 +528,42 @@ export async function sendFileToAdmin(chatId, filename, contenu, legende) {
 const DELAI_ENVOI = 25000;
 
 /**
+ * Ce que Telegram accepte, et ce qu'il rend ensuite.
+ *
+ * Deux plafonds différents, et c'est le second qui commande. Un bot peut
+ * *envoyer* une vidéo de cinquante mégaoctets, mais ne peut en *télécharger*
+ * que vingt : au-delà, le média serait accepté, rangé dans la galerie, et
+ * resterait noir à l'affichage. On s'aligne donc sur ce qu'on saura resservir.
+ */
+export const POIDS_MAX = { photo: 10 * 1024 * 1024, video: 20 * 1024 * 1024 };
+
+/**
+ * Dépose un fichier chez Telegram et rend sa référence.
+ *
+ * Le fichier ne touche jamais notre disque : il traverse le serveur et repart
+ * vers la conversation du vendeur, d'où on ne garde que le `file_id`. Rien à
+ * écrire (donc rien qui casse en serverless), rien de plus à sauvegarder, et
+ * le vendeur récupère au passage une copie dans son fil — pratique le jour où
+ * il cherche la photo d'origine.
+ *
+ * @returns {Promise<{kind: 'photo'|'video', fileId: string}>}
+ */
+export async function deposerMedia(chatId, kind, octets, nomFichier, legende) {
+  const fichier = new InputFile(octets, nomFichier);
+  const options = { caption: legende?.slice(0, 1000) };
+
+  if (kind === 'video') {
+    const message = await bot.api.sendVideo(chatId, fichier, options, AbortSignal.timeout(DELAI_ENVOI));
+    return { kind: 'video', fileId: message.video.file_id };
+  }
+
+  const message = await bot.api.sendPhoto(chatId, fichier, options, AbortSignal.timeout(DELAI_ENVOI));
+  // Telegram range les tailles de la plus petite à la plus grande : la
+  // dernière est celle qu'on veut afficher.
+  return { kind: 'photo', fileId: message.photo.at(-1).file_id };
+}
+
+/**
  * Envoie une annonce, doucement.
  *
  * Telegram coupe au-delà d'une trentaine de messages par seconde et bloque le

@@ -121,6 +121,8 @@ function bindHandlers() {
   $('fHasVariants').addEventListener('change', syncPricingMode);
   $('fImage').addEventListener('change', syncImageField);
   $('addMedia').addEventListener('click', ajouterMedia);
+  $('pickMedia').addEventListener('click', () => $('mediaFile').click());
+  $('mediaFile').addEventListener('change', envoyerDepuisLaGalerie);
   $('addVariant').addEventListener('click', () => addVariantRow());
   $('saveProduct').addEventListener('click', saveProduct);
   $('deleteProduct').addEventListener('click', removeProduct);
@@ -1029,6 +1031,82 @@ function renderMedia(product) {
       return item;
     })
   );
+}
+
+/**
+ * Envoie les fichiers choisis dans la galerie du téléphone.
+ *
+ * `XMLHttpRequest` plutôt que `fetch` : lui seul sait dire où en est l'envoi.
+ * Sur un réseau de mobile, une vidéo de vingt mégaoctets prend une minute, et
+ * un bouton grisé sans nouvelle pousse à recharger la page en plein transfert.
+ *
+ * Les fichiers partent l'un après l'autre : en parallèle, ils se disputeraient
+ * la bande passante et l'ordre d'arrivée dans la galerie serait celui du
+ * hasard, pas celui de la sélection.
+ */
+async function envoyerDepuisLaGalerie(event) {
+  const fichiers = [...(event.target.files ?? [])];
+  event.target.value = ''; // sans ça, rechoisir le même fichier ne déclencherait rien
+  if (!fichiers.length) return;
+
+  const zone = $('mediaEnvoi');
+  const barre = $('mediaProgres');
+  const etat = $('mediaEtat');
+  zone.hidden = false;
+  $('pickMedia').disabled = true;
+
+  let envoyes = 0;
+  try {
+    for (const [rang, fichier] of fichiers.entries()) {
+      const suite = fichiers.length > 1 ? ` (${rang + 1}/${fichiers.length})` : '';
+      etat.textContent = `Envoi${suite}…`;
+      barre.style.width = '0%';
+
+      const produit = await televerser(fichier, (part) => {
+        barre.style.width = `${Math.round(part * 100)}%`;
+        etat.textContent = part >= 1 ? `Traitement${suite}…` : `Envoi${suite} · ${Math.round(part * 100)} %`;
+      });
+
+      envoyes++;
+      await rafraichirApresMedia(produit);
+    }
+    toast(envoyes > 1 ? `${envoyes} médias ajoutés` : 'Média ajouté');
+    haptic('success');
+  } catch (err) {
+    // On dit combien sont passés : après trois vidéos dont la deuxième échoue,
+    // « erreur » tout seul ne dit pas où on en est.
+    toast(envoyes ? `${envoyes} envoyé(s), puis : ${err.message}` : err.message);
+  } finally {
+    zone.hidden = true;
+    barre.style.width = '0%';
+    $('pickMedia').disabled = false;
+  }
+}
+
+/** Un fichier, en corps brut, avec l'avancement rapporté au fur et à mesure. */
+function televerser(fichier, avance) {
+  return new Promise((resolve, rejeter) => {
+    const requete = new XMLHttpRequest();
+    const nom = encodeURIComponent(fichier.name || 'media');
+    requete.open('POST', `/api/admin/products/${state.editing.id}/media/upload?nom=${nom}`);
+    requete.setRequestHeader('Content-Type', fichier.type || 'application/octet-stream');
+    requete.setRequestHeader('X-Telegram-Init-Data', tg?.initData ?? '');
+
+    requete.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) avance(e.loaded / e.total);
+    });
+
+    requete.addEventListener('load', () => {
+      let corps = {};
+      try { corps = JSON.parse(requete.responseText); } catch {}
+      if (requete.status >= 200 && requete.status < 300) return resolve(corps);
+      rejeter(new Error(corps.error ?? `Envoi refusé (${requete.status})`));
+    });
+    requete.addEventListener('error', () => rejeter(new Error('Réseau interrompu pendant l envoi.')));
+    requete.addEventListener('abort', () => rejeter(new Error('Envoi interrompu.')));
+
+    requete.send(fichier);
+  });
 }
 
 async function ajouterMedia() {

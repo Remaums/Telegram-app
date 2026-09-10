@@ -231,16 +231,26 @@ Chaque produit porte une galerie : jusqu'à **huit médias**, photos et vidéos
 mêlées, que le client fait défiler du doigt sur la fiche. Le premier sert aussi
 de vignette dans la grille tant qu'aucune n'a été choisie.
 
-Deux façons d'en ajouter :
+Trois façons d'en ajouter :
 
+- **Depuis la galerie du téléphone**, dans l'espace admin : sur la fiche du
+  produit, bouton **📱 Depuis ma galerie**. On choisit une ou plusieurs photos
+  ou vidéos, une barre montre l'avancement, et la galerie se met à jour toute
+  seule. Le fichier ne touche jamais le disque de la boutique : il traverse le
+  serveur, repart vers ta conversation Telegram — où tu en gardes une copie —
+  et seule la référence est conservée. Plafonds : **10 Mo par photo, 20 Mo par
+  vidéo**, alignés sur ce que Telegram sait *rendre* et non sur ce qu'il
+  accepte de recevoir. Un fichier plus lourd serait rangé dans la galerie pour
+  y rester noir.
 - **Envoyer la photo ou la vidéo au bot**, avec le nom du produit en légende.
   Le fichier reste chez Telegram — on n'enregistre que sa référence : rien à
   écrire sur le disque, rien de plus à sauvegarder, et les médias suivent la
   boutique si elle change d'hébergeur. Telegram ne laisse pas un bot
   télécharger au-delà de **20 Mo** : une vidéo plus lourde est refusée en le
   disant, plutôt qu'enregistrée pour ne jamais s'afficher.
-- **Coller une adresse** dans l'espace admin, sur la fiche du produit. Un
-  chemin local (`/assets/products/ma-photo.jpg`) ou une adresse en `https://`.
+- **Coller une adresse** dans l'espace admin, sous le bouton d'envoi. Un
+  chemin local (`/assets/products/ma-photo.jpg`) ou une adresse en `https://`,
+  pour les visuels hébergés ailleurs.
 
 Sur la fiche, l'ordre se règle avec les flèches et chaque média se retire d'un
 bouton. La vignette montre le vrai visuel, pas son nom de fichier : c'est la

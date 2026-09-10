@@ -21,6 +21,7 @@ import { getSettings, saveSettings, blockClient, unblockClient } from './setting
 import { listVerifications, decideVerification, resetVerification } from './verification.js';
 import {
   notifyCustomer, notifyBackInStock, sendFileToAdmin, diffuser, botUsername,
+  deposerMedia, POIDS_MAX,
 } from './bot.js';
 import { waitlistKey, takeSubscribers } from './waitlist.js';
 import { listPromos, savePromo, deletePromo } from './promos.js';
@@ -174,6 +175,79 @@ adminRouter.post(
     const { kind = 'photo', url } = req.body ?? {};
     if (!url) throw new HttpError(400, "Donne l'adresse de la photo ou de la vidéo.");
     res.json(await addProductMedia(req.params.id, { kind, url }));
+  })
+);
+
+/**
+ * Reçoit un média depuis la galerie du téléphone.
+ *
+ * Le fichier arrive en corps brut plutôt qu'en multipart : le décoder
+ * demanderait une dépendance de plus pour un seul champ, alors que le nom et
+ * le type tiennent très bien dans l'URL.
+ *
+ * Il ne touche jamais notre disque. Il traverse le serveur, repart vers la
+ * conversation du vendeur, et on ne garde que la référence que Telegram rend.
+ * C'est le même principe que pour une photo envoyée au bot — la boutique n'a
+ * ainsi aucun fichier à héberger ni à sauvegarder, et le vendeur retrouve son
+ * original dans son fil.
+ */
+adminRouter.post(
+  '/products/:id/media/upload',
+  route(async (req, res) => {
+    const produit = await getProduct(req.params.id);
+    if (!produit) throw new HttpError(404, 'Produit introuvable.');
+
+    const octets = Buffer.isBuffer(req.body) ? req.body : null;
+    if (!octets?.length) throw new HttpError(400, 'Aucun fichier reçu.');
+
+    // Le type déclaré par le navigateur décide, pas l'extension du nom : un
+    // fichier renommé « .jpg » ne doit pas se faire passer pour une image.
+    const type = String(req.get('content-type') ?? '').toLowerCase();
+    const kind = type.startsWith('video/') ? 'video' : type.startsWith('image/') ? 'photo' : null;
+    if (!kind) {
+      throw new HttpError(400, `Ce fichier n'est ni une image ni une vidéo (${type || 'type inconnu'}).`);
+    }
+
+    if (octets.length > POIDS_MAX[kind]) {
+      // Une décimale sur le poids réel : arrondi à l'entier, un fichier de
+      // 10,3 Mo se lisait « pèse 10 Mo, pas plus de 10 » — un refus qui a
+      // l'air de se contredire.
+      const mo = (n, decimales = 0) => (n / 1024 / 1024).toFixed(decimales);
+      throw new HttpError(
+        413,
+        `Ce fichier pèse ${mo(octets.length, 1)} Mo, et Telegram n'en accepte pas plus de ` +
+          `${mo(POIDS_MAX[kind])} pour ${kind === 'video' ? 'une vidéo' : 'une photo'}.\n\n` +
+          (kind === 'video'
+            ? 'Raccourcis-la, ou baisse sa qualité avant de la renvoyer.'
+            : "Réduis-la, ou envoie-la depuis l'appareil photo plutôt qu'en pleine résolution.")
+      );
+    }
+
+    if ((produit.media ?? []).length >= MEDIA_MAX) {
+      throw new HttpError(400, `La galerie est pleine (${MEDIA_MAX} médias au maximum).`);
+    }
+
+    const nom = String(req.query.nom ?? '').replace(/[^\w.\- ]/g, '').slice(0, 80) ||
+      `media.${kind === 'video' ? 'mp4' : 'jpg'}`;
+
+    let depot;
+    try {
+      depot = await deposerMedia(
+        req.telegramUser.id,
+        kind,
+        octets,
+        nom,
+        `📎 ${produit.name} — ajouté à la galerie depuis l'espace admin.`
+      );
+    } catch (err) {
+      const raison = err?.description ?? err?.message ?? '';
+      if (/chat not found|bot was blocked/i.test(raison)) {
+        throw new HttpError(409, "Le bot ne peut pas t'écrire : ouvre sa conversation, envoie-lui /start, puis réessaie.");
+      }
+      throw new HttpError(502, `Telegram n'a pas pris le fichier : ${raison || 'raison inconnue'}`);
+    }
+
+    res.json(await addProductMedia(req.params.id, depot));
   })
 );
 

@@ -348,6 +348,26 @@ body.admin {
 .a-media__actions button:disabled { opacity: .35; }
 .a-field--grow { flex: 1; min-width: 0; }
 
+/* L'envoi depuis la galerie : une barre qui avance vaut mieux qu'un bouton
+   grisé, surtout pour une vidéo de vingt mégaoctets sur un réseau de mobile. */
+.a-media__envoi {
+  display: flex; align-items: center; gap: 9px; margin-top: 8px;
+  font-size: 12px; font-weight: 700; color: var(--muted);
+}
+.a-media__barre {
+  flex: 1; height: 6px; border-radius: 999px; overflow: hidden;
+  background: rgb(var(--night-rgb) / .6);
+}
+.a-media__barre div {
+  height: 100%; width: 0; border-radius: 999px;
+  background: linear-gradient(90deg, var(--green-dark), var(--neon));
+  transition: width .2s linear;
+}
+.a-media__ou {
+  text-align: center; margin: 10px 0 2px; opacity: .7;
+  text-transform: lowercase; letter-spacing: .04em;
+}
+
 .a-features { display: flex; flex-direction: column; gap: 7px; margin-bottom: 4px; }
 .a-feature {
   display: flex; align-items: flex-start; gap: 11px;

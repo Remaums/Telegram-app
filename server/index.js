@@ -59,6 +59,15 @@ app.use((req, res, next) => {
 // que celle-ci ne rejette pas le corps avant d'y arriver. Le reste de l'API
 // n'a aucune raison de recevoir plus de 64 Ko.
 app.use(['/api/admin/backup/restore', '/api/admin/backup/inspect'], express.json({ limit: '32mb' }));
+
+// L'envoi d'un média depuis la galerie du téléphone arrive en corps brut :
+// pas de multipart, donc pas de dépendance de plus pour le décoder. Le nom et
+// le type voyagent dans l'URL, le fichier est le corps. La limite couvre le
+// plus gros des deux plafonds Telegram ; la route affine ensuite selon le type.
+app.use(
+  '/api/admin/products/:id/media/upload',
+  express.raw({ type: () => true, limit: '21mb' })
+);
 app.use(express.json({ limit: '64kb' }));
 
 // La Mini App tourne dans une WebView Telegram : ces en-têtes évitent qu'elle

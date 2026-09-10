@@ -350,6 +350,20 @@
         <span class="a-field__label">Photos et vidéos de la fiche</span>
         <p class="a-hint" id="mediaHint"></p>
         <div class="a-media__list" id="mediaList"></div>
+        <!-- Le chemin naturel depuis un téléphone : on prend dans la galerie.
+             `capture` absent volontairement, pour laisser le choix entre la
+             pellicule et l'appareil photo. -->
+        <input id="mediaFile" type="file" accept="image/*,video/*" multiple hidden>
+        <button class="a-btn a-btn--primary a-btn--block" id="pickMedia" type="button">
+          📱 Depuis ma galerie
+        </button>
+        <div class="a-media__envoi" id="mediaEnvoi" hidden>
+          <div class="a-media__barre"><div id="mediaProgres"></div></div>
+          <span id="mediaEtat"></span>
+        </div>
+
+        <p class="a-hint a-media__ou">ou colle une adresse</p>
+
         <div class="a-row">
           <label class="a-field a-field--grow">
             <span>Adresse d'une photo ou d'une vidéo</span>
