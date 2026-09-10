@@ -220,6 +220,19 @@ colle-la chez BotFather (étape 8).
 > la remettre dans `.env` **et** chez BotFather. C'est acceptable pour tester
 > une soirée, intenable pour une vraie boutique — d'où l'option B.
 
+Si aucune adresse n'apparaît au bout d'une minute, la cause est presque
+toujours la même : `cloudflared` sort en QUIC sur le port **UDP 7844**, et
+beaucoup d'hébergeurs filtrent l'UDP sortant. Le tunnel retente alors sans fin,
+silencieusement. Le remède est de forcer le TCP :
+
+```bash
+cloudflared tunnel --protocol http2 --url http://localhost:3000
+```
+
+`deploy/installer.sh` détecte ce cas dans le journal et bascule tout seul. Si
+même le HTTP/2 ne passe pas, ta sortie réseau est trop filtrée pour un tunnel :
+prends l'option B, qui ne demande que le 80 et le 443.
+
 Pour que le tunnel survive à la fermeture de ta session SSH :
 
 ```bash
@@ -386,6 +399,8 @@ Une ligne pour une sauvegarde quotidienne, gardée 30 jours :
 
 | Symptôme | Cause la plus fréquente | Ce qu'il faut faire |
 |---|---|---|
+| Le tunnel ne rend jamais d'adresse | l'hébergeur filtre l'UDP sortant (port 7844), que cloudflared utilise par défaut | `sudo systemctl edit tunnel` et forcer `--protocol http2` (le 443 en TCP), ou `bash deploy/installer.sh` qui bascule tout seul |
+| `failed to request quick Tunnel` | Cloudflare refuse les tunnels anonymes depuis cette IP | passe à l'option 2 du guide (DuckDNS), qui n'a besoin que du 80 et du 443 |
 | `409 Conflict` dans les journaux | un webhook est resté déclaré (essai Vercel), il se dispute les mises à jour avec le long polling | `node tools/set-webhook.mjs --delete` |
 | Le bouton du menu ne s'ouvre pas | l'URL n'est pas en HTTPS valide | vérifie le certificat : `curl -I https://ton-domaine` |
 | `502 Bad Gateway` | la boutique ne tourne pas | `systemctl status coffeeshop68`, puis `journalctl -u coffeeshop68 -n 50` |

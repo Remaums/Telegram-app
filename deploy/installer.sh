@@ -240,26 +240,85 @@ case "${choix:-}" in
       sudo dpkg -i /tmp/cloudflared.deb >/dev/null
       rm -f /tmp/cloudflared.deb
     fi
-    sudo tee /etc/systemd/system/tunnel.service >/dev/null <<TUNNEL
+
+    # Pose le service du tunnel, éventuellement en forçant un protocole.
+    #
+    # Par défaut cloudflared sort en QUIC, sur le port UDP 7844. Beaucoup
+    # d'hébergeurs filtrent l'UDP sortant : le tunnel retente alors
+    # indéfiniment sans jamais obtenir d'adresse, ce qui ressemble à un
+    # blocage. `--protocol http2` passe par le 443 en TCP, qui lui est
+    # toujours ouvert — un peu moins rapide, mais il marche partout.
+    poser_tunnel() {
+      local protocole=${1-}
+      local options='tunnel --url http://localhost:3000'
+      [ -n "$protocole" ] && options="tunnel --protocol $protocole --url http://localhost:3000"
+      sudo tee /etc/systemd/system/tunnel.service >/dev/null <<TUNNEL
 [Unit]
 Description=Tunnel Cloudflare vers la boutique
 After=network-online.target
+Wants=network-online.target
 
 [Service]
-ExecStart=$(command -v cloudflared) tunnel --url http://localhost:3000
+ExecStart=$(command -v cloudflared) $options
 Restart=always
+RestartSec=5
 User=$(id -un)
 
 [Install]
 WantedBy=multi-user.target
 TUNNEL
-    sudo systemctl daemon-reload
-    sudo systemctl enable --now tunnel >/dev/null 2>&1
+      sudo systemctl daemon-reload
+      sudo systemctl restart tunnel
+      sudo systemctl enable tunnel >/dev/null 2>&1
+    }
+
+    # Guette l'adresse dans le journal, le temps qu'il faut.
+    #
+    # Un `sleep` unique ne suffit pas : sur un petit VPS, l'établissement du
+    # tunnel prend parfois une demi-minute. On regarde donc régulièrement, et
+    # on s'arrête dès qu'on a trouvé.
+    guetter_adresse() {
+      local reste=${1:-75} trouve=''
+      while [ "$reste" -gt 0 ]; do
+        trouve=$(sudo journalctl -u tunnel -n 200 --no-pager 2>/dev/null \
+          | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true)
+        [ -n "$trouve" ] && { printf '%s' "$trouve"; return 0; }
+        sleep 3
+        reste=$((reste - 3))
+        # Les points d'attente vont sur la sortie d'erreur : sur la sortie
+        # standard ils seraient capturés avec l'adresse, et `WEBAPP_URL`
+        # vaudrait « ......... » — un échec déguisé en succès.
+        printf '.' >&2
+      done
+      return 1
+    }
+
+    poser_tunnel
     fait "tunnel lancé"
-    note "Je cherche l'adresse attribuée…"
-    sleep 8
-    adresse=$(sudo journalctl -u tunnel -n 80 --no-pager 2>/dev/null \
-      | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true)
+    printf '  %s·%s Je guette l'"'"'adresse (jusqu'"'"'à 75 s)' "$JAUNE" "$FIN" >&2
+    adresse=$(guetter_adresse 75 || true)
+    printf '\n' >&2
+
+    # Rien après 75 s : l'UDP sortant est le suspect numéro un. On bascule en
+    # HTTP/2 et on laisse une seconde chance, au lieu de rendre la main.
+    if [ -z "$adresse" ] && sudo journalctl -u tunnel -n 200 --no-pager 2>/dev/null \
+         | grep -qiE 'quic|udp|7844|timeout|failed to (dial|connect)'; then
+      note "Pas d'adresse, et le journal parle de QUIC/UDP : ton hébergeur filtre probablement l'UDP sortant."
+      note "Je rebascule le tunnel en HTTP/2 (port 443 en TCP) et je réessaie…"
+      poser_tunnel http2
+      printf '  %s·%s Seconde tentative' "$JAUNE" "$FIN" >&2
+      adresse=$(guetter_adresse 75 || true)
+      printf '\n' >&2
+      [ -n "$adresse" ] && fait "c'était bien ça : le tunnel passe en HTTP/2"
+    fi
+
+    # Une dernière vérification de forme avant d'écrire quoi que ce soit : une
+    # adresse mal formée dans .env casserait la boutique en silence.
+    case "$adresse" in
+      https://*.trycloudflare.com) ;;
+      *) [ -n "$adresse" ] && note "Adresse inattendue ($adresse), ignorée." ; adresse='' ;;
+    esac
+
     if [ -n "$adresse" ]; then
       printf '\n  %sTon adresse : %s%s\n' "$GRAS" "$adresse" "$FIN"
       regler_clef WEBAPP_URL "$adresse"
@@ -268,10 +327,19 @@ TUNNEL
       note "Reste à la coller chez BotFather (Menu Button)."
       note "Elle changera au prochain redémarrage du tunnel : il faudra alors relancer ce script."
     else
-      note "Pas encore visible. Relis le journal dans quelques secondes :"
-      note "  sudo journalctl -u tunnel -n 50 | grep trycloudflare"
+      # On montre le journal plutôt que d'inviter à aller le lire : c'est
+      # précisément l'information qui manque à qui reste devant un écran muet.
+      note "Toujours pas d'adresse. Voici ce que le tunnel raconte :"
+      sudo journalctl -u tunnel -n 25 --no-pager 2>/dev/null | sed 's/^/      /' \
+        || note "      (journal illisible — relance : sudo journalctl -u tunnel -n 25)"
+      printf '\n'
+      note "Les causes habituelles :"
+      note "  · sortie réseau très filtrée — essaie l'option 2 (DuckDNS), qui n'a besoin que du 80 et du 443 ;"
+      note "  · Cloudflare refuse les tunnels anonymes depuis cette IP — même remède ;"
+      note "  · pas de résolution DNS sur le VPS — vérifie : getent hosts cloudflare.com"
+      note "Le reste de l'installation, lui, est en place : la boutique tourne sur le port 3000."
     fi
-    ;;
+        ;;
   2|3)
     if [ "$choix" = 2 ]; then
       printf '  Ton sous-domaine DuckDNS (ex. ma-boutique.duckdns.org) : '
