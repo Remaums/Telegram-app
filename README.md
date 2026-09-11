@@ -76,14 +76,17 @@ Copie l'URL `https://…` obtenue dans `WEBAPP_URL`, puis relance `npm start`.
 Pour de la mise en production, n'importe quel hébergeur Node avec HTTPS fait l'affaire
 (Railway, Render, Fly.io, un VPS derrière Caddy ou Nginx…).
 
-### 5. Brancher le bouton dans Telegram
+### 5. Le bouton en bas à gauche du chat
 
-Chez **@BotFather** :
+**Rien à faire :** au démarrage, le bot pose lui-même le bouton de menu (en bas
+à gauche de la conversation) pour qu'il **ouvre la boutique** — il remplace le
+bouton « Menu » qui déroulait la liste des commandes. Le réglage suit toujours
+`WEBAPP_URL`, sans manœuvre chez @BotFather ; si l'URL est absente ou n'est pas
+en HTTPS, le menu par défaut est reposé plutôt qu'un lanceur que Telegram
+refuserait d'ouvrir.
 
-- `/mybots` → ton bot → **Bot Settings** → **Menu Button** → **Configure menu button**
-- colle ton `WEBAPP_URL` et donne un libellé (« 🛒 Boutique »)
-
-Le bouton apparaît alors en permanence à côté du champ de saisie du bot.
+En mode webhook (serverless), c'est `node tools/set-webhook.mjs` qui le règle,
+puisqu'il n'y a pas de démarrage de bot à ce moment-là.
 
 ---
 

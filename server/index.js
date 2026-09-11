@@ -26,7 +26,7 @@ import {
   normalizeAddress, adresseIncomplete, adresseEnClair,
 } from './delivery.js';
 import { adminRouter } from './admin.js';
-import { bot, notifyAdmin, notifyOrderPlaced, notifyLowStock } from './bot.js';
+import { bot, notifyAdmin, notifyOrderPlaced, notifyLowStock, configurerMenu } from './bot.js';
 import { storageKind, claimDataDir } from './store.js';
 
 /** Vrai quand ce fichier est lancé directement (`npm start`), faux quand il
@@ -841,7 +841,23 @@ if (standalone) {
 
   try {
     bot
-      .start({ onStart: (me) => console.log(`  Bot @${me.username} démarré.`) })
+      .start({
+        onStart: (me) => {
+          console.log(`  Bot @${me.username} démarré.`);
+          // Le bouton en bas à gauche du chat ouvre la boutique. On le
+          // (re)pose au démarrage pour qu'il suive toujours WEBAPP_URL, et on
+          // ne meurt pas si Telegram refuse : c'est un confort, pas la boutique.
+          configurerMenu()
+            .then((m) =>
+              console.log(
+                m.type === 'web_app'
+                  ? '  Bouton de menu : ouvre la boutique.'
+                  : '  Bouton de menu : par défaut (WEBAPP_URL absente ou non HTTPS).'
+              )
+            )
+            .catch((err) => console.warn(`  Bouton de menu non réglé : ${err.message}`));
+        },
+      })
       .catch(signaler);
   } catch (err) {
     signaler(err);

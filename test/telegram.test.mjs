@@ -19,7 +19,8 @@ if (!process.env.BOT_TOKEN) {
 
 const ADMIN_ID = Number((process.env.ADMIN_IDS ?? '424242').split(',')[0].trim());
 
-const { bot } = await import('../server/bot.js');
+const { bot, configurerMenu } = await import('../server/bot.js');
+const { config } = await import('../server/config.js');
 const { createOrder, getOrder } = await import('../server/orders.js');
 const { getCatalog, removeProductMedia } = await import('../server/catalog.js');
 const { getSettings, saveSettings } = await import('../server/settings.js');
@@ -352,6 +353,33 @@ for (const [label, texte] of [
 ]) {
   const envoyes = await jouer(message(CLIENT, texte));
   check(`Le bot répond à ${label}`, envoyes.length > 0, dit(envoyes).slice(0, 35));
+}
+
+/* ── Le bouton du menu, en bas à gauche ──────────────────── */
+
+// Le bouton qui ouvre la boutique doit pointer sur WEBAPP_URL quand elle est
+// une adresse HTTPS valide, et retomber sur le menu par défaut sinon : un
+// lanceur cassé ferait un bouton que Telegram refuse d'ouvrir.
+{
+  const urlAvant = config.webappUrl;
+
+  config.webappUrl = 'https://boutique.example.com';
+  let vu = null;
+  const espion = async (prev, method, payload) => {
+    if (method === 'setChatMenuButton') vu = payload.menu_button;
+    return { ok: true, result: true };
+  };
+  bot.api.config.use(espion);
+
+  await configurerMenu();
+  check('Le bouton de menu ouvre la boutique', vu?.type === 'web_app', vu?.type);
+  check('Sur la vraie URL', vu?.web_app?.url === 'https://boutique.example.com', vu?.web_app?.url);
+
+  config.webappUrl = '';
+  await configurerMenu();
+  check('Sans URL valide, on repose le menu par défaut', vu?.type === 'default', vu?.type);
+
+  config.webappUrl = urlAvant;
 }
 
 console.log(`\n${failures ? `${failures} test(s) en échec` : 'Bot Telegram : OK'}`);

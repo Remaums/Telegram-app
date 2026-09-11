@@ -44,6 +44,34 @@ const adminKeyboard = () =>
     ? new InlineKeyboard().webApp('⚙️ Espace admin', `${config.webappUrl}/admin.html`)
     : undefined;
 
+/**
+ * Le bouton du menu, en bas à gauche du chat, qui ouvre la boutique.
+ *
+ * Par défaut Telegram met là un bouton « Menu » qui déroule la liste des
+ * commandes. On le remplace par un lanceur direct de la Mini App : un seul
+ * geste, en bas à gauche, plus besoin de retrouver le bouton « Ouvrir la
+ * boutique » d'un ancien message.
+ *
+ * Réglé pour tous les clients d'un coup (pas de chat_id), et remis en place à
+ * chaque démarrage : ainsi il suit toujours WEBAPP_URL, sans manœuvre du
+ * vendeur. Sans URL HTTPS valide, on repose le menu par défaut plutôt que de
+ * laisser un lanceur cassé — Telegram refuserait de l'ouvrir.
+ */
+export async function configurerMenu() {
+  if (!urlUtilisable()) {
+    await bot.api.setChatMenuButton({ menu_button: { type: 'default' } });
+    return { type: 'default' };
+  }
+  await bot.api.setChatMenuButton({
+    menu_button: {
+      type: 'web_app',
+      text: '🛒 Boutique',
+      web_app: { url: config.webappUrl },
+    },
+  });
+  return { type: 'web_app', url: config.webappUrl };
+}
+
 /** Ce qu'il faut dire quand aucun bouton ne peut être proposé. */
 const PAS_D_URL =
   "⚠️ WEBAPP_URL n'est pas renseignée (ou n'est pas en HTTPS) : Telegram refuse " +

@@ -45,6 +45,14 @@ if (process.argv.includes('--info')) {
     allowed_updates: ['message', 'callback_query'],
   });
   console.log(`  Webhook déclaré : ${url}`);
+
+  // En long polling, le serveur pose ce bouton lui-même au démarrage. En
+  // webhook (serverless), il n'y a pas de démarrage : c'est ici, à la mise en
+  // ligne, qu'on règle le bouton du menu qui ouvre la boutique en bas à gauche.
+  await api('setChatMenuButton', {
+    menu_button: { type: 'web_app', text: '🛒 Boutique', web_app: { url: base } },
+  });
+  console.log('  Bouton de menu : ouvre la boutique.');
 }
 
 function exit(message) {
