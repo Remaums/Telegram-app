@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════
-   COFFEE SHOP 68 — logique de la Mini App
+   Napoli Coffee — logique de la Mini App
    ══════════════════════════════════════════════════════════════ */
 
 const tg = window.Telegram?.WebApp;
@@ -10,7 +10,7 @@ const PASS_KEY = 'kartoon.pass';
 const CART_MAX_LINES = 50;
 
 const state = {
-  shop: { shopName: 'COFFEE SHOP 68', currency: 'EUR', sellerUsername: '' },
+  shop: { shopName: 'Napoli Coffee', currency: 'EUR', sellerUsername: '' },
   categories: [],
   products: [],
   statuses: {},

@@ -1,4 +1,4 @@
-# 🌿 COFFEE SHOP 68 — boutique Telegram Mini App
+# 🌿 Napoli Coffee — boutique Telegram Mini App
 
 Une boutique au **design néon nuit** qui s'ouvre directement dans Telegram : catalogue en
 images, fiches produits, panier, et un bouton **Commander** qui ouvre ta conversation

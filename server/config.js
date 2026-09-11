@@ -63,7 +63,7 @@ export const config = {
   // Jeton partagé avec Telegram : il signe chaque appel du webhook.
   webhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET ?? '',
   currency: process.env.CURRENCY ?? 'EUR',
-  shopName: process.env.SHOP_NAME ?? 'COFFEE SHOP 68',
+  shopName: process.env.SHOP_NAME ?? 'Napoli Coffee',
   // Racine de l'API Telegram. On ne la change que pour tester en local ou
   // pour viser un serveur Bot API auto-hébergé.
   telegramApiRoot: (process.env.TELEGRAM_API_ROOT ?? 'https://api.telegram.org').replace(/\/$/, ''),

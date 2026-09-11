@@ -8,7 +8,7 @@
 # (`which node` te le donne).
 
 [Unit]
-Description=COFFEE SHOP 68 — boutique Telegram
+Description=Napoli Coffee — boutique Telegram
 After=network-online.target
 Wants=network-online.target
 
