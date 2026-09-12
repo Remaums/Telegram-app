@@ -624,6 +624,10 @@ body.admin {
    ferait défiler trois écrans pour retrouver quelqu'un. */
 .a-clients__compte { color: var(--muted); font-size: 12.5px; font-weight: 700; margin: 8px 2px 10px; }
 
+/* Les deux nombres en tête de l'onglet Utilisateurs : visiteurs, et combien
+   ont commandé. Un écart qui se lit d'un coup d'œil. */
+.a-userstat { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+
 .a-client {
   background: rgb(var(--panel-rgb) / .6);
   border: 1px solid var(--line-soft);

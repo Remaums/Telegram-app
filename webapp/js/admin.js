@@ -16,6 +16,10 @@ const state = {
   clients: [],       // fiches reconstituées à partir des commandes
   clientsTotal: 0,
   clientOuvert: null,
+  users: [],         // registre : tous ceux qui ont ouvert le bot
+  usersTotal: 0,
+  usersAcheteurs: 0,
+  usersCharge: false, // chargé à la première ouverture de l'onglet, pas avant
   periode: 30,       // en jours ; commande tout le tableau de bord
   settings: null,
   verifications: [],
@@ -129,6 +133,7 @@ function bindHandlers() {
   // tout de suite une adresse qui ne charge pas.
   $('fImagePath').addEventListener('input', syncImageField);
   $('clientSearch').addEventListener('input', chercherDesClients);
+  $('userSearch').addEventListener('input', chercherDesUtilisateurs);
   $('fPurgeMode').addEventListener('change', syncPurgeMode);
   $('doPurge').addEventListener('click', purgerLesCommandes);
   $('addMedia').addEventListener('click', ajouterMedia);
@@ -191,6 +196,9 @@ function selectTab(name) {
   for (const panel of document.querySelectorAll('.a-panel')) {
     panel.hidden = panel.id !== `panel-${name}`;
   }
+  // Le registre peut compter des milliers de visiteurs : on ne le charge qu'à
+  // la première ouverture de l'onglet, pas à chaque rafraîchissement.
+  if (name === 'users' && !state.usersCharge) chargerUtilisateurs();
   window.scrollTo({ top: 0 });
   haptic('light');
 }
@@ -619,6 +627,161 @@ function renderClients() {
     return;
   }
   conteneur.replaceChildren(...liste.map(carteClient));
+}
+
+/* ── Utilisateurs ────────────────────────────────────────── */
+
+/** Charge le registre. Appelé à la première ouverture de l'onglet. */
+async function chargerUtilisateurs(q = '') {
+  try {
+    const data = await api(`/users?q=${encodeURIComponent(q)}`);
+    state.users = data.users;
+    state.usersTotal = data.total;
+    state.usersAcheteurs = data.acheteurs;
+    state.usersMontres = data.montres;
+    state.usersCharge = true;
+    renderUsers();
+  } catch (err) {
+    $('usersList').innerHTML = `<p class="a-empty">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+/**
+ * Tous ceux qui ont ouvert le bot, curieux compris.
+ *
+ * En tête, les deux nombres qui comptent : combien de gens ont poussé la
+ * porte, et combien ont fini par commander. L'écart, c'est ce que la boutique
+ * laisse repartir sans rien vendre — le seul chiffre qu'un onglet « clients »
+ * ne peut pas montrer, puisqu'un client, par définition, a déjà commandé.
+ */
+function renderUsers() {
+  const acheteurs = state.usersAcheteurs;
+  const total = state.usersTotal;
+  const taux = total ? Math.round((acheteurs / total) * 100) : 0;
+  $('userStat').innerHTML =
+    `<div class="a-kpi"><span class="a-kpi__label">Visiteurs du bot</span>` +
+    `<span class="a-kpi__value">${total}</span></div>` +
+    `<div class="a-kpi a-kpi--accent"><span class="a-kpi__label">Ont commandé</span>` +
+    `<span class="a-kpi__value">${acheteurs}</span>` +
+    `<span class="a-kpi__note">${taux} % des visiteurs</span></div>`;
+
+  const liste = state.users;
+  const q = $('userSearch').value.trim();
+  $('userCount').textContent = q
+    ? `${state.usersMontres} résultat${state.usersMontres > 1 ? 's' : ''}`
+    : liste.length
+      ? `${total} visiteur${total > 1 ? 's' : ''}` +
+        (total > liste.length ? ` · les ${liste.length} plus récents` : '')
+      : '';
+
+  const conteneur = $('usersList');
+  if (!liste.length) {
+    conteneur.innerHTML = `<p class="a-empty">${
+      q ? 'Personne ne correspond.' : 'Personne n\'a encore ouvert le bot.'
+    }</p>`;
+    return;
+  }
+  conteneur.replaceChildren(...liste.map(carteUtilisateur));
+}
+
+let rechercheUsersEnAttente = null;
+function chercherDesUtilisateurs() {
+  clearTimeout(rechercheUsersEnAttente);
+  rechercheUsersEnAttente = setTimeout(() => chargerUtilisateurs($('userSearch').value.trim()), 250);
+}
+
+/**
+ * Une ligne du registre.
+ *
+ * Repliée, elle dit qui, quand vu la dernière fois, et son état d'un coup
+ * d'œil (a commandé, bloqué…). Ouverte, elle donne les dates, le nombre de
+ * contacts, et de quoi agir : écrire, voir la fiche Telegram, bloquer.
+ */
+function carteUtilisateur(u) {
+  const carte = document.createElement('article');
+  carte.className = 'a-client';
+
+  const qui = u.username ? `@${u.username}` : [u.prenom, u.nom].filter(Boolean).join(' ') || `#${u.id}`;
+  const etats = [
+    u.aCommande ? `<span class="a-etat a-etat--ok">🛒 ${u.commandes} cmd</span>` : '',
+    u.bloque ? '<span class="a-etat a-etat--ko">⛔ bloqué</span>' : '',
+    u.verification === 'approved' ? '<span class="a-etat">🪪 vérifié</span>' : '',
+    u.abonne ? '' : '<span class="a-etat">🔕 désabonné</span>',
+  ].filter(Boolean).join('');
+
+  carte.innerHTML = `
+    <button class="a-client__tete" type="button" aria-expanded="false">
+      <span class="a-client__qui">${escapeHtml(qui)}</span>
+      <span class="a-client__meta">${escapeHtml(ilYA(u.dernier))} · ${u.contacts} contact${u.contacts > 1 ? 's' : ''}${etats ? ` · ${etats}` : ''}</span>
+    </button>
+    <div class="a-client__detail" hidden></div>`;
+
+  const tete = carte.querySelector('.a-client__tete');
+  const detail = carte.querySelector('.a-client__detail');
+  tete.addEventListener('click', () => {
+    const ouvert = detail.hidden;
+    detail.hidden = !ouvert;
+    tete.setAttribute('aria-expanded', String(ouvert));
+    if (ouvert && !detail.childElementCount) detail.append(detailUtilisateur(u));
+    haptic('light');
+  });
+  return carte;
+}
+
+function detailUtilisateur(u) {
+  const bloc = document.createElement('div');
+  const nom = [u.prenom, u.nom].filter(Boolean).join(' ') || '—';
+  const faits = [
+    ['Nom Telegram', nom],
+    ['Pseudo', u.username ? `@${u.username}` : '—'],
+    ['Identifiant', u.id],
+    ['Première visite', new Date(u.premier).toLocaleDateString('fr-FR')],
+    ['Dernière visite', new Date(u.dernier).toLocaleDateString('fr-FR')],
+    ['Contacts', String(u.contacts)],
+  ];
+
+  bloc.innerHTML =
+    `<dl class="a-client__chiffres">${faits
+      .map(([l, v]) => `<div><dt>${escapeHtml(l)}</dt><dd>${escapeHtml(String(v))}</dd></div>`)
+      .join('')}</dl>` +
+    (u.aCommande
+      ? `<p class="a-client__gris" style="margin-top:12px">Ce visiteur a déjà commandé — sa fiche complète est dans l'onglet Clients.</p>`
+      : '') +
+    '<div class="a-client__actions"></div>' +
+    '<div class="a-client__telegram" hidden></div>';
+
+  const actions = bloc.querySelector('.a-client__actions');
+
+  const tg = document.createElement('button');
+  tg.className = 'a-btn';
+  tg.type = 'button';
+  tg.textContent = '👤 Fiche Telegram';
+  tg.addEventListener('click', () => chargerFicheTelegram(u.id, bloc, tg));
+  actions.append(tg);
+
+  if (u.username) {
+    const ecrire = document.createElement('a');
+    ecrire.className = 'a-btn';
+    ecrire.href = `https://t.me/${u.username}`;
+    ecrire.target = '_blank';
+    ecrire.rel = 'noopener';
+    ecrire.textContent = '💬 Écrire';
+    actions.append(ecrire);
+  }
+
+  const ban = document.createElement('button');
+  ban.className = `a-btn ${u.bloque ? '' : 'a-btn--danger'}`.trim();
+  ban.type = 'button';
+  ban.textContent = u.bloque ? '↩︎ Débloquer' : '⛔ Bloquer';
+  ban.addEventListener('click', async () => {
+    await toggleBlock(u.id, !u.bloque, ban);
+    u.bloque = !u.bloque;
+    ban.textContent = u.bloque ? '↩︎ Débloquer' : '⛔ Bloquer';
+    ban.className = `a-btn ${u.bloque ? '' : 'a-btn--danger'}`.trim();
+    ban.disabled = false;
+  });
+  actions.append(ban);
+  return bloc;
 }
 
 let rechercheEnAttente = null;

@@ -8,6 +8,7 @@ import { getSettings, saveSettings } from './settings.js';
 import { requestVerification, decideVerification } from './verification.js';
 import { desabonner, reabonner, estDesabonne, consignerResultat } from './annonces.js';
 import { estPasse, ouvrirLaPorte, demanderLEpreuve, repondre } from './bot-captcha.js';
+import { noterUtilisateur } from './users.js';
 
 /**
  * Le bot, construit même sans jeton.
@@ -122,6 +123,15 @@ const poserLEpreuve = (ctx, epreuve, avant = '') =>
  * de calculer serait le prendre pour un inconnu. Et il se coupe d'un
  * interrupteur, comme tout le reste.
  */
+// Le registre, en tout premier : on note chaque personne qui touche le bot
+// avant même la porte d'entrée, pour qu'un curieux qui ne passe jamais le
+// calcul soit compté comme visiteur. Une panne du registre ne bloque rien —
+// c'est une observation, pas un contrôle.
+bot.use(async (ctx, next) => {
+  if (ctx.from) noterUtilisateur(ctx.from).catch(() => {});
+  return next();
+});
+
 bot.use(async (ctx, next) => {
   const id = ctx.from?.id;
   if (!id || isAdmin(id)) return next();

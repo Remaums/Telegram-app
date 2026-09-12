@@ -691,6 +691,27 @@ bot), et « Écrire » ouvre la conversation.
 > livraison — vient de ce que le client a écrit lui-même, et c'est la seule qui
 > soit exacte : une adresse IP désigne le fournisseur d'accès, pas le domicile.
 
+### Les utilisateurs
+
+L'onglet **Utilisateurs** montre **tous ceux qui ont déjà ouvert le bot**, pas
+seulement ceux qui ont commandé — la différence avec l'onglet Clients, qui ne
+connaît que les acheteurs. Un registre note chaque personne qui écrit au bot,
+dès son premier message : nom, pseudo, première et dernière visite, nombre de
+contacts. **Rien du contenu des messages** — ce nombre se compte, ce qui est
+dit ne se garde pas.
+
+En tête, les deux chiffres qui parlent : **combien de gens ont poussé la porte,
+et combien ont fini par commander**. L'écart, c'est ce que la boutique laisse
+repartir sans rien vendre — le seul chiffre qu'un onglet « clients » ne peut
+pas donner. Chaque fiche croise le registre avec ce que la boutique sait déjà
+(a commandé, bloqué, vérifié, abonné), se cherche par nom/pseudo/identifiant, et
+s'ouvre sur les dates, le nombre de contacts, et de quoi agir : fiche Telegram,
+écrire, bloquer.
+
+> Le registre est **borné** : au-delà de 20 000 visiteurs, les plus anciennement
+> vus cèdent la place. Ceux-là n'ont de toute façon jamais commandé — sinon ils
+> seraient dans l'onglet Clients, qui ne s'efface pas, lui.
+
 ### Réglages
 
 Tout se règle depuis l'onglet **Réglages** de l'espace admin, sans redéployer.

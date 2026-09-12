@@ -23,6 +23,7 @@ import {
 } from './orders.js';
 import { bilan } from './bilan.js';
 import { ficheClients, chercherClients } from './clients.js';
+import { listUsers, countUsers, chercherUtilisateurs } from './users.js';
 import { servirMedia } from './media-cache.js';
 import { getSettings, saveSettings, blockClient, unblockClient } from './settings.js';
 import { listVerifications, decideVerification, resetVerification } from './verification.js';
@@ -190,6 +191,65 @@ adminRouter.get(
     const fiche = await ficheTelegram(req.params.id).catch(() => null);
     if (!fiche?.photo) throw new HttpError(404, 'Pas de photo de profil.');
     await servirMedia(req, res, { fileId: fiche.photo, kind: 'photo' });
+  })
+);
+
+/* ── Utilisateurs ────────────────────────────────────────── */
+
+/**
+ * Tous ceux qui ont déjà ouvert le bot — pas seulement ceux qui ont commandé.
+ *
+ * Le registre (users.js) sait qui a touché le bot ; on croise avec ce que la
+ * boutique sait déjà de chacun : a-t-il commandé, est-il bloqué, vérifié,
+ * abonné aux annonces. C'est ce croisement qui rend la page utile — voir d'un
+ * coup combien de curieux repartent sans commander, et pouvoir bloquer
+ * quelqu'un qui traîne sans jamais rien prendre.
+ */
+async function tousLesUtilisateurs() {
+  const [fiches, commandes, settings, verifications, desabonnes] = await Promise.all([
+    listUsers(),
+    allOrders(),
+    getSettings(),
+    listVerifications(),
+    listeDesabonnes(),
+  ]);
+
+  const bloques = new Set((settings.blocked ?? []).map(String));
+  const desab = new Set(desabonnes.map(String));
+  const verifs = new Map(verifications.map((v) => [String(v.id), v.status]));
+
+  // Combien de commandes par personne, en une passe : recompter par fiche
+  // relirait tout l'historique autant de fois qu'il y a de visiteurs.
+  const commandesPar = new Map();
+  for (const o of commandes) {
+    const id = String(o.user?.id ?? '');
+    if (!id || o.status === 'annulee') continue;
+    commandesPar.set(id, (commandesPar.get(id) ?? 0) + 1);
+  }
+
+  return fiches.map((u) => ({
+    ...u,
+    commandes: commandesPar.get(u.id) ?? 0,
+    aCommande: commandesPar.has(u.id),
+    bloque: bloques.has(u.id),
+    verification: verifs.get(u.id) ?? 'none',
+    abonne: !desab.has(u.id),
+  }));
+}
+
+adminRouter.get(
+  '/users',
+  route(async (req, res) => {
+    const [tous, total] = await Promise.all([tousLesUtilisateurs(), countUsers()]);
+    const filtres = chercherUtilisateurs(tous, req.query.q ?? '');
+    // Deux nombres qui parlent d'eux-mêmes : combien de visiteurs en tout, et
+    // combien ont fini par commander. Le reste, c'est la marge de progression.
+    res.json({
+      total,
+      acheteurs: tous.filter((u) => u.aCommande).length,
+      montres: filtres.length,
+      users: filtres.slice(0, 300),
+    });
   })
 );
 

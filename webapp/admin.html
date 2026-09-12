@@ -32,6 +32,7 @@
   <button class="a-tab" data-tab="board" role="tab" aria-selected="true">Tableau</button>
   <button class="a-tab" data-tab="orders" role="tab" aria-selected="false">Commandes<span class="a-tab__dot" id="pendingDot" hidden></span></button>
   <button class="a-tab" data-tab="clients" role="tab" aria-selected="false">Clients</button>
+  <button class="a-tab" data-tab="users" role="tab" aria-selected="false">Utilisateurs</button>
   <button class="a-tab" data-tab="stock" role="tab" aria-selected="false">Stock</button>
   <button class="a-tab" data-tab="products" role="tab" aria-selected="false">Produits</button>
   <button class="a-tab" data-tab="categories" role="tab" aria-selected="false">Catégories</button>
@@ -82,6 +83,18 @@
            placeholder="Nom, pseudo, téléphone, rue, ville, référence…">
     <p class="a-clients__compte" id="clientCount"></p>
     <div id="clientsList"></div>
+  </section>
+
+  <!-- ══ Utilisateurs ══ ═══════════════════════════════════════
+       Tous ceux qui ont ouvert le bot, pas seulement ceux qui ont
+       commandé. Le registre note chaque passage ; on ne garde ni le
+       contenu des messages, ni rien d'autre que qui, quand, combien. -->
+  <section class="a-panel" id="panel-users" hidden>
+    <div class="a-userstat" id="userStat"></div>
+    <input class="a-search" id="userSearch" type="search"
+           placeholder="Nom, pseudo, identifiant…">
+    <p class="a-clients__compte" id="userCount"></p>
+    <div id="usersList"></div>
   </section>
 
   <!-- ══ Stock ══ -->

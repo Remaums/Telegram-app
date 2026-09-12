@@ -12,3 +12,4 @@ server/data/.lock
 .DS_Store
 server/data/media-cache/
 server/data/captcha-bot.json
+server/data/users.json
