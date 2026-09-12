@@ -9,6 +9,12 @@ import { requestVerification, decideVerification } from './verification.js';
 import { desabonner, reabonner, estDesabonne, consignerResultat } from './annonces.js';
 import { estPasse, ouvrirLaPorte, demanderLEpreuve, repondre } from './bot-captcha.js';
 import { noterUtilisateur } from './users.js';
+import {
+  messageRelaye,
+  idDuRelais,
+  messagePourLeClient,
+  refusDeTelegram,
+} from './messagerie.js';
 
 /**
  * Le bot, construit même sans jeton.
@@ -612,22 +618,83 @@ bot.on('message:web_app_data', async (ctx) => {
 });
 
 /**
- * Tout le reste.
+ * Tout le reste : le relais entre le client et le vendeur.
  *
- * Un client qui écrit « bonjour » au bot n'obtenait rien du tout : la porte
- * d'entrée de la boutique restait muette. Ce gestionnaire est déclaré après
- * les commandes, qui gardent donc la priorité.
+ * Ce gestionnaire est déclaré après les commandes, qui gardent donc la
+ * priorité. Deux sens y passent :
+ *
+ * - un client écrit au bot → le message arrive au vendeur, avec de quoi
+ *   répondre. Avant, le bot récitait sa liste de commandes et la question du
+ *   client se perdait : il n'y avait aucun chemin vers le vendeur pour qui
+ *   n'avait pas de pseudo à contacter.
+ * - le vendeur répond au message relayé → la réponse repart au client. Le
+ *   routage tient dans la ligne « id » du message relayé, donc rien n'est
+ *   gardé en mémoire : un redémarrage ne casse pas une conversation en cours.
  */
 bot.on('message:text', async (ctx) => {
+  // Le vendeur qui répond à un message relayé parle au client, pas au bot.
+  const cible = isAdmin(ctx.from.id) ? idDuRelais(ctx.message.reply_to_message?.text) : null;
+  if (cible) {
+    try {
+      await ecrireAuClient(cible, ctx.message.text);
+      await ctx.reply('✅ Envoyé.');
+    } catch (err) {
+      await ctx.reply(`⚠️ ${refusDeTelegram(err)}`);
+    }
+    return;
+  }
+
+  // Un administrateur qui écrit au bot sans répondre à personne cherche ses
+  // commandes : lui relayer son propre message à lui-même n'aiderait personne.
+  if (!isAdmin(ctx.from.id)) await relayerAuVendeur(ctx);
+
   await ctx.reply(
-    'Je ne comprends que quelques commandes :\n' +
-      '/boutique — ouvrir le catalogue\n' +
-      '/commandes — retrouver tes commandes\n' +
-      '/aide — tout ce que je sais faire' +
-      (config.sellerUsername ? `\n\nPour parler à quelqu'un : @${config.sellerUsername}` : ''),
+    isAdmin(ctx.from.id)
+      ? 'Je ne comprends que quelques commandes :\n' +
+          '/boutique — ouvrir le catalogue\n' +
+          '/commandes — retrouver tes commandes\n' +
+          '/aide — tout ce que je sais faire'
+      : 'Message transmis à la boutique, on te répond ici.',
     { reply_markup: config.webappUrl ? shopKeyboard() : undefined }
   );
 });
+
+/**
+ * Porte le message d'un client au vendeur.
+ *
+ * Sans ADMIN_CHAT_ID il n'y a personne à prévenir : on le dit dans le journal
+ * plutôt que de laisser croire au client que son message est parti.
+ */
+async function relayerAuVendeur(ctx) {
+  if (!config.adminChatId) {
+    return console.warn('ADMIN_CHAT_ID absent : message client reçu, personne à prévenir.');
+  }
+  try {
+    await bot.api.sendMessage(config.adminChatId, messageRelaye(ctx.from, ctx.message.text));
+  } catch (err) {
+    console.error('Relais du message client impossible :', err.message);
+  }
+}
+
+/**
+ * Écrit à un client par son identifiant numérique.
+ *
+ * C'est la seule façon de joindre quelqu'un qui n'a pas de pseudo : depuis un
+ * compte personnel, un identifiant ne se contacte pas. Le bot, lui, a déjà une
+ * conversation ouverte avec ce client — c'est d'elle que vient l'identifiant.
+ *
+ * L'en-tête nomme la boutique : un message nu, arrivant d'un bot dans lequel on
+ * a commandé une fois il y a trois mois, ressemble à un robot qui s'égare.
+ */
+export async function ecrireAuClient(userId, texte) {
+  const message = await bot.api.sendMessage(
+    Number(userId),
+    messagePourLeClient(texte, config.shopName),
+    { reply_markup: config.webappUrl ? shopKeyboard() : undefined },
+    AbortSignal.timeout(DELAI_ENVOI)
+  );
+  return { messageId: message.message_id };
+}
 
 bot.catch((err) => {
   console.error('Erreur bot :', err.error ?? err);
@@ -752,6 +819,18 @@ export async function ficheTelegram(userId) {
     // La photo de profil est une référence, comme les médias produits : on ne
     // la recopie pas, on la sert au besoin.
     photo: chat.photo?.small_file_id ?? null,
+    // La date de naissance, quand le client l'a renseignée sur son profil. Pour
+    // une boutique qui doit vérifier l'âge, c'est un indice de plus — jamais une
+    // preuve : Telegram ne contrôle rien, n'importe qui peut écrire 1990.
+    naissance: chat.birthdate
+      ? { jour: chat.birthdate.day, mois: chat.birthdate.month, annee: chat.birthdate.year ?? null }
+      : null,
+    // Les autres pseudos du compte : un client qui écrit depuis @lea_pro quand
+    // la commande dit @lea_2026 n'est pas forcément quelqu'un d'autre.
+    pseudos: (chat.active_usernames ?? []).filter((u) => u !== chat.username),
+    // Vrai quand ce compte interdit qu'on retrouve son profil depuis un message
+    // transféré : bon à savoir avant de chercher à le joindre autrement.
+    prive: Boolean(chat.has_private_forwards),
   };
 }
 

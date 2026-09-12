@@ -747,8 +747,14 @@ function detailUtilisateur(u) {
     (u.aCommande
       ? `<p class="a-client__gris" style="margin-top:12px">Ce visiteur a déjà commandé — sa fiche complète est dans l'onglet Clients.</p>`
       : '') +
+    `<h3 class="a-client__h3">Comment le joindre</h3><div class="a-client__joindre"></div>` +
     '<div class="a-client__actions"></div>' +
     '<div class="a-client__telegram" hidden></div>';
+
+  // Le même bloc que sur une fiche client : un curieux qui n'a jamais commandé
+  // se joint exactement de la même façon, et c'est souvent lui qu'on veut
+  // relancer.
+  bloc.querySelector('.a-client__joindre').append(joindreBloc(u));
 
   const actions = bloc.querySelector('.a-client__actions');
 
@@ -758,16 +764,6 @@ function detailUtilisateur(u) {
   tg.textContent = '👤 Fiche Telegram';
   tg.addEventListener('click', () => chargerFicheTelegram(u.id, bloc, tg));
   actions.append(tg);
-
-  if (u.username) {
-    const ecrire = document.createElement('a');
-    ecrire.className = 'a-btn';
-    ecrire.href = `https://t.me/${u.username}`;
-    ecrire.target = '_blank';
-    ecrire.rel = 'noopener';
-    ecrire.textContent = '💬 Écrire';
-    actions.append(ecrire);
-  }
 
   const ban = document.createElement('button');
   ban.className = `a-btn ${u.bloque ? '' : 'a-btn--danger'}`.trim();
@@ -809,11 +805,15 @@ function carteClient(fiche) {
 
   const qui = fiche.username ? `@${fiche.username}` : fiche.nom ?? `#${fiche.id}`;
   const depuis = fiche.derniere ? ilYA(fiche.derniere) : '—';
+  // Sans pseudo, l'identifiant EST l'adresse : il doit se voir sans déplier,
+  // sinon on ne sait même pas qu'on a de quoi joindre ce client.
+  const sansPseudo = fiche.username ? '' : `<span class="a-etat">id ${escapeHtml(fiche.id)}</span>`;
   const etats = [
     fiche.bloque ? '<span class="a-etat a-etat--ko">⛔ bloqué</span>' : '',
     fiche.verification === 'approved' ? '<span class="a-etat a-etat--ok">🪪 vérifié</span>' : '',
     fiche.verification === 'pending' ? '<span class="a-etat">🪪 en attente</span>' : '',
     fiche.abonne ? '' : '<span class="a-etat">🔕 désabonné</span>',
+    sansPseudo,
   ].filter(Boolean).join('');
 
   carte.innerHTML = `
@@ -840,14 +840,29 @@ function carteClient(fiche) {
 function detailClient(fiche) {
   const bloc = document.createElement('div');
 
+  // Les nombres qui se lisent d'un coup d'œil. Le rang d'abord : savoir qu'on
+  // tient son troisième meilleur client change la façon de lui répondre.
   const chiffres = [
+    ['Rang', fiche.rang ? `${fiche.rang}ᵉ / ${fiche.surTotal}` : '—'],
     ['Commandes', String(fiche.commandes)],
     ['Dépensé', formatPrice(fiche.chiffre)],
     ['Panier moyen', formatPrice(fiche.panierMoyen)],
-    ['Annulées', String(fiche.annulees)],
+    ['Articles', String(fiche.articles ?? 0)],
+    ['Annulées', fiche.annulees ? `${fiche.annulees} · ${fiche.tauxAnnulation} %` : '0'],
     ['Livraisons', `${fiche.livraisons} / ${fiche.livraisons + fiche.retraits}`],
+    ['Dernière', fiche.joursDepuis === null ? '—' : joursEnClair(fiche.joursDepuis)],
+    ['Rythme', rythmeEnClair(fiche.frequence)],
     ['Client depuis', fiche.premiere ? new Date(fiche.premiere).toLocaleDateString('fr-FR') : '—'],
   ];
+
+  // Ce que le registre du bot ajoute : l'écart entre « il regarde » et « il
+  // achète ». C'est le seul endroit où ça se voit.
+  if (fiche.vu) {
+    chiffres.push(
+      ['Connaît la boutique', fiche.vu.premiere ? new Date(fiche.vu.premiere).toLocaleDateString('fr-FR') : '—'],
+      ['Ouvertures du bot', String(fiche.vu.contacts ?? 0)]
+    );
+  }
 
   const adresses = fiche.adresses.length
     ? fiche.adresses
@@ -857,6 +872,7 @@ function detailClient(fiche) {
             '<li>' +
             `${escapeHtml(a.street)}${a.complement ? `<br><span class="a-client__gris">${escapeHtml(a.complement)}</span>` : ''}` +
             `<br>${escapeHtml(`${a.postalCode} ${a.city}`.trim())}` +
+            (a.fois > 1 ? ` <span class="a-client__gris">· ${a.fois} livraisons</span>` : '') +
             (route
               ? `<span class="a-route">` +
                 `<a href="${escapeHtml(route.maps)}" target="_blank" rel="noopener">🗺 Maps</a>` +
@@ -869,28 +885,64 @@ function detailClient(fiche) {
         .join('')
     : '<li class="a-client__gris">Aucune livraison — retrait sur place.</li>';
 
+  const habitudes = [
+    fiche.habitudes?.jour ? `plutôt le <b>${escapeHtml(fiche.habitudes.jour)}</b>` : null,
+    fiche.habitudes?.heure !== null && fiche.habitudes?.heure !== undefined
+      ? `vers <b>${String(fiche.habitudes.heure).padStart(2, '0')} h</b>`
+      : null,
+  ].filter(Boolean);
+
+  // L'état des commandes en cours : trois « prête » qui dorment, c'est une
+  // information que le chiffre d'affaires ne donne pas.
+  const statuts = (fiche.statuts ?? [])
+    .map((e) => `${escapeHtml(state.statuses[e.status]?.label ?? e.status)} <span class="a-client__gris">× ${e.nombre}</span>`)
+    .join(' · ');
+
   bloc.innerHTML =
     `<dl class="a-client__chiffres">${chiffres
       .map(([label, valeur]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(valeur)}</dd></div>`)
       .join('')}</dl>` +
+    `<h3 class="a-client__h3">Comment le joindre</h3><div class="a-client__joindre"></div>` +
+    (habitudes.length ? `<h3 class="a-client__h3">Quand il commande</h3><p>Il commande ${habitudes.join(', ')}.</p>` : '') +
     (fiche.produits.length
       ? `<h3 class="a-client__h3">Ce qu'il prend</h3><p>${fiche.produits
           .map((p) => `${escapeHtml(p.nom)} <span class="a-client__gris">× ${p.quantite}</span>`)
           .join(' · ')}</p>`
       : '') +
+    (statuts ? `<h3 class="a-client__h3">Où en sont ses commandes</h3><p>${statuts}</p>` : '') +
     `<h3 class="a-client__h3">Où livrer</h3><ul class="a-client__adresses">${adresses}</ul>` +
     (fiche.telephones.length
-      ? `<h3 class="a-client__h3">Téléphone</h3><p>${fiche.telephones.map((t) => escapeHtml(t)).join(' · ')}</p>`
+      ? `<h3 class="a-client__h3">Téléphone</h3><p>${fiche.telephones
+          .map((t) => `<a href="tel:${escapeHtml(t.replace(/\s/g, ''))}">${escapeHtml(t)}</a>`)
+          .join(' · ')}</p>`
+      : '') +
+    (fiche.promos?.length
+      ? `<h3 class="a-client__h3">Codes utilisés</h3><p>${fiche.promos
+          .map((p) => `<b>${escapeHtml(p.code)}</b>${p.fois > 1 ? ` <span class="a-client__gris">× ${p.fois}</span>` : ''}`)
+          .join(' · ')}</p>`
+      : '') +
+    (fiche.notes?.length
+      ? `<h3 class="a-client__h3">Ce qu'il a écrit</h3><ul class="a-client__notes">${fiche.notes
+          .map(
+            (n) =>
+              `<li>« ${escapeHtml(n.texte)} »<br><span class="a-client__gris">${escapeHtml(n.reference ?? '')} · ${
+                n.date ? new Date(n.date).toLocaleDateString('fr-FR') : ''
+              }</span></li>`
+          )
+          .join('')}</ul>`
       : '') +
     `<h3 class="a-client__h3">Dernières commandes</h3><ul class="a-client__commandes">${fiche.dernieres
       .map(
         (c) =>
           `<li><b>${escapeHtml(c.reference)}</b> · ${new Date(c.date).toLocaleDateString('fr-FR')} · ` +
-          `${formatPrice(c.total)} · ${escapeHtml(state.statuses[c.status]?.label ?? c.status)}</li>`
+          `${formatPrice(c.total)} · ${escapeHtml(state.statuses[c.status]?.label ?? c.status)}` +
+          `${c.mode === 'delivery' ? ' · 🛵' : ' · 🏠'}</li>`
       )
       .join('')}</ul>` +
     '<div class="a-client__actions"></div>' +
     '<div class="a-client__telegram" hidden></div>';
+
+  bloc.querySelector('.a-client__joindre').append(joindreBloc(fiche));
 
   const actions = bloc.querySelector('.a-client__actions');
 
@@ -902,16 +954,6 @@ function detailClient(fiche) {
   tg.textContent = '👤 Fiche Telegram';
   tg.addEventListener('click', () => chargerFicheTelegram(fiche.id, bloc, tg));
   actions.append(tg);
-
-  if (fiche.username) {
-    const ecrire = document.createElement('a');
-    ecrire.className = 'a-btn';
-    ecrire.href = `https://t.me/${fiche.username}`;
-    ecrire.target = '_blank';
-    ecrire.rel = 'noopener';
-    ecrire.textContent = '💬 Écrire';
-    actions.append(ecrire);
-  }
 
   const ban = document.createElement('button');
   ban.className = `a-btn ${fiche.bloque ? '' : 'a-btn--danger'}`.trim();
@@ -929,6 +971,145 @@ function detailClient(fiche) {
   return bloc;
 }
 
+/**
+ * Les chemins pour joindre quelqu'un, du plus sûr au plus hasardeux.
+ *
+ * Un identifiant Telegram numérique ne se contacte pas depuis un compte
+ * personnel : c'est la question qui revient devant chaque client sans pseudo.
+ * Le bot, lui, le peut — il a déjà une conversation ouverte avec ce client,
+ * c'est même d'elle que vient l'identifiant. Le message par le bot est donc
+ * proposé en premier, et c'est le seul chemin qui marche pour tout le monde.
+ */
+function joindreBloc(fiche) {
+  const bloc = document.createElement('div');
+  const id = String(fiche.id);
+
+  bloc.innerHTML =
+    `<p class="a-client__id">Identifiant Telegram <code>${escapeHtml(id)}</code>` +
+    `<button class="a-btn a-btn--mince" type="button" data-copier>⧉ copier</button></p>` +
+    (fiche.username
+      ? `<p class="a-client__gris">Pseudo <b>@${escapeHtml(fiche.username)}</b> — joignable aussi depuis ton compte.</p>`
+      : `<p class="a-client__gris">Pas de pseudo public : un identifiant numérique ne s'écrit pas depuis ton compte ` +
+        `personnel. Le bot, lui, a déjà une conversation ouverte avec ce client.</p>`) +
+    '<div class="a-client__joindre-actions"></div>' +
+    '<div class="a-compose" hidden>' +
+    `<textarea class="a-compose__texte" rows="3" maxlength="3500" placeholder="Ton message, envoyé par le bot…"></textarea>` +
+    '<div class="a-compose__bar">' +
+    '<button class="a-btn a-btn--ok" type="button" data-envoyer>Envoyer</button>' +
+    '<button class="a-btn" type="button" data-annuler>Annuler</button>' +
+    '<span class="a-compose__etat"></span>' +
+    '</div></div>';
+
+  const actions = bloc.querySelector('.a-client__joindre-actions');
+  const compose = bloc.querySelector('.a-compose');
+  const texte = bloc.querySelector('.a-compose__texte');
+  const etat = bloc.querySelector('.a-compose__etat');
+
+  bloc.querySelector('[data-copier]').addEventListener('click', (ev) => copier(id, ev.currentTarget));
+
+  const parLeBot = document.createElement('button');
+  parLeBot.className = 'a-btn a-btn--ok';
+  parLeBot.type = 'button';
+  parLeBot.textContent = '💬 Écrire par le bot';
+  parLeBot.addEventListener('click', () => {
+    compose.hidden = !compose.hidden;
+    if (!compose.hidden) texte.focus();
+  });
+  actions.append(parLeBot);
+
+  if (fiche.username) {
+    const direct = document.createElement('a');
+    direct.className = 'a-btn';
+    direct.href = `https://t.me/${fiche.username}`;
+    direct.target = '_blank';
+    direct.rel = 'noopener';
+    direct.textContent = '↗ Depuis ton compte';
+    actions.append(direct);
+  }
+
+  const telephone = fiche.telephones?.[0];
+  if (telephone) {
+    const appel = document.createElement('a');
+    appel.className = 'a-btn';
+    appel.href = `tel:${telephone.replace(/\s/g, '')}`;
+    appel.textContent = '📞 Appeler';
+    actions.append(appel);
+  }
+
+  bloc.querySelector('[data-annuler]').addEventListener('click', () => {
+    compose.hidden = true;
+    etat.textContent = '';
+  });
+
+  const envoyer = bloc.querySelector('[data-envoyer]');
+  envoyer.addEventListener('click', async () => {
+    const message = texte.value.trim();
+    if (!message) {
+      etat.textContent = 'Écris quelque chose.';
+      etat.className = 'a-compose__etat a-compose__etat--ko';
+      return;
+    }
+    envoyer.disabled = true;
+    etat.className = 'a-compose__etat';
+    etat.textContent = 'Envoi…';
+    try {
+      await api(`/clients/${encodeURIComponent(id)}/message`, { method: 'POST', body: { texte: message } });
+      etat.className = 'a-compose__etat a-compose__etat--ok';
+      etat.textContent = '✅ Envoyé. Sa réponse arrivera dans ta conversation avec le bot.';
+      texte.value = '';
+      haptic('success');
+    } catch (err) {
+      etat.className = 'a-compose__etat a-compose__etat--ko';
+      etat.textContent = err.message;
+    }
+    envoyer.disabled = false;
+  });
+
+  return bloc;
+}
+
+/**
+ * Copie un identifiant, et le dit.
+ *
+ * Le retour est écrit dans le bouton plutôt que dans un toast : la fiche est
+ * longue, le bouton est sous le pouce, et un message qui s'affiche en haut de
+ * l'écran passe inaperçu. Le presse-papier est refusé dans certaines WebView —
+ * alors on le dit, plutôt que de ne rien faire.
+ */
+async function copier(valeur, bouton) {
+  const avant = bouton.textContent;
+  try {
+    await navigator.clipboard.writeText(valeur);
+    bouton.textContent = '✓ copié';
+    haptic('success');
+  } catch {
+    bouton.textContent = '⚠ sélectionne-le à la main';
+  }
+  setTimeout(() => { bouton.textContent = avant; }, 1800);
+}
+
+/**
+ * Le rythme d'un client, en français.
+ *
+ * Zéro jour entre deux commandes n'est pas une absence de rythme : c'est
+ * quelqu'un qui commande plusieurs fois dans la même journée. « tous les 0 j »
+ * ne voulait rien dire.
+ */
+function rythmeEnClair(jours) {
+  if (jours === null || jours === undefined) return '—';
+  if (jours === 0) return 'plusieurs/jour';
+  if (jours === 1) return 'chaque jour';
+  return `tous les ${jours} j`;
+}
+
+/** « il y a 3 jours » à partir d'un nombre de jours déjà calculé côté serveur. */
+function joursEnClair(jours) {
+  if (jours <= 0) return "aujourd'hui";
+  if (jours === 1) return 'hier';
+  if (jours < 31) return `il y a ${jours} j`;
+  return `il y a ${Math.round(jours / 30)} mois`;
+}
+
 async function chargerFicheTelegram(id, bloc, bouton) {
   bouton.disabled = true;
   bouton.textContent = '…';
@@ -936,12 +1117,23 @@ async function chargerFicheTelegram(id, bloc, bouton) {
   try {
     const fiche = await api(`/clients/${id}/telegram`);
     const nom = [fiche.prenom, fiche.nom].filter(Boolean).join(' ');
+    const naissance = fiche.naissance
+      ? `${String(fiche.naissance.jour).padStart(2, '0')}/${String(fiche.naissance.mois).padStart(2, '0')}` +
+        (fiche.naissance.annee ? `/${fiche.naissance.annee}` : '')
+      : null;
+
     zone.innerHTML =
       (fiche.photo ? `<img class="a-client__photo" src="/api/admin/clients/${encodeURIComponent(id)}/photo" alt="">` : '') +
       '<div>' +
       `<b>${escapeHtml(nom || 'Sans nom')}</b>` +
-      (fiche.username ? `<br>@${escapeHtml(fiche.username)}` : '') +
+      (fiche.username ? `<br>@${escapeHtml(fiche.username)}` : '<br><span class="a-client__gris">aucun pseudo</span>') +
+      (fiche.pseudos?.length ? `<br><span class="a-client__gris">aussi ${fiche.pseudos.map((u) => `@${escapeHtml(u)}`).join(', ')}</span>` : '') +
       `<br><span class="a-client__gris">identifiant ${escapeHtml(String(fiche.id))}</span>` +
+      (naissance
+        ? `<br><span class="a-client__gris">anniversaire déclaré ${escapeHtml(naissance)}` +
+          ' — déclaratif, Telegram ne le vérifie pas</span>'
+        : '') +
+      (fiche.prive ? '<br><span class="a-client__gris">profil non retrouvable depuis un transfert</span>' : '') +
       (fiche.bio ? `<br><span class="a-client__gris">« ${escapeHtml(fiche.bio)} »</span>` : '') +
       '</div>';
     zone.hidden = false;

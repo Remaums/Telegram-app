@@ -29,8 +29,9 @@ import { getSettings, saveSettings, blockClient, unblockClient } from './setting
 import { listVerifications, decideVerification, resetVerification } from './verification.js';
 import {
   notifyCustomer, notifyBackInStock, sendFileToAdmin, diffuser, botUsername,
-  deposerMedia, retrouverVignette, ficheTelegram, POIDS_MAX,
+  deposerMedia, retrouverVignette, ficheTelegram, ecrireAuClient, POIDS_MAX,
 } from './bot.js';
+import { refusDeTelegram, texteValide } from './messagerie.js';
 import { waitlistKey, takeSubscribers } from './waitlist.js';
 import { listeDesabonnes } from './annonces.js';
 import { listPromos, savePromo, deletePromo } from './promos.js';
@@ -124,16 +125,23 @@ adminRouter.get(
  * quelqu'un — et un fichier client est précisément ce qu'on ne veut pas tenir.
  */
 async function toutesLesFiches() {
-  const [commandes, settings, verifications, desabonnes] = await Promise.all([
+  const [commandes, settings, verifications, desabonnes, vus] = await Promise.all([
     allOrders(),
     getSettings(),
     listVerifications(),
     listeDesabonnes(),
+    // Le registre du bot complète les commandes : depuis quand ce client connaît
+    // la boutique, et combien de fois il l'a ouverte sans rien prendre.
+    listUsers(),
   ]);
   return ficheClients(commandes, {
     bloques: settings.blocked ?? [],
     verifications: Object.fromEntries(verifications.map((v) => [String(v.id), v])),
     desabonnes,
+    vus,
+    // Le fuseau de la boutique, pas celui du serveur : une commande de minuit
+    // trente à Mulhouse est une commande du vendredi soir.
+    timezone: settings.opening?.hours?.timezone ?? 'Europe/Paris',
   });
 }
 
@@ -191,6 +199,39 @@ adminRouter.get(
     const fiche = await ficheTelegram(req.params.id).catch(() => null);
     if (!fiche?.photo) throw new HttpError(404, 'Pas de photo de profil.');
     await servirMedia(req, res, { fileId: fiche.photo, kind: 'photo' });
+  })
+);
+
+/**
+ * Écrire à un client, par le bot.
+ *
+ * C'est la réponse à « j'ai son identifiant mais pas son @ » : un identifiant
+ * numérique ne se contacte pas depuis un compte personnel, alors que le bot a
+ * déjà une conversation ouverte avec ce client. La route sert aussi bien l'onglet
+ * Clients que l'onglet Utilisateurs — un curieux qui n'a jamais commandé se
+ * joint de la même façon.
+ *
+ * Rien n'est conservé de l'échange : le message part, le bot en garde la trace
+ * dans la conversation, la boutique n'en tient pas de registre.
+ */
+adminRouter.post(
+  '/clients/:id/message',
+  route(async (req, res) => {
+    const { texte, erreur } = texteValide(req.body?.texte);
+    if (erreur) throw new HttpError(400, erreur);
+
+    if (!/^\d+$/.test(String(req.params.id))) {
+      throw new HttpError(400, 'Identifiant Telegram invalide.');
+    }
+
+    try {
+      const envoi = await ecrireAuClient(req.params.id, texte);
+      res.json({ ok: true, ...envoi });
+    } catch (err) {
+      // Le refus de Telegram est une information, pas une panne : « ce client a
+      // bloqué le bot » se lit et se comprend, là où un 500 n'apprend rien.
+      throw new HttpError(409, refusDeTelegram(err));
+    }
   })
 );
 

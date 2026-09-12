@@ -22,31 +22,43 @@ function exempleOuVide(url) {
   return propre;
 }
 
+/**
+ * Les identifiants Telegram autorisés à ouvrir l'espace admin.
+ *
+ * Les deux variables sont réunies, pas mises en concurrence. `??` ne bascule
+ * que sur null ou undefined : un `ADMIN_IDS=` vide — le geste naturel quand on
+ * efface l'exemple — vaut la chaîne vide, qui n'est pas nulle. Le repli vers
+ * ADMIN_CHAT_ID que promettait .env.example ne se produisait donc jamais, et la
+ * boutique se retrouvait sans aucun administrateur. Personne ne renseigne son
+ * ADMIN_CHAT_ID sans vouloir aussi ouvrir son espace admin.
+ */
+const adminIds = [
+  ...new Set(
+    [process.env.ADMIN_IDS, process.env.ADMIN_CHAT_ID]
+      .flatMap((v) => String(v ?? '').split(','))
+      .map((v) => v.trim())
+      .filter(Boolean)
+  ),
+];
+
 export const config = {
   botToken: process.env.BOT_TOKEN ?? '',
   webappUrl: (process.env.WEBAPP_URL ?? '').replace(/\/$/, ''),
-  adminChatId: process.env.ADMIN_CHAT_ID ?? '',
+  // Où le bot dépose les commandes, les alertes de stock et les messages des
+  // clients.
+  //
+  // Le repli sur le premier administrateur n'est pas un confort : sans lui, un
+  // `.env` qui déclare ADMIN_IDS et oublie ADMIN_CHAT_ID laissait le vendeur
+  // sans aucune notification de commande, silencieusement — et depuis que la
+  // Mini App n'ouvre plus la conversation du vendeur avec le récapitulatif, il
+  // n'y avait plus rien du tout pour rattraper l'oubli.
+  adminChatId: process.env.ADMIN_CHAT_ID || adminIds[0] || '',
   sellerUsername: (process.env.SELLER_USERNAME ?? '').replace(/^@/, ''),
   // Nom du bot, pour fabriquer les liens t.me qui ouvrent la Mini App. Il se
   // demande à Telegram si on ne le renseigne pas — mais le renseigner évite
   // un aller-retour réseau au premier lien généré.
   botUsername: (process.env.BOT_USERNAME ?? '').replace(/^@/, ''),
-  // Identifiants Telegram autorisés à ouvrir l'espace admin.
-  //
-  // Les deux variables sont réunies, pas mises en concurrence. `??` ne bascule
-  // que sur null ou undefined : un `ADMIN_IDS=` vide — le geste naturel quand
-  // on efface l'exemple — vaut la chaîne vide, qui n'est pas nulle. Le repli
-  // vers ADMIN_CHAT_ID que promettait .env.example ne se produisait donc
-  // jamais, et la boutique se retrouvait sans aucun administrateur. Personne
-  // ne renseigne son ADMIN_CHAT_ID sans vouloir aussi ouvrir son espace admin.
-  adminIds: [
-    ...new Set(
-      [process.env.ADMIN_IDS, process.env.ADMIN_CHAT_ID]
-        .flatMap((v) => String(v ?? '').split(','))
-        .map((v) => v.trim())
-        .filter(Boolean)
-    ),
-  ],
+  adminIds,
   port: Number(process.env.PORT ?? 3000),
   // Derrière un reverse proxy (Nginx, Caddy), on n'écoute que en local :
   // HOST=127.0.0.1 ferme la porte à un accès direct au port.

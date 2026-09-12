@@ -663,3 +663,40 @@ body.admin {
 .a-client__actions .a-btn { flex: 1 1 auto; text-align: center; text-decoration: none; }
 .a-client__telegram { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; font-size: 13.5px; }
 .a-client__photo { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 1px solid var(--line-soft); }
+
+/* ── Joindre un client ─────────────────────────────────────
+   Un identifiant Telegram numérique ne se contacte pas depuis un
+   compte personnel : c'est le bot qui écrit. Le bloc met donc
+   l'identifiant en évidence — c'est l'adresse — et le message par
+   le bot en premier bouton. */
+.a-client__joindre { font-size: 13.5px; line-height: 1.45; }
+.a-client__id {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 0 0 6px !important; font-weight: 700;
+}
+.a-client__id code {
+  padding: 2px 8px; border-radius: 8px; font-size: 13px; font-weight: 800;
+  color: var(--neon); background: rgb(var(--neon-rgb) / .1);
+  border: 1px solid rgb(var(--neon-rgb) / .35);
+  user-select: all;  /* un appui long le sélectionne d'un bloc */
+}
+.a-btn--mince { padding: 4px 9px; font-size: 11.5px; border-radius: 9px; }
+.a-btn--ok { color: var(--neon); border-color: rgb(var(--neon-rgb) / .5); background: rgb(var(--neon-rgb) / .1); }
+.a-client__joindre-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.a-client__joindre-actions .a-btn { flex: 1 1 auto; text-align: center; text-decoration: none; }
+
+.a-compose { margin-top: 10px; }
+.a-compose__texte {
+  width: 100%; box-sizing: border-box; resize: vertical;
+  padding: 10px 12px; border-radius: 12px;
+  font: inherit; font-size: 14px; color: var(--cream);
+  background: rgba(255, 255, 255, .05); border: 1px solid var(--line-soft);
+}
+.a-compose__texte:focus { outline: none; border-color: rgb(var(--neon-rgb) / .5); }
+.a-compose__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.a-compose__etat { flex: 1 1 100%; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.a-compose__etat--ok { color: var(--neon); }
+.a-compose__etat--ko { color: var(--red); }
+
+.a-client__notes li { padding: 8px 0; border-top: 1px solid var(--viz-grille, rgb(234 255 242 / .12)); }
+.a-client__detail a[href^="tel:"] { color: var(--neon); text-decoration: none; font-weight: 800; }

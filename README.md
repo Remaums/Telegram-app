@@ -51,13 +51,18 @@ Ouvre `.env` et remplis :
 |---|---|
 | `BOT_TOKEN` | Le token donné par BotFather |
 | `WEBAPP_URL` | L'URL **HTTPS** publique de la boutique (obligatoire, Telegram refuse le HTTP) |
-| `SELLER_USERNAME` | **Ton pseudo Telegram sans le `@`** — c'est là qu'arrivent les commandes |
-| `ADMIN_CHAT_ID` | Ton ID numérique, pour recevoir aussi une notification automatique du bot |
+| `SELLER_USERNAME` | **Ton pseudo Telegram sans le `@`** — sert au bouton « une question au vendeur » et au filet si le serveur est injoignable |
+| `ADMIN_CHAT_ID` | Ton ID numérique : c'est là que le bot dépose les commandes, les alertes de stock et les messages des clients. Non renseigné, il prend le premier `ADMIN_IDS` |
 | `BOT_USERNAME` | Le pseudo du bot sans le `@` — sert aux liens directs et aux QR codes (facultatif : demandé à Telegram sinon) |
 | `SHOP_NAME` | Le nom affiché en haut de la boutique |
 | `CURRENCY` | `EUR`, `CHF`, `CAD`… |
 
 > Pour trouver ton `ADMIN_CHAT_ID` : lance le bot, envoie-lui `/start`, il t'affiche ton ID.
+>
+> Les commandes arrivent par le bot, **pas** par ta messagerie perso : la Mini App
+> n'ouvre plus ta conversation avec un récapitulatif à envoyer. C'est
+> `ADMIN_CHAT_ID` (ou, à défaut, le premier `ADMIN_IDS`) qui décide où elles
+> tombent.
 
 ### 3. Lancer
 
@@ -673,21 +678,79 @@ Recommencer une anonymisation ne recompte pas ce qui est déjà oublié.
 ### Les clients
 
 L'onglet **Clients** reconstitue une fiche par personne **à partir des
-commandes** : combien de fois, combien dépensé, panier moyen, annulations,
-première et dernière commande, retrait ou livraison, ce qu'elle prend
-d'habitude, les adresses servies (la plus récente en tête, avec ses liens
-d'itinéraire), son téléphone, ses dernières références — et les trois états que
-la boutique connaît déjà : bloqué, vérifié, abonné aux annonces.
+commandes**. Ce qu'une fiche porte :
+
+| | |
+|---|---|
+| **Rang** | sa place au chiffre d'affaires, sur l'ensemble des clients |
+| **Commandes · Dépensé · Panier moyen · Articles** | le volume |
+| **Annulées** | le nombre **et le taux**, calculé sur le total des commandes |
+| **Livraisons** | combien sur combien, face aux retraits |
+| **Dernière** | il y a combien de jours |
+| **Rythme** | le nombre de jours moyen entre deux commandes |
+| **Client depuis** | sa première commande |
+| **Connaît la boutique · Ouvertures du bot** | depuis le registre du bot : l'écart avec le nombre de commandes dit s'il regarde beaucoup et prend peu |
+| **Quand il commande** | son jour et son heure habituels, dans le fuseau de la boutique |
+| **Ce qu'il prend** | tous ses produits, le plus pris en tête |
+| **Où en sont ses commandes** | la répartition par état — trois « prête » qui dorment se voient ici |
+| **Où livrer** | les adresses servies, la plus récente en tête, avec leurs liens d'itinéraire |
+| **Téléphone** | cliquable pour appeler |
+| **Codes utilisés** | les codes promo réclamés, et combien de fois |
+| **Ce qu'il a écrit** | les notes laissées à la commande — « sonnez deux fois » ne se perd plus dans une commande d'il y a trois semaines |
+| **Dernières commandes** | les dix dernières, avec leur état et leur mode |
+
+Plus les trois états que la boutique connaît déjà : bloqué, vérifié, abonné aux
+annonces.
 
 La recherche porte sur **tout** le magasin, pas sur les fiches affichées : un
 prénom, un pseudo, un numéro tapé d'un bloc, une rue, une ville, une référence
 de commande. Sans accents ni casse. Les fiches restent repliées — une liste de
 fiches entières ferait défiler trois écrans pour retrouver quelqu'un.
 
-Deux boutons vont chercher plus loin, **à la demande et un client à la fois** :
-« Fiche Telegram » demande à Telegram le nom, le pseudo, la biographie et la
-photo du compte (Telegram ne répond que pour quelqu'un qui a déjà écrit au
-bot), et « Écrire » ouvre la conversation.
+« Fiche Telegram » va chercher plus loin, **à la demande et un client à la
+fois** : le nom, le pseudo (et les autres pseudos du compte), la biographie, la
+photo, et l'anniversaire si le client l'a renseigné sur son profil — déclaratif,
+Telegram ne le vérifie pas. Telegram ne répond que pour quelqu'un qui a déjà
+écrit au bot.
+
+#### Joindre un client qui n'a pas de @
+
+C'est la question qui revient devant chaque fiche sans pseudo : **un identifiant
+Telegram numérique ne se contacte pas depuis un compte personnel.** Telegram
+n'ouvre une conversation que vers un pseudo, et beaucoup de clients n'en ont pas.
+
+Le bot, lui, le peut — il a déjà une conversation ouverte avec ce client, c'est
+même d'elle que vient l'identifiant. Le bloc **« Comment le joindre »** de chaque
+fiche (onglet Clients comme onglet Utilisateurs) propose donc :
+
+- **💬 Écrire par le bot** — le message part du bot, sous le nom de la boutique.
+  C'est le seul chemin qui marche pour tout le monde, avec ou sans pseudo.
+- **↗ Depuis ton compte** — seulement s'il a un pseudo.
+- **📞 Appeler** — s'il a laissé un numéro à la commande.
+
+L'identifiant est affiché avec un bouton **copier**, et il apparaît aussi sur la
+carte repliée quand il n'y a pas de pseudo : sans lui, on ne sait même pas qu'on
+a de quoi joindre ce client.
+
+**La réponse revient.** Quand un client écrit au bot, son message arrive dans ta
+conversation avec l'identifiant et une invitation : *réponds à ce message*. Ta
+réponse Telegram repart au client, sous le nom de la boutique. Rien n'est gardé
+en mémoire — le routage tient dans le message relayé, donc un redémarrage ne
+coupe pas une conversation en cours.
+
+Trois garde-fous :
+
+- un client n'est relayé qu'**après** le calcul d'entrée, sinon un robot
+  inonderait ta conversation ;
+- un client qui glisse une fausse ligne `id 999…` dans son message ne détourne
+  pas ta réponse : seule la première ligne compte, et c'est la boutique qui
+  l'écrit ;
+- **seul l'administrateur route une réponse**. Sans cette règle, un client qui
+  cite un message relayé ferait parler le bot au nom de la boutique à n'importe
+  qui.
+
+Un refus de Telegram se lit en français et dit quoi faire : « ce client a bloqué
+le bot », « ce compte a été supprimé », « il doit d'abord envoyer /start ».
 
 > 🔒 **Rien n'est collecté pour cet écran.** Il ne fait que regrouper ce que les
 > commandes disent déjà. En particulier, la boutique **n'enregistre aucune
@@ -711,8 +774,9 @@ et combien ont fini par commander**. L'écart, c'est ce que la boutique laisse
 repartir sans rien vendre — le seul chiffre qu'un onglet « clients » ne peut
 pas donner. Chaque fiche croise le registre avec ce que la boutique sait déjà
 (a commandé, bloqué, vérifié, abonné), se cherche par nom/pseudo/identifiant, et
-s'ouvre sur les dates, le nombre de contacts, et de quoi agir : fiche Telegram,
-écrire, bloquer.
+s'ouvre sur les dates, le nombre de contacts, le bloc « Comment le joindre »
+ci-dessus, et de quoi agir : fiche Telegram, bloquer. Un curieux qui n'a jamais
+commandé se relance donc exactement comme un client.
 
 > Le registre est **borné** : au-delà de 20 000 visiteurs, les plus anciennement
 > vus cèdent la place. Ceux-là n'ont de toute façon jamais commandé — sinon ils

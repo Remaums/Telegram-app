@@ -9,6 +9,9 @@ server/data/waitlist.json
 server/data/promos.json
 server/data/annonces.json
 server/data/.lock
+# Écriture atomique interrompue : le magasin écrit un .tmp puis le renomme.
+# Un arrêt entre les deux en laisse un derrière, qui n'a rien à faire ici.
+server/data/*.tmp
 .DS_Store
 server/data/media-cache/
 server/data/captcha-bot.json
