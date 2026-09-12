@@ -592,8 +592,12 @@ bot.command('aide', (ctx) =>
   )
 );
 
-// Filet de sécurité : si le client n'a pas pu ouvrir la conversation vendeur,
-// la Mini App renvoie la commande par sendData et elle arrive ici.
+// Réception de sendData. La Mini App ne s'en sert pas : elle enregistre la
+// commande par l'API, et quand le serveur est injoignable elle emmène le client
+// dans la conversation du vendeur (sendData n'est disponible que si la Mini App
+// a été ouverte depuis un bouton de clavier, ce qui n'est pas notre cas).
+// Le gestionnaire reste : sans lui, une charge utile reçue d'une version
+// antérieure de l'app tomberait dans le message d'aide générique.
 bot.on('message:web_app_data', async (ctx) => {
   try {
     const payload = JSON.parse(ctx.message.web_app_data.data);
@@ -632,10 +636,9 @@ bot.catch((err) => {
 /**
  * Confirme au client que sa commande est bien partie.
  *
- * C'est le seul accusé de réception qu'il reçoit : le bouton « Commander »
- * ouvre bien la conversation vendeur avec le récapitulatif, mais rien ne dit
- * qu'il appuiera sur Envoyer — et si SELLER_USERNAME n'est pas configuré, il
- * ne se passait tout simplement rien de son côté.
+ * C'est son accusé de réception, et il compte : la Mini App n'ouvre plus la
+ * conversation du vendeur avec un récapitulatif à envoyer, donc ce message est
+ * la seule trace de la commande qui lui reste dans Telegram.
  */
 export async function notifyOrderPlaced(order) {
   const items = order.items

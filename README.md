@@ -1,8 +1,8 @@
 # 🌿 Napoli Coffee — boutique Telegram Mini App
 
 Une boutique au **design néon nuit** qui s'ouvre directement dans Telegram : catalogue en
-images, fiches produits, panier, et un bouton **Commander** qui ouvre ta conversation
-Telegram avec le récapitulatif de la commande déjà écrit.
+images, fiches produits, panier, et un bouton **Commander** qui enregistre la commande et
+te l'envoie dans ta messagerie, sans que le client ait à écrire quoi que ce soit.
 
 ![Aperçu](docs/apercu.png)
 
@@ -13,12 +13,18 @@ Telegram avec le récapitulatif de la commande déjà écrit.
 ```
 Client → /start dans le bot → bouton « Ouvrir la boutique »
        → Mini App (catalogue, panier)
-       → « Commander » → ta conversation Telegram, message pré-rempli
-                       → (en parallèle) commande enregistrée + notification admin
+       → « Commander » → commande enregistrée
+                       → notification admin dans ta messagerie
+                       → accusé de réception au client dans le bot
 ```
 
-Le client n'a plus qu'à appuyer sur « Envoyer » : tu reçois la commande dans ta
-messagerie perso, avec le détail et une référence.
+Le client n'a rien d'autre à faire : tu reçois la commande dans ta messagerie perso,
+avec le détail, l'adresse et une référence. Il garde un bouton « Une question au
+vendeur » s'il veut ajouter un mot, mais rien ne l'y oblige.
+
+> Si le serveur est injoignable au moment du clic, la commande n'a pas été enregistrée :
+> là seulement, l'app ouvre ta conversation avec le récapitulatif pré-rempli, pour que la
+> commande ne disparaisse pas.
 
 ---
 

@@ -215,6 +215,8 @@ function bindStaticHandlers() {
   // envoie sa pièce : pas besoin de connaître le nom du bot.
   $('verifAction').addEventListener('click', () => (tg ? tg.close() : window.history.back()));
   $('checkout').addEventListener('click', checkout);
+  // Facultatif, et c'est tout l'enjeu : la commande est déjà partie, ce bouton
+  // ne sert qu'à ceux qui veulent ajouter un mot.
   $('doneChat').addEventListener('click', () => openSellerChat(state.lastMessage));
   $('verifBrowse').addEventListener('click', () => {
     // Le serveur refuse la commande de toute façon : rien n'oblige à cacher
@@ -1963,14 +1965,16 @@ async function checkout() {
       return;
     }
   } catch (err) {
-    // Serveur injoignable, et non refus : là, on continue. Le client arrive
-    // dans la conversation avec son récapitulatif, le vendeur fait le reste.
+    // Serveur injoignable, et non refus : là, on continue. Sans commande
+    // enregistrée, personne n'est prévenu : c'est le seul cas où le client est
+    // emmené dans la conversation du vendeur, plus bas.
     console.warn('Enregistrement de la commande impossible :', err);
   }
 
   const message = buildOrderMessage(lines, note, reference, contact, remise, creneau, zone, adresse);
+  // Gardé pour le bouton « Une question au vendeur » : le client peut envoyer
+  // son récapitulatif s'il en a envie, mais plus rien ne l'y pousse.
   state.lastMessage = message;
-  openSellerChat(message);
 
   button.disabled = false;
   button.textContent = 'Commander';
@@ -1989,6 +1993,11 @@ async function checkout() {
     // Le stock vient de bouger : sans ce rafraîchissement, la grille propose
     // encore des articles qu'on vient soi-même d'emporter.
     refreshCatalog();
+  } else {
+    // Rien n'a été enregistré : le serveur n'a pas répondu, donc le vendeur
+    // n'a rien reçu et ne recevra rien. La conversation est le dernier chemin
+    // qui reste à cette commande — c'est le seul cas où on y emmène le client.
+    openSellerChat(message);
   }
 }
 
@@ -2028,9 +2037,19 @@ function showOrderDone(reference, lines, remise, creneau, zone) {
   const fee = deliveryFeeFor(subtotal);
 
   $('doneRef').textContent = reference;
-  $('doneText').textContent = state.shop.sellerUsername
-    ? 'On a reçu ta commande. Le récapitulatif est prêt dans la conversation du vendeur : envoie-le pour confirmer.'
-    : 'On a reçu ta commande. Le vendeur revient vers toi dans la conversation.';
+  // Le vendeur est prévenu côté serveur : demander au client d'envoyer lui-même
+  // le récapitulatif faisait arriver la commande deux fois, et laissait croire
+  // qu'elle n'était pas passée tant qu'il n'avait pas appuyé sur Envoyer.
+  // L'accusé du bot, lui, est une fonctionnalité que le vendeur peut couper —
+  // promettre une confirmation qui n'arrivera jamais vaut moins que se taire.
+  $('doneText').textContent =
+    state.features.clientNotifications === false
+      ? 'On a reçu ta commande, le vendeur est prévenu. Il revient vers toi très vite.'
+      : 'On a reçu ta commande, le vendeur est prévenu. La confirmation arrive dans la conversation du bot.';
+
+  // Écrire au vendeur reste possible, mais sans compte configuré le bouton
+  // n'avait qu'un message d'erreur à offrir.
+  $('doneChat').hidden = !state.shop.sellerUsername;
 
   const lignes = [
     ...lines.map((l) => `${l.quantity} × ${l.product.name}${l.variant ? ` (${l.variant.label})` : ''}`),
