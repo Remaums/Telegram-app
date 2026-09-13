@@ -15,6 +15,7 @@ import {
   messagePourLeClient,
   refusDeTelegram,
 } from './messagerie.js';
+import { deposerAvis, refusDAvis } from './avis.js';
 
 /**
  * Le bot, construit même sans jeton.
@@ -1115,12 +1116,107 @@ export async function notifyCustomer(order) {
     annulee: 'Ta commande a été annulée. Écris-nous si c\'est une erreur.',
   };
 
+  const livree = order.status === 'livree';
   const text =
     `${status.emoji} Commande ${order.reference} — ${status.label}\n\n` +
     `${messages[order.status] ?? ''}\n` +
-    `Total : ${formatPrice(order.total)}`;
+    `Total : ${formatPrice(order.total)}` +
+    (livree ? '\n\nComment c\'était ? Touche une étoile, ça prend une seconde.' : '');
 
-  await bot.api.sendMessage(order.user.id, text);
+  await bot.api.sendMessage(order.user.id, text, {
+    reply_markup: livree ? clavierDEtoiles(order.reference) : undefined,
+  });
+}
+
+/**
+ * Cinq étoiles, sur une ligne, dans la conversation.
+ *
+ * C'est le moment où l'avis se donne ou ne se donnera jamais : le client vient
+ * de recevoir sa commande et il a son téléphone en main. Lui demander d'ouvrir
+ * l'application, de retrouver le produit et d'écrire un paragraphe, c'est
+ * n'avoir aucun avis. Un doigt sur une étoile, c'est un avis.
+ */
+function clavierDEtoiles(reference) {
+  const clavier = new InlineKeyboard();
+  for (let note = 1; note <= 5; note += 1) {
+    clavier.text('⭐'.repeat(note), `av:${reference}:${note}`);
+    if (note < 5) clavier.row();
+  }
+  return clavier;
+}
+
+/**
+ * L'étoile touchée devient l'avis, sur tous les articles de la commande.
+ *
+ * Demander quelle ligne il note serait plus juste et ne donnerait plus aucun
+ * avis : on note ce qu'on a reçu, et ce qu'il a reçu est cette commande. Le mot
+ * écrit, lui, s'ajoute ensuite depuis la boutique — l'avis y est rouvert sur ce
+ * qu'il vient de mettre.
+ */
+bot.callbackQuery(/^av:([A-Za-z0-9-]+):([1-5])$/, async (ctx) => {
+  const [, reference, note] = ctx.match;
+  try {
+    if (!(await getSettings()).features.avis) {
+      return ctx.answerCallbackQuery({ text: 'Les avis sont fermés.', show_alert: true });
+    }
+
+    const order = (await listOrders({ userId: ctx.from.id, limit: 50 }))
+      .find((o) => o.reference === reference);
+    if (!order) {
+      return ctx.answerCallbackQuery({ text: 'Commande introuvable.', show_alert: true });
+    }
+
+    const refus = refusDAvis(order);
+    if (refus) return ctx.answerCallbackQuery({ text: refus, show_alert: true });
+
+    const notes = Object.fromEntries((order.items ?? []).map((i) => [i.id, Number(note)]));
+    // Anonyme par défaut, et c'est délibéré : on ne lui a pas demandé s'il
+    // voulait voir son prénom sous une note publique, donc on ne l'y met pas.
+    // Dans la boutique, où l'écran pose la question, il peut signer.
+    const deposes = await deposerAvis({ order, notes, texte: '', anonyme: true, user: ctx.from });
+
+    await ctx.answerCallbackQuery({ text: `${'⭐'.repeat(Number(note))} Merci !` });
+    // Le clavier disparaît : le laisser inviterait à re-noter sans que rien ne
+    // dise que la note d'avant a été remplacée.
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
+    await ctx.reply(
+      `Merci pour tes ${'⭐'.repeat(Number(note))} !\n\n` +
+        'Tu peux ajouter un mot depuis la boutique, ça aide ceux qui hésitent.',
+      { reply_markup: shopKeyboard() }
+    );
+
+    notifyNouvelAvis(order, deposes).catch(() => {});
+  } catch (err) {
+    await ctx.answerCallbackQuery({ text: err.message?.slice(0, 180) ?? 'Raté.', show_alert: true });
+  }
+});
+
+/**
+ * Prévient le vendeur qu'un avis vient d'être donné.
+ *
+ * Une mauvaise note est ce qu'une boutique a de plus utile, à condition de la
+ * lire le jour même : au bout d'une semaine, le client est parti et le problème
+ * est devenu une habitude.
+ */
+export async function notifyNouvelAvis(order, avis) {
+  if (!config.adminChatId || !avis?.length) return;
+
+  const note = avis[0].note;
+  const qui = order.user?.username ? `@${order.user.username}` : order.user?.firstName ?? 'Un client';
+  const articles = [...new Set(avis.map((a) => a.productId))].join(', ');
+
+  try {
+    await bot.api.sendMessage(
+      config.adminChatId,
+      `${'⭐'.repeat(note)}${'☆'.repeat(5 - note)}  ${note}/5\n\n` +
+        `${qui} · commande ${order.reference}\n` +
+        `${articles}\n` +
+        (avis[0].texte ? `\n« ${avis[0].texte} »\n` : '') +
+        (note <= 2 ? '\n⚠️ Une note basse se rattrape le jour même.' : '')
+    );
+  } catch (err) {
+    console.error('Notification d\'avis impossible :', err.message);
+  }
 }
 
 function formatPrice(cents) {

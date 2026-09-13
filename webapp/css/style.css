@@ -1013,3 +1013,120 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 .cart-item__art--photo { overflow: hidden; background: rgb(var(--ink-rgb) / .5); }
 .cart-item__art--photo img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ── Avis ─────────────────────────────────────────────────────
+   Les étoiles portent l'or de l'affiche, pas le néon : le néon
+   veut dire « touche ici » partout ailleurs dans la boutique, et
+   une note n'est pas un bouton. La seule qui en soit un — celle
+   de la fiche produit — le dit par son soulignement. */
+
+.reprise--avis {
+  background: linear-gradient(180deg, rgb(var(--gold-rgb) / .16), rgb(var(--gold-rgb) / .05));
+  border-color: rgb(var(--gold-rgb) / .38);
+}
+.reprise--avis .reprise__fleche { color: var(--gold); }
+
+/* La note sur une carte du catalogue : discrète, sur une ligne. */
+.card__note {
+  display: block; margin-top: 3px;
+  font-size: 11.5px; font-weight: 800; letter-spacing: .04em;
+  color: var(--gold);
+}
+.card__note small { color: var(--muted); font-weight: 700; letter-spacing: 0; }
+
+/* La note de la fiche produit, qui descend jusqu'aux avis. */
+.note--lien {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  margin: 0 0 8px; padding: 0; border: 0; background: none;
+  color: var(--gold); font: inherit; cursor: pointer;
+}
+.note__etoiles { font-size: 15px; letter-spacing: .06em; }
+.note__chiffre { font-size: 15px; font-weight: 800; }
+.note__nombre {
+  font-size: 12.5px; font-weight: 700; color: var(--muted);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+
+.avis { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line-soft); }
+.avis__titre {
+  margin: 0 0 12px; font-size: 12.5px; font-weight: 800;
+  color: var(--muted); text-transform: uppercase; letter-spacing: .07em;
+}
+
+/* La répartition : ce que la moyenne cache. */
+.avis__barres { margin-bottom: 16px; }
+.avis__barre { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.avis__barre-note { width: 2.1rem; font-size: 11.5px; font-weight: 800; color: var(--gold); }
+.avis__barre-piste {
+  flex: 1; height: 6px; border-radius: 999px;
+  background: rgb(var(--cream-rgb) / .08); overflow: hidden;
+}
+.avis__barre-plein { display: block; height: 100%; background: rgb(var(--gold-rgb) / .7); }
+.avis__barre-nombre {
+  width: 1.6rem; text-align: right;
+  font-size: 11.5px; font-weight: 700; color: var(--muted);
+}
+
+.avis__liste { list-style: none; margin: 0; padding: 0; }
+.avis__item { padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.avis__item:first-child { border-top: 0; }
+.avis__tete { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.avis__etoiles { color: var(--gold); font-size: 13px; letter-spacing: .06em; }
+.avis__qui { font-size: 13.5px; font-weight: 800; }
+.avis__quand { font-size: 11.5px; font-weight: 600; color: var(--muted); margin-left: auto; }
+.avis__texte { margin: 6px 0 0; font-size: 13.5px; line-height: 1.5; }
+.avis__reponse {
+  margin-top: 8px; padding: 9px 11px; border-radius: 12px;
+  background: rgb(var(--neon-rgb) / .07); border-left: 2px solid rgb(var(--neon-rgb) / .5);
+  font-size: 13px; line-height: 1.45;
+}
+.avis__reponse b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--neon); }
+.avis__reponse p { margin: 3px 0 0; }
+
+/* Donner son avis : une ligne par produit, cinq boutons. */
+.avis__intro { margin: 0 0 16px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.avis__facultatif {
+  padding: 1px 7px; border-radius: 999px; font-size: 10.5px; letter-spacing: .04em;
+  color: var(--muted); background: rgb(var(--cream-rgb) / .07); text-transform: none;
+}
+.avis__note-vie { margin: 12px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
+
+.notation {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--line-soft);
+}
+.notation:first-child { border-top: 0; padding-top: 0; }
+.notation__nom { flex: 1 1 8rem; min-width: 0; font-size: 14px; font-weight: 800; overflow-wrap: anywhere; }
+.notation__nom small { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.notation__etoiles { display: flex; gap: 2px; }
+.notation__etoile {
+  padding: 4px 3px; border: 0; background: none; cursor: pointer;
+  /* Une étoile éteinte reste lisible : trop pâle, on ne sait plus qu'on peut
+     appuyer dessus. */
+  color: rgb(var(--cream-rgb) / .28); font-size: 27px; line-height: 1;
+}
+.notation__etoile.est-pleine { color: var(--gold); }
+.notation__etoile:active { transform: scale(.88); }
+
+#avisTexte {
+  width: 100%; box-sizing: border-box; resize: vertical;
+  padding: 11px 13px; border-radius: 13px;
+  font: inherit; font-size: 15px; color: var(--cream);
+  background: rgb(var(--cream-rgb) / .05); border: 1px solid var(--line-soft);
+}
+#avisTexte:focus { outline: none; border-color: rgb(var(--neon-rgb) / .5); }
+
+/* Signé ou anonyme : deux choix côte à côte, jamais une case à cocher —
+   « publier mon prénom » décoché par erreur n'est pas récupérable. */
+.signature { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.signature__choix {
+  padding: 10px 12px; text-align: left; border-radius: 13px;
+  background: rgb(var(--cream-rgb) / .05); border: 1px solid var(--line-soft);
+  color: var(--cream); font: inherit;
+}
+.signature__choix b { display: block; font-size: 13.5px; font-weight: 800; }
+.signature__choix small { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 600; color: var(--muted); line-height: 1.35; }
+.signature__choix[aria-pressed="true"] {
+  background: rgb(var(--neon-rgb) / .12); border-color: rgb(var(--neon-rgb) / .55);
+}
+.signature__choix[aria-pressed="true"] b { color: var(--neon); }

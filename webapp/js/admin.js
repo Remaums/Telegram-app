@@ -20,6 +20,10 @@ const state = {
   usersTotal: 0,
   usersAcheteurs: 0,
   usersCharge: false, // chargé à la première ouverture de l'onglet, pas avant
+  avis: [],           // les avis, du plus récent au plus ancien
+  avisResume: null,   // moyenne, total, masqués, notes par produit
+  avisFiltre: 'tous', // tous | basses | masques
+  avisCharges: false,
   periode: 30,       // en jours ; commande tout le tableau de bord
   settings: null,
   verifications: [],
@@ -183,6 +187,11 @@ async function refreshAll() {
   renderCategories();
   renderSettings();
 
+  // Les avis se chargent avec le reste : la pastille de l'onglet doit signaler
+  // une note basse sans réponse même si le vendeur n'ouvre jamais cet onglet —
+  // et c'est exactement pour ça qu'elle existe.
+  chargerLesAvis().catch(() => {});
+
   $('pendingDot').hidden = stats.pending === 0;
 }
 
@@ -199,6 +208,7 @@ function selectTab(name) {
   // Le registre peut compter des milliers de visiteurs : on ne le charge qu'à
   // la première ouverture de l'onglet, pas à chaque rafraîchissement.
   if (name === 'users' && !state.usersCharge) chargerUtilisateurs();
+  if (name === 'avis' && !state.avisCharges) chargerLesAvis();
   window.scrollTo({ top: 0 });
   haptic('light');
 }
@@ -3032,4 +3042,244 @@ function themeHex(token, fallback) {
   const parts = raw.match(/\d+/g);
   if (!parts || parts.length < 3) return fallback;
   return `#${parts.slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/* ── Avis ────────────────────────────────────────────────── */
+
+/**
+ * Les avis, et ce qu'on en fait.
+ *
+ * L'écran est construit autour d'une conviction : une mauvaise note n'est pas
+ * un problème à effacer, c'est un problème à traiter. Les notes basses sans
+ * réponse sont donc comptées en tête et filtrables d'un bouton — masquer existe,
+ * mais c'est le dernier recours, pas le premier geste.
+ */
+async function chargerLesAvis() {
+  try {
+    const data = await api('/avis');
+    state.avis = data.avis;
+    state.avisResume = data;
+    state.avisCharges = true;
+    renderAvis();
+  } catch (err) {
+    $('avisList').innerHTML = `<p class="a-empty">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function renderAvis() {
+  const data = state.avisResume;
+  if (!data) return;
+
+  // Une pastille sur l'onglet : une note basse sans réponse est la seule chose
+  // de cet écran qui attende vraiment quelque chose du vendeur.
+  $('avisDot').hidden = !data.sansReponse;
+
+  $('avisStat').innerHTML =
+    carteChiffre('Note moyenne', data.moyenne === null ? '—' : data.moyenne.toFixed(1).replace('.', ','),
+      data.moyenne === null ? '' : etoilesAdmin(data.moyenne)) +
+    carteChiffre('Avis reçus', String(data.total), data.masques ? `${data.masques} masqué${data.masques > 1 ? 's' : ''}` : '') +
+    carteChiffre('À rattraper', String(data.sansReponse), data.sansReponse ? '1 ou 2 étoiles, sans réponse' : 'rien en attente');
+
+  $('avisParProduit').replaceChildren(
+    ...(data.parProduit.length
+      ? data.parProduit.map(ligneProduitNote)
+      : [phrase('Aucun avis pour le moment.')])
+  );
+
+  const filtres = [
+    ['tous', `Tous (${data.total})`],
+    ['basses', `À rattraper (${data.sansReponse})`],
+    ['masques', `Masqués (${data.masques})`],
+  ];
+  $('avisFiltres').replaceChildren(
+    ...filtres.map(([valeur, libelle]) => {
+      const bouton = document.createElement('button');
+      bouton.type = 'button';
+      bouton.className = 'a-filter';
+      bouton.textContent = libelle;
+      bouton.setAttribute('aria-pressed', String(state.avisFiltre === valeur));
+      bouton.addEventListener('click', () => {
+        state.avisFiltre = valeur;
+        renderAvis();
+        haptic('light');
+      });
+      return bouton;
+    })
+  );
+
+  const liste = state.avis.filter((a) => {
+    if (state.avisFiltre === 'basses') return a.note <= 2 && !a.reponse;
+    if (state.avisFiltre === 'masques') return a.statut === 'masque';
+    return true;
+  });
+
+  $('avisList').replaceChildren(
+    ...(liste.length ? liste.map(carteAvisAdmin) : [phrase('Rien avec ce filtre.')])
+  );
+}
+
+function carteChiffre(label, valeur, detail) {
+  return (
+    '<div class="a-kpi">' +
+    `<span class="a-kpi__label">${escapeHtml(label)}</span>` +
+    `<span class="a-kpi__value">${escapeHtml(valeur)}</span>` +
+    (detail ? `<span class="a-kpi__hint">${escapeHtml(detail)}</span>` : '') +
+    '</div>'
+  );
+}
+
+function phrase(texte) {
+  const p = document.createElement('p');
+  p.className = 'a-empty';
+  p.textContent = texte;
+  return p;
+}
+
+const etoilesAdmin = (note) => '★'.repeat(Math.round(note)) + '☆'.repeat(Math.max(0, 5 - Math.round(note)));
+
+/** Une ligne par produit noté : la moyenne, et ce qui la compose. */
+function ligneProduitNote(produit) {
+  const ligne = document.createElement('div');
+  ligne.className = 'a-noteligne';
+  const maximum = Math.max(...produit.repartition, 1);
+
+  ligne.innerHTML =
+    `<div class="a-noteligne__tete">` +
+    `<span class="a-noteligne__nom">${escapeHtml(produit.nom)}</span>` +
+    `<span class="a-noteligne__note">${etoilesAdmin(produit.moyenne)} ` +
+    `<b>${produit.moyenne.toFixed(1).replace('.', ',')}</b> ` +
+    `<small>${produit.nombre} avis</small></span></div>` +
+    `<div class="a-noteligne__barres">` +
+    [5, 4, 3, 2, 1]
+      .map((note) => {
+        const combien = produit.repartition[note - 1];
+        return (
+          '<span class="a-noteligne__barre" ' +
+          `title="${note} étoile${note > 1 ? 's' : ''} : ${combien}">` +
+          `<span style="height:${Math.round((combien / maximum) * 100)}%"></span></span>`
+        );
+      })
+      .join('') +
+    '</div>';
+  return ligne;
+}
+
+function carteAvisAdmin(avis) {
+  const carte = document.createElement('article');
+  carte.className = `a-avis${avis.statut === 'masque' ? ' a-avis--masque' : ''}`;
+
+  // Le vendeur voit toujours qui a écrit : c'est sa boutique, et un avis
+  // anonyme reste rattaché à une commande qu'il doit pouvoir retrouver.
+  // L'anonymat vaut vis-à-vis des autres clients — on le signale, pour qu'il
+  // sache que ce nom n'est pas celui qui s'affiche en boutique.
+  const qui = avis.user?.username
+    ? `@${avis.user.username}`
+    : avis.user?.firstName ?? `#${avis.user?.id ?? '?'}`;
+
+  carte.innerHTML =
+    '<div class="a-avis__tete">' +
+    `<span class="a-avis__etoiles">${etoilesAdmin(avis.note)}</span>` +
+    `<span class="a-avis__produit">${escapeHtml(avis.produit)}</span>` +
+    `<span class="a-avis__quand">${escapeHtml(ilYA(avis.createdAt))}</span>` +
+    '</div>' +
+    `<p class="a-avis__qui">${escapeHtml(qui)} · ${escapeHtml(avis.reference)}` +
+    `${avis.anonyme ? ' · <b>publié en anonyme</b>' : ''}` +
+    `${avis.modifieLe ? ' · <i>modifié</i>' : ''}` +
+    `${avis.statut === 'masque' ? ' · <b>masqué</b>' : ''}</p>` +
+    (avis.texte ? `<p class="a-avis__texte">« ${escapeHtml(avis.texte)} »</p>` : '<p class="a-avis__texte a-client__gris">Note seule, sans commentaire.</p>') +
+    (avis.reponse
+      ? `<div class="a-avis__reponse"><b>Ta réponse</b><p>${escapeHtml(avis.reponse.texte)}</p></div>`
+      : '') +
+    '<div class="a-avis__actions"></div>' +
+    '<div class="a-compose" hidden>' +
+    '<textarea class="a-compose__texte" rows="2" maxlength="600" placeholder="Ta réponse, publiée sous l\'avis…"></textarea>' +
+    '<div class="a-compose__bar">' +
+    '<button class="a-btn a-btn--ok" type="button" data-publier>Publier la réponse</button>' +
+    '<button class="a-btn" type="button" data-annuler>Annuler</button>' +
+    '<span class="a-compose__etat"></span>' +
+    '</div></div>';
+
+  const actions = carte.querySelector('.a-avis__actions');
+  const compose = carte.querySelector('.a-compose');
+  const texte = carte.querySelector('.a-compose__texte');
+  const etat = carte.querySelector('.a-compose__etat');
+
+  // Répondre d'abord : c'est le geste qui sert la boutique. Une réponse sous
+  // une mauvaise note en dit plus long que trois cinq étoiles.
+  const repondre = document.createElement('button');
+  repondre.className = 'a-btn a-btn--ok';
+  repondre.type = 'button';
+  repondre.textContent = avis.reponse ? '✍️ Modifier la réponse' : '✍️ Répondre';
+  repondre.addEventListener('click', () => {
+    compose.hidden = !compose.hidden;
+    if (!compose.hidden) {
+      texte.value = avis.reponse?.texte ?? '';
+      texte.focus();
+    }
+  });
+  actions.append(repondre);
+
+  const masquer = document.createElement('button');
+  masquer.className = 'a-btn';
+  masquer.type = 'button';
+  masquer.textContent = avis.statut === 'masque' ? '👁 Republier' : '🚫 Masquer';
+  masquer.addEventListener('click', async () => {
+    masquer.disabled = true;
+    try {
+      await api(`/avis/${avis.id}/statut`, {
+        method: 'POST',
+        body: { statut: avis.statut === 'masque' ? 'publie' : 'masque' },
+      });
+      toast(avis.statut === 'masque' ? 'Avis republié' : 'Avis masqué');
+      haptic('success');
+      await chargerLesAvis();
+    } catch (err) {
+      toast(err.message);
+      masquer.disabled = false;
+    }
+  });
+  actions.append(masquer);
+
+  const effacer = document.createElement('button');
+  effacer.className = 'a-btn a-btn--danger';
+  effacer.type = 'button';
+  effacer.textContent = '🗑';
+  effacer.setAttribute('aria-label', 'Supprimer définitivement');
+  effacer.addEventListener('click', async () => {
+    // Masquer se défait, supprimer non : on le demande, une fois.
+    if (!window.confirm('Supprimer cet avis définitivement ? Masquer suffit dans la plupart des cas.')) return;
+    effacer.disabled = true;
+    try {
+      await api(`/avis/${avis.id}`, { method: 'DELETE' });
+      toast('Avis supprimé');
+      haptic('success');
+      await chargerLesAvis();
+    } catch (err) {
+      toast(err.message);
+      effacer.disabled = false;
+    }
+  });
+  actions.append(effacer);
+
+  carte.querySelector('[data-annuler]').addEventListener('click', () => {
+    compose.hidden = true;
+  });
+
+  const publier = carte.querySelector('[data-publier]');
+  publier.addEventListener('click', async () => {
+    publier.disabled = true;
+    etat.className = 'a-compose__etat';
+    etat.textContent = 'Publication…';
+    try {
+      await api(`/avis/${avis.id}/reponse`, { method: 'POST', body: { texte: texte.value } });
+      haptic('success');
+      await chargerLesAvis();
+    } catch (err) {
+      etat.className = 'a-compose__etat a-compose__etat--ko';
+      etat.textContent = err.message;
+      publier.disabled = false;
+    }
+  });
+
+  return carte;
 }

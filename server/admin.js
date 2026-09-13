@@ -32,6 +32,9 @@ import {
   deposerMedia, retrouverVignette, ficheTelegram, ecrireAuClient, POIDS_MAX,
 } from './bot.js';
 import { refusDeTelegram, texteValide } from './messagerie.js';
+import {
+  tousLesAvis, resumeParProduit, changerStatut, repondreALAvis, supprimerAvis, oublierProduit,
+} from './avis.js';
 import { waitlistKey, takeSubscribers } from './waitlist.js';
 import { listeDesabonnes } from './annonces.js';
 import { listPromos, savePromo, deletePromo } from './promos.js';
@@ -235,6 +238,65 @@ adminRouter.post(
   })
 );
 
+/* ── Avis ────────────────────────────────────────────────── */
+
+/**
+ * Tous les avis, du plus récent au plus ancien, avec le nom du produit.
+ *
+ * Les masqués sont dans la liste, marqués comme tels : une modération qui cache
+ * ce qu'elle a caché n'est plus une modération, c'est un oubli.
+ */
+adminRouter.get(
+  '/avis',
+  route(async (req, res) => {
+    const [avis, { products }] = await Promise.all([tousLesAvis(), getCatalog()]);
+    const nomDu = new Map(products.map((p) => [p.id, p.name]));
+
+    const liste = avis
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+      .map((a) => ({ ...a, produit: nomDu.get(a.productId) ?? a.productId }));
+
+    const resume = resumeParProduit(avis);
+    const notes = Object.values(resume);
+    res.json({
+      avis: liste.slice(0, 300),
+      total: liste.length,
+      masques: liste.filter((a) => a.statut === 'masque').length,
+      sansReponse: liste.filter((a) => a.note <= 2 && !a.reponse).length,
+      // La moyenne de la boutique se calcule sur les avis, pas sur la moyenne
+      // des moyennes : un produit avec un seul avis pèserait autant qu'un
+      // produit qui en a cent.
+      moyenne: notes.length
+        ? Math.round(
+            (avis.filter((a) => a.statut !== 'masque').reduce((somme, a) => somme + a.note, 0) /
+              Math.max(1, avis.filter((a) => a.statut !== 'masque').length)) * 10
+          ) / 10
+        : null,
+      parProduit: Object.entries(resume)
+        .map(([id, r]) => ({ id, nom: nomDu.get(id) ?? id, ...r }))
+        .sort((a, b) => b.nombre - a.nombre),
+    });
+  })
+);
+
+adminRouter.post(
+  '/avis/:id/statut',
+  route(async (req, res) => res.json(await changerStatut(req.params.id, req.body?.statut)))
+);
+
+adminRouter.post(
+  '/avis/:id/reponse',
+  route(async (req, res) => res.json(await repondreALAvis(req.params.id, req.body?.texte)))
+);
+
+adminRouter.delete(
+  '/avis/:id',
+  route(async (req, res) => {
+    await supprimerAvis(req.params.id);
+    res.status(204).end();
+  })
+);
+
 /* ── Utilisateurs ────────────────────────────────────────── */
 
 /**
@@ -313,6 +375,9 @@ adminRouter.delete(
   '/products/:id',
   route(async (req, res) => {
     await deleteProduct(req.params.id);
+    // Les avis d'un produit supprimé ne mènent plus nulle part : ils pèseraient
+    // encore sur la moyenne d'un article que plus personne ne peut acheter.
+    await oublierProduit(req.params.id).catch(() => {});
     res.status(204).end();
   })
 );

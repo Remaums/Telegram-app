@@ -120,6 +120,19 @@
     <span class="reprise__fleche" aria-hidden="true">›</span>
   </button>
 
+  <!-- ══ « Comment c'était ? » ══ ══════════════════════════════
+       La suggestion d'avis. Elle ne s'adresse qu'à qui a reçu
+       quelque chose et n'en a rien dit : c'est le seul moment où
+       la question a un sens, et elle disparaît une fois posée. -->
+  <button class="reprise reprise--avis" id="suggestionAvis" type="button" hidden>
+    <span class="reprise__icone" aria-hidden="true">⭐</span>
+    <span class="reprise__texte">
+      <b>Comment c'était ?</b>
+      <span id="suggestionAvisDetail"></span>
+    </span>
+    <span class="reprise__fleche" aria-hidden="true">›</span>
+  </button>
+
   <!-- ══ Recherche et tri ══ -->
   <div class="find" id="findBar" hidden>
     <div class="find__box">
@@ -172,8 +185,20 @@
       <div class="pdetail__body">
         <div class="pdetail__tags" id="pTags"></div>
         <h2 class="pdetail__name goldtext" id="pName"></h2>
+        <!-- La note, juste sous le nom : c'est là qu'on la cherche. -->
+        <button class="note note--lien" id="pNote" type="button" hidden></button>
         <p class="pdetail__desc" id="pDesc"></p>
         <div class="variants" id="pVariants"></div>
+
+        <!-- Ce que les autres en ont dit. -->
+        <section class="avis" id="pAvis" hidden>
+          <h3 class="avis__titre" id="pAvisTitre">Avis</h3>
+          <div class="avis__barres" id="pAvisBarres"></div>
+          <ul class="avis__liste" id="pAvisListe"></ul>
+          <button class="btn btn--ghost btn--block" id="pAvisPlus" type="button" hidden>
+            Voir tous les avis
+          </button>
+        </section>
       </div>
     </div>
     <div class="sheet__bar">
@@ -287,6 +312,42 @@
     <div class="sheet__bar">
       <button class="btn btn--ghost" id="doneChat" type="button">Une question au vendeur</button>
       <button class="btn btn--primary btn--grow" type="button" data-close>Continuer mes achats</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Donner son avis ══ -->
+<div class="sheet" id="avisSheet" hidden>
+  <div class="sheet__backdrop" data-close></div>
+  <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="avisTitre">
+    <button class="sheet__close" type="button" data-close aria-label="Fermer">✕</button>
+    <div class="sheet__scroll">
+      <h2 class="cart__title goldtext" id="avisTitre">Ton avis</h2>
+      <p class="avis__intro" id="avisIntro"></p>
+      <div id="avisProduits"></div>
+      <label class="field">
+        <span class="field__label">Un mot, si tu veux <span class="avis__facultatif">facultatif</span></span>
+        <textarea id="avisTexte" rows="3" maxlength="600"
+                  placeholder="Ce qui t'a plu, ce qui peut être mieux…"></textarea>
+      </label>
+      <div class="signature" id="avisSignature" role="radiogroup" aria-label="Signer ton avis">
+        <button class="signature__choix" type="button" data-anonyme="non" aria-pressed="true">
+          <b id="avisSigneNom">Avec mon prénom</b>
+          <small>Un avis signé inspire plus confiance.</small>
+        </button>
+        <button class="signature__choix" type="button" data-anonyme="oui" aria-pressed="false">
+          <b>Anonyme</b>
+          <small>Ton avis s'affiche sans nom.</small>
+        </button>
+      </div>
+      <p class="avis__note-vie" id="avisRappel">
+        Dans les deux cas, ni ton pseudo Telegram, ni ton numéro, ni ton adresse
+        ne sont publiés. Le vendeur, lui, voit toujours quelle commande a été notée.
+      </p>
+    </div>
+    <div class="sheet__bar">
+      <button class="btn btn--ghost" type="button" data-close>Plus tard</button>
+      <button class="btn btn--primary btn--grow" id="avisEnvoyer" type="button">Envoyer</button>
     </div>
   </div>
 </div>

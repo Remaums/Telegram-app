@@ -30,6 +30,11 @@ const state = {
   promo: null,        // remise en cours : { code, discount, label, source }
   lastMessage: '',    // récapitulatif de la dernière commande, pour le renvoyer
   derniere: null,     // la dernière commande du client, pour « la même chose »
+  notes: {},          // la note moyenne de chaque produit, venue du catalogue
+  avisADonner: [],    // ses commandes reçues dont il n'a encore rien dit
+  avisEnCours: null,  // la commande qu'il est en train de noter
+  prenom: '',         // son prénom Telegram, pour lui montrer ce qu'il signerait
+  avisTousVisibles: false,  // « voir tous les avis » d'une fiche
   blocked: false,     // compte privé de commande par le vendeur
   mode: 'pickup',
   captcha: null,      // épreuve en cours
@@ -83,6 +88,7 @@ async function init() {
     state.statuses = data.statuses ?? {};
     state.gates = data.gates ?? {};
     state.features = data.features ?? {};
+    state.notes = data.notes ?? {};
     state.opening = data.opening ?? { open: true };
     state.fulfillment = data.fulfillment ?? state.fulfillment;
     state.tiers = data.discounts?.tiers ?? [];
@@ -118,6 +124,7 @@ async function init() {
   renderCart();
   loadSlots();
   chargerLaDerniereCommande();
+  chargerLesAvisADonner();
   runGates();
 }
 
@@ -218,6 +225,20 @@ function bindStaticHandlers() {
   // Facultatif, et c'est tout l'enjeu : la commande est déjà partie, ce bouton
   // ne sert qu'à ceux qui veulent ajouter un mot.
   $('doneChat').addEventListener('click', () => openSellerChat(state.lastMessage));
+  $('suggestionAvis').addEventListener('click', () => ouvrirLAvis(state.avisADonner[0]));
+  $('avisEnvoyer').addEventListener('click', envoyerLAvis);
+  for (const choix of $('avisSignature').querySelectorAll('.signature__choix')) {
+    choix.addEventListener('click', () => {
+      state.avisEnCours.anonyme = choix.dataset.anonyme === 'oui';
+      renderSignature();
+      haptic('light');
+    });
+  }
+  // La note de la fiche descend jusqu'aux avis : c'est ce qu'on attend d'une
+  // note sur laquelle on peut appuyer.
+  $('pNote').addEventListener('click', () => {
+    $('pAvis').scrollIntoView({ behavior: anime() ? 'smooth' : 'auto', block: 'start' });
+  });
   $('verifBrowse').addEventListener('click', () => {
     // Le serveur refuse la commande de toute façon : rien n'oblige à cacher
     // la boutique pendant que la pièce est examinée.
@@ -1128,6 +1149,7 @@ function productCard(product) {
   const fromLabel = product.variants ? '<small>dès</small> ' : '';
   const badge = soldOut ? 'ÉPUISÉ' : product.badge;
   const video = videoDeVitrine(product);
+  const note = noteDe(product);
   // Muette et sans contrôles : la carte entière reste un bouton qui ouvre la
   // fiche, et aucun son ne sort d'une grille de catalogue.
   const visuel = video
@@ -1145,6 +1167,7 @@ function productCard(product) {
     <div class="card__body">
       <span class="card__name">${escapeHtml(product.name)}</span>
       <span class="card__short">${escapeHtml(product.short)}</span>
+      ${note ? `<span class="card__note">${etoiles(note.moyenne)} <small>${note.nombre}</small></span>` : ''}
       <span class="card__foot">
         <span class="card__price goldtext">${fromLabel}${formatPrice(product.price)}</span>
         <span class="card__add" aria-hidden="true">+</span>
@@ -1186,6 +1209,10 @@ function openProduct(product) {
 
   renderVariants();
   setQty(1);
+  // Chaque fiche repart repliée : « voir tous les avis » d'un produit n'a pas à
+  // décider de l'affichage du suivant.
+  state.avisTousVisibles = false;
+  chargerLesAvis(product);
   openSheet('productSheet');
   // La galerie se monte après l'ouverture, et non avant : `openSheet` referme
   // les autres feuilles, et cette fermeture détache les vidéos — elle vidait
@@ -1987,6 +2014,8 @@ async function checkout() {
     showOrderDone(reference, lines, remise, creneau, zone);
     // La commande qu'on vient de passer devient celle qu'on pourra reprendre.
     chargerLaDerniereCommande();
+    // Et une commande plus ancienne a pu devenir notable entre-temps.
+    chargerLesAvisADonner();
     state.cart = [];
     saveCart();
     renderCart();
@@ -2076,6 +2105,9 @@ async function refreshCatalog() {
     if (!res.ok) return;
     const data = await res.json();
     state.products = data.products;
+    // Les notes bougent aussi : un avis déposé à l'instant doit se voir sur la
+    // grille sans qu'on ait à rouvrir la boutique.
+    state.notes = data.notes ?? {};
     renderGrid();
     // Un article épuisé entre-temps ne doit plus être promis par le raccourci.
     renderReprise();
@@ -2336,4 +2368,319 @@ function haptic(type) {
   if (!h) return;
   if (type === 'success') h.notificationOccurred?.('success');
   else h.impactOccurred?.(type);
+}
+
+/* ── Avis ────────────────────────────────────────────────── */
+
+/**
+ * Cinq étoiles, pleines jusqu'à la note.
+ *
+ * La demi-étoile est volontairement absente : une moyenne de 4,3 s'écrit à
+ * côté en chiffres, et un demi-glyphe rend la ligne illisible sur la carte d'un
+ * catalogue à deux colonnes.
+ */
+function etoiles(note) {
+  const pleines = Math.round(Number(note) || 0);
+  return '★'.repeat(pleines) + '☆'.repeat(Math.max(0, 5 - pleines));
+}
+
+/** La note d'un produit, telle que le catalogue l'a envoyée. */
+function noteDe(product) {
+  return state.notes?.[product?.id] ?? null;
+}
+
+/**
+ * La suggestion d'avis, en haut du catalogue.
+ *
+ * Elle ne s'adresse qu'à qui a reçu quelque chose sans rien en dire. Un client
+ * qui n'a rien à noter ne doit jamais la voir — une boutique qui réclame un
+ * avis à quelqu'un qui n'a rien acheté se fait fermer l'application.
+ */
+async function chargerLesAvisADonner() {
+  const banniere = $('suggestionAvis');
+  banniere.hidden = true;
+  state.avisADonner = [];
+  if (!tg?.initData || state.features.avis === false) return;
+
+  // Son prénom vient de Telegram : l'écran d'avis lui montre ainsi ce qu'il
+  // signerait exactement, plutôt qu'un « avec mon prénom » abstrait.
+  state.prenom = tg.initDataUnsafe?.user?.first_name ?? '';
+
+  try {
+    const res = await fetch('/api/avis', { headers: { 'X-Telegram-Init-Data': tg.initData } });
+    if (!res.ok) return;
+    state.avisADonner = (await res.json()).aDonner ?? [];
+    renderSuggestionAvis();
+  } catch {
+    /* pas de suggestion : la boutique marche très bien sans */
+  }
+}
+
+function renderSuggestionAvis() {
+  const banniere = $('suggestionAvis');
+  const [commande] = state.avisADonner;
+  if (!commande) return void (banniere.hidden = true);
+
+  const noms = commande.produits.map((p) => p.nom);
+  const detail = noms.length > 2
+    ? `${noms.slice(0, 2).join(', ')} et ${noms.length - 2} autre${noms.length > 3 ? 's' : ''}`
+    : noms.join(', ');
+
+  // Noter et ajouter un mot ne sont pas le même geste : demander « ton avis »
+  // à quelqu'un qui vient de mettre cinq étoiles donne l'impression de n'avoir
+  // rien vu.
+  banniere.querySelector('b').textContent = commande.deja ? 'Ajoute un mot' : "Comment c'était ?";
+  $('suggestionAvisDetail').textContent = commande.deja
+    ? `Tu as noté ${detail}`
+    : `Ton avis sur ${detail}`;
+  banniere.hidden = false;
+}
+
+/**
+ * Ouvre l'écran d'avis sur une commande.
+ *
+ * Une étoile par produit, et un seul champ de texte : le client a reçu une
+ * commande, pas trois formulaires. Un produit qu'il ne veut pas noter, il le
+ * laisse à zéro et on ne l'envoie pas.
+ */
+function ouvrirLAvis(commande) {
+  if (!commande) return;
+
+  // Ce qu'il avait déjà mis — une étoile touchée dans la conversation du bot,
+  // par exemple. Rouvrir sur cinq étoiles vides lui ferait croire que son geste
+  // s'est perdu, et il repartirait sans ajouter le mot qu'on lui demande.
+  const deja = commande.deja ?? null;
+  state.avisEnCours = {
+    reference: commande.reference,
+    notes: { ...(deja?.notes ?? {}) },
+    anonyme: Boolean(deja?.anonyme),
+  };
+
+  const noms = commande.produits.map((p) => p.nom).join(', ');
+  $('avisIntro').textContent = deja
+    ? `Tu as déjà noté ${noms}. Ajoute un mot, si tu veux.`
+    : `Commande ${commande.reference} — ${noms}`;
+  $('avisTexte').value = '';
+
+  $('avisProduits').replaceChildren(
+    ...commande.produits.map((produit) => ligneDeNotation(produit, state.avisEnCours.notes[produit.id] ?? 0))
+  );
+
+  $('avisSigneNom').textContent = state.prenom ? `Avec « ${state.prenom} »` : 'Avec mon prénom';
+  renderSignature();
+
+  $('avisEnvoyer').disabled = false;
+  $('avisEnvoyer').textContent = 'Envoyer';
+  openSheet('avisSheet');
+  haptic('light');
+}
+
+/**
+ * Signé ou anonyme, à chaque avis.
+ *
+ * Le choix se repose à chaque fois plutôt que de se retenir une fois pour
+ * toutes : on ne dit pas la même chose sous son prénom selon ce qu'on achète,
+ * et un réglage oublié dans un menu publierait un nom que personne n'a voulu.
+ */
+function renderSignature() {
+  for (const choix of $('avisSignature').querySelectorAll('.signature__choix')) {
+    const anonyme = choix.dataset.anonyme === 'oui';
+    choix.setAttribute('aria-pressed', String(anonyme === state.avisEnCours.anonyme));
+  }
+}
+
+/** Un produit, cinq boutons. Toucher une étoile note jusqu'à elle. */
+function ligneDeNotation(produit, depart = 0) {
+  const ligne = document.createElement('div');
+  ligne.className = 'notation';
+  ligne.innerHTML =
+    `<span class="notation__nom">${escapeHtml(produit.nom)}` +
+    `${produit.variante ? ` <small>${escapeHtml(produit.variante)}</small>` : ''}</span>` +
+    '<div class="notation__etoiles" role="group"></div>';
+
+  const boite = ligne.querySelector('.notation__etoiles');
+  const boutons = [];
+
+  const peindre = (jusqua) => {
+    boutons.forEach((b, rang) => b.classList.toggle('est-pleine', rang < jusqua));
+  };
+  // Peint après la boucle : les boutons n'existent pas encore ici.
+  queueMicrotask(() => peindre(depart));
+
+  for (let note = 1; note <= 5; note += 1) {
+    const bouton = document.createElement('button');
+    bouton.type = 'button';
+    bouton.className = 'notation__etoile';
+    bouton.textContent = '★';
+    bouton.setAttribute('aria-label', `${note} étoile${note > 1 ? 's' : ''}`);
+    bouton.addEventListener('click', () => {
+      state.avisEnCours.notes[produit.id] = note;
+      peindre(note);
+      haptic('light');
+    });
+    boutons.push(bouton);
+    boite.append(bouton);
+  }
+
+  return ligne;
+}
+
+async function envoyerLAvis() {
+  const bouton = $('avisEnvoyer');
+  const encours = state.avisEnCours;
+  if (!encours) return;
+
+  const notes = encours.notes;
+  if (!Object.keys(notes).length) {
+    toast('Touche au moins une étoile.');
+    haptic('warning');
+    return;
+  }
+
+  bouton.disabled = true;
+  bouton.textContent = 'Envoi…';
+  try {
+    const res = await fetch('/api/avis', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Telegram-Init-Data': tg?.initData ?? '',
+      },
+      body: JSON.stringify({
+        reference: encours.reference,
+        notes,
+        texte: $('avisTexte').value,
+        anonyme: encours.anonyme,
+      }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Avis refusé.');
+
+    closeSheets();
+    toast('Merci pour ton avis !');
+    haptic('success');
+    // La commande notée sort de la file : la bannière propose la suivante, ou
+    // disparaît. Et le catalogue reprend les moyennes, que cet avis vient de
+    // faire bouger.
+    state.avisADonner = state.avisADonner.filter((c) => c.reference !== encours.reference);
+    state.avisEnCours = null;
+    renderSuggestionAvis();
+    refreshCatalog();
+  } catch (err) {
+    toast(err.message);
+    haptic('error');
+  }
+  bouton.disabled = false;
+  bouton.textContent = 'Envoyer';
+}
+
+/**
+ * Les avis d'un produit, dans sa fiche.
+ *
+ * Chargés à l'ouverture de la fiche et pas avec le catalogue : la moyenne tient
+ * dans un nombre et voyage avec la grille, les commentaires sont du texte qu'on
+ * ne télécharge que pour le produit qu'on regarde.
+ */
+async function chargerLesAvis(product) {
+  const section = $('pAvis');
+  const lien = $('pNote');
+  const resume = noteDe(product);
+
+  // La note est déjà connue : on l'affiche sans attendre le réseau.
+  if (resume) {
+    lien.innerHTML =
+      `<span class="note__etoiles">${etoiles(resume.moyenne)}</span>` +
+      `<span class="note__chiffre">${resume.moyenne.toFixed(1).replace('.', ',')}</span>` +
+      `<span class="note__nombre">${resume.nombre} avis</span>`;
+    lien.hidden = false;
+  } else {
+    lien.hidden = true;
+  }
+
+  section.hidden = true;
+  if (state.features.avis === false) return;
+
+  try {
+    const res = await fetch(`/api/avis/${encodeURIComponent(product.id)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    // La fiche a pu changer pendant l'aller-retour : on n'écrit pas les avis
+    // d'un produit dans la fiche d'un autre.
+    if (state.current?.id !== product.id) return;
+    renderAvis(data);
+  } catch {
+    /* les avis ne sont pas la boutique : leur absence ne bloque rien */
+  }
+}
+
+function renderAvis({ avis, resume }) {
+  const section = $('pAvis');
+  if (!avis?.length) return void (section.hidden = true);
+
+  $('pAvisTitre').textContent = `Avis (${resume?.nombre ?? avis.length})`;
+  $('pAvisBarres').replaceChildren(resume ? barresDeNotes(resume) : document.createComment(''));
+
+  // Trois avis visibles, le reste sur demande : une fiche produit n'est pas un
+  // forum, et le bouton « Ajouter » doit rester à portée de pouce.
+  const visibles = state.avisTousVisibles ? avis : avis.slice(0, 3);
+  $('pAvisListe').replaceChildren(...visibles.map(carteDAvis));
+
+  const plus = $('pAvisPlus');
+  plus.hidden = state.avisTousVisibles || avis.length <= 3;
+  plus.textContent = `Voir les ${avis.length} avis`;
+  plus.onclick = () => {
+    state.avisTousVisibles = true;
+    renderAvis({ avis, resume });
+  };
+
+  section.hidden = false;
+}
+
+/**
+ * La répartition des notes, en barres.
+ *
+ * Elle dit ce que la moyenne cache : 4,0 obtenu avec dix « 4 » et 4,0 obtenu
+ * avec cinq « 5 » et cinq « 3 » ne racontent pas la même boutique.
+ */
+function barresDeNotes(resume) {
+  const bloc = document.createElement('div');
+  const maximum = Math.max(...resume.repartition, 1);
+
+  bloc.innerHTML = [5, 4, 3, 2, 1]
+    .map((note) => {
+      const combien = resume.repartition[note - 1];
+      const part = Math.round((combien / maximum) * 100);
+      return (
+        '<div class="avis__barre">' +
+        `<span class="avis__barre-note">${note}★</span>` +
+        `<span class="avis__barre-piste"><span class="avis__barre-plein" style="width:${part}%"></span></span>` +
+        `<span class="avis__barre-nombre">${combien}</span>` +
+        '</div>'
+      );
+    })
+    .join('');
+
+  return bloc;
+}
+
+function carteDAvis(avis) {
+  const li = document.createElement('li');
+  li.className = 'avis__item';
+  li.innerHTML =
+    '<div class="avis__tete">' +
+    `<span class="avis__etoiles">${etoiles(avis.note)}</span>` +
+    `<span class="avis__qui">${escapeHtml(avis.prenom ?? 'Client')}</span>` +
+    `<span class="avis__quand">${escapeHtml(dateCourte(avis.createdAt))}</span>` +
+    '</div>' +
+    (avis.texte ? `<p class="avis__texte">${escapeHtml(avis.texte)}</p>` : '') +
+    (avis.reponse
+      ? '<div class="avis__reponse">' +
+        `<b>Réponse de la boutique</b><p>${escapeHtml(avis.reponse.texte)}</p></div>`
+      : '');
+  return li;
+}
+
+function dateCourte(iso) {
+  const quand = new Date(iso);
+  if (!Number.isFinite(quand.getTime())) return '';
+  return quand.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 }

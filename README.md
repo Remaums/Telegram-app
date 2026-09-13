@@ -760,6 +760,53 @@ le bot », « ce compte a été supprimé », « il doit d'abord envoyer /start 
 > livraison — vient de ce que le client a écrit lui-même, et c'est la seule qui
 > soit exacte : une adresse IP désigne le fournisseur d'accès, pas le domicile.
 
+### Les avis
+
+Un avis ne se donne pas sur un produit qu'on a vu, mais sur **un produit qu'on a
+reçu** : chaque avis est attaché à une commande, et la commande décide de tout.
+C'est ce qui fait qu'une étoile sur une carte veut dire quelque chose.
+
+**Qui peut noter.** Le client qui a passé la commande, une fois par commande,
+quand elle est marquée *prête* ou *livrée* — ou, à défaut, **24 h** après. Ce
+délai existe parce que beaucoup de vendeurs ne font jamais avancer leurs
+statuts : attendre « livrée » interdirait alors tous les avis pour toujours.
+Une commande annulée ne se note jamais.
+
+**La suggestion.** En haut du catalogue, une bannière **« Comment c'était ? »**
+apparaît à qui a reçu quelque chose sans rien en dire. Elle disparaît une fois
+l'avis donné, et ne s'affiche jamais à qui n'a rien acheté.
+
+**Dans la conversation.** Quand tu marques une commande *livrée*, le client
+reçoit cinq étoiles à toucher. Un doigt, un avis — c'est le moment où il a son
+téléphone en main. La note est alors **anonyme par défaut** : on ne lui a pas
+demandé s'il voulait voir son prénom sous une note publique. La boutique lui
+propose ensuite d'y ajouter un mot, et c'est là qu'il peut signer.
+
+**Signé ou anonyme.** Le client choisit à chaque avis. Signé, son **prénom**
+s'affiche. Anonyme, rien. Dans les deux cas son pseudo Telegram, son identifiant,
+son numéro et son adresse ne sortent jamais — et toi, dans le panel, tu vois
+toujours qui a écrit : l'anonymat vaut vis-à-vis des autres clients, pas de la
+boutique, puisque la commande le dit de toute façon.
+
+**Ce qui s'affiche.** La note moyenne sur chaque carte du catalogue et en tête de
+fiche produit, la **répartition en barres** — 4,0 obtenu avec dix « 4 » et 4,0
+obtenu avec cinq « 5 » et cinq « 3 » ne racontent pas la même boutique — puis les
+avis, trois d'abord, le reste sur demande.
+
+**L'onglet Avis du panel** compte en tête les **notes basses sans réponse**, avec
+une pastille sur l'onglet : c'est la seule chose de cet écran qui attende
+vraiment quelque chose de toi. Trois gestes par avis :
+
+| | |
+|---|---|
+| **✍️ Répondre** | ta réponse se publie sous l'avis. Un « désolé, on a corrigé » sous une mauvaise note en dit plus long sur une boutique que trois cinq étoiles |
+| **🚫 Masquer** | l'avis disparaît de la boutique et cesse de peser sur la note. Réversible, et une correction du client ne le republie pas |
+| **🗑 Supprimer** | définitif, avec confirmation. Masquer suffit presque toujours |
+
+Le tout se coupe dans **Réglages → Avis des clients**. Éteint, les avis déjà
+donnés sont conservés mais ne s'affichent plus, et le serveur refuse les
+nouveaux.
+
 ### Les utilisateurs
 
 L'onglet **Utilisateurs** montre **tous ceux qui ont déjà ouvert le bot**, pas

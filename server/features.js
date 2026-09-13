@@ -121,6 +121,15 @@ export const FEATURES = [
     default: true,
   },
   {
+    key: 'avis',
+    label: 'Avis des clients',
+    hint:
+      "Les étoiles et les commentaires sur les fiches produits. Seul un client qui a " +
+      'reçu la commande peut noter, une fois par commande. Coupé, les avis déjà ' +
+      'donnés sont conservés mais ne s\'affichent plus.',
+    default: true,
+  },
+  {
     key: 'clientNotifications',
     label: 'Suivi envoyé au client',
     hint: 'Confirmation de commande et messages à chaque changement de statut.',

@@ -13,7 +13,7 @@ import {
   reserveStock,
   restoreStock,
 } from './catalog.js';
-import { createOrder, listOrders, slotCounts, STATUSES } from './orders.js';
+import { createOrder, listOrders, getOrder, slotCounts, STATUSES } from './orders.js';
 import { getSettings, isBlocked } from './settings.js';
 import { buildChallenge, solveChallenge, passIsValid } from './captcha.js';
 import { getVerification, isApproved } from './verification.js';
@@ -26,7 +26,12 @@ import {
   normalizeAddress, adresseIncomplete, adresseEnClair,
 } from './delivery.js';
 import { adminRouter } from './admin.js';
-import { bot, notifyAdmin, notifyOrderPlaced, notifyLowStock, configurerMenu } from './bot.js';
+import {
+  bot, notifyAdmin, notifyOrderPlaced, notifyLowStock, notifyNouvelAvis, configurerMenu,
+} from './bot.js';
+import {
+  avisDuProduit, notesDuCatalogue, avisDeLaCommande, deposerAvis, refusDAvis, nomPublic,
+} from './avis.js';
 import { storageKind, claimDataDir } from './store.js';
 
 /** Vrai quand ce fichier est lancé directement (`npm start`), faux quand il
@@ -160,6 +165,9 @@ app.get('/api/catalog', async (req, res, next) => {
       // on descend chez lui, et à quelles conditions, avant de remplir son panier.
       zones: settings.features.zones ? settings.zones : [],
       slots: { enabled: settings.slots.enabled },
+      // Les notes voyagent avec le catalogue : une étoile sur une carte ne
+      // vaut pas un aller-retour de plus, et la grille les affiche toutes.
+      notes: settings.features.avis ? await notesDuCatalogue() : {},
     });
   } catch (err) {
     next(err);
@@ -455,6 +463,119 @@ app.get('/api/orders', authenticate, async (req, res, next) => {
     const settings = await getSettings();
     if (!settings.features.orderHistory) return res.json([]);
     res.json(await listOrders({ userId: req.telegramUser.id, limit: 10 }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ── Avis ────────────────────────────────────────────────── */
+
+/**
+ * Les avis d'un produit, lisibles par tout le monde.
+ *
+ * Ouverte sans authentification, comme le catalogue : un avis est écrit pour
+ * être lu, et le cacher derrière une signature reviendrait à ne l'afficher qu'à
+ * ceux qui ont déjà la boutique ouverte.
+ */
+app.get('/api/avis/:productId', async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.features.avis) return res.json({ avis: [], resume: null });
+
+    const [liste, resume] = await Promise.all([
+      avisDuProduit(req.params.productId),
+      notesDuCatalogue(),
+    ]);
+    res.json({
+      // Le prénom seul, et seulement si le client a signé : un avis est public,
+      // et personne n'a signé pour que sa page Telegram le soit avec. Le pseudo
+      // et l'identifiant Telegram ne sortent jamais d'ici, signé ou pas.
+      avis: liste.map((a) => ({
+        id: a.id,
+        note: a.note,
+        texte: a.texte,
+        prenom: nomPublic(a),
+        createdAt: a.createdAt,
+        reponse: a.reponse,
+      })),
+      resume: resume[req.params.productId] ?? null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Les commandes qui attendent encore un avis.
+ *
+ * C'est la suggestion : le client ouvre la boutique, et la boutique sait qu'il
+ * a reçu quelque chose la semaine dernière sans rien en dire. On ne la fait
+ * porter qu'aux commandes vraiment notables — reçues, pas annulées, pas déjà
+ * notées — pour qu'un client qui n'a rien à dire ne la voie jamais deux fois.
+ */
+app.get('/api/avis', authenticate, async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.features.avis) return res.json({ aDonner: [] });
+
+    const commandes = await listOrders({ userId: req.telegramUser.id, limit: 20 });
+    const notables = commandes.filter((o) => refusDAvis(o) === null);
+
+    const dejaDits = await Promise.all(
+      notables.map((o) => avisDeLaCommande(o.reference, req.telegramUser.id))
+    );
+
+    const aDonner = notables
+      .map((o, rang) => ({ commande: o, avis: dejaDits[rang] }))
+      // On propose ce qui n'a rien reçu, et aussi ce qui n'a reçu qu'une note
+      // sans un mot : c'est le cas d'une étoile touchée dans la conversation du
+      // bot. Sans ça, ce geste d'une seconde fermait la porte au commentaire.
+      .filter(({ avis }) => !avis || !avis.texte)
+      .map(({ commande, avis }) => ({
+        reference: commande.reference,
+        createdAt: commande.createdAt,
+        produits: commande.items.map((i) => ({
+          id: i.id, nom: i.name, variante: i.variantLabel ?? null,
+        })),
+        // Ce qu'il avait déjà mis, pour rouvrir l'écran dessus plutôt que sur
+        // cinq étoiles vides qui lui feraient croire que son geste s'est perdu.
+        deja: avis ? { notes: avis.notes, anonyme: avis.anonyme } : null,
+      }));
+
+    res.json({ aDonner });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Dépose l'avis d'une commande. La commande décide de tout : voir avis.js. */
+app.post('/api/avis', authenticate, async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.features.avis) throw new HttpError(403, 'Les avis sont désactivés.');
+
+    const reference = String(req.body?.reference ?? '');
+    const order = await getOrder(reference);
+
+    // La commande doit être la sienne. Sans ce contrôle, il suffirait de
+    // connaître une référence — et elles s'affichent dans la conversation.
+    if (!order || String(order.user?.id) !== String(req.telegramUser.id)) {
+      throw new HttpError(404, 'Commande introuvable.');
+    }
+
+    const refus = refusDAvis(order);
+    if (refus) throw new HttpError(409, refus);
+
+    const neufs = await deposerAvis({
+      order,
+      notes: req.body?.notes,
+      texte: req.body?.texte,
+      anonyme: req.body?.anonyme,
+      user: req.telegramUser,
+    });
+
+    notifyNouvelAvis(order, neufs).catch(() => {});
+    res.status(201).json({ deposes: neufs.length });
   } catch (err) {
     next(err);
   }
