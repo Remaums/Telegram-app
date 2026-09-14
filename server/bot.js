@@ -8,7 +8,6 @@ import { getSettings, saveSettings } from './settings.js';
 import { requestVerification, decideVerification } from './verification.js';
 import { desabonner, reabonner, estDesabonne, consignerResultat } from './annonces.js';
 import { estPasse, ouvrirLaPorte, demanderLEpreuve, repondre } from './bot-captcha.js';
-import { noterUtilisateur } from './users.js';
 import {
   messageRelaye,
   idDuRelais,
@@ -16,6 +15,8 @@ import {
   refusDeTelegram,
 } from './messagerie.js';
 import { deposerAvis, refusDAvis } from './avis.js';
+import { estAdmin, listerAdmins, ajouterAdmin, retirerAdmin } from './admins.js';
+import { noterUtilisateur, trouverParPseudo, ficheDuRegistre } from './users.js';
 
 /**
  * Le bot, construit même sans jeton.
@@ -86,7 +87,12 @@ const PAS_D_URL =
   "d'ouvrir une Mini App sans adresse HTTPS valide.\n\n" +
   'Renseigne-la dans le fichier .env, puis redémarre la boutique.';
 
-const isAdmin = (id) => config.adminIds.includes(String(id));
+/**
+ * Deux sources décident désormais : le `.env` et ceux que le propriétaire a
+ * ajoutés depuis le bot. La lecture est donc asynchrone — la liste vit dans un
+ * magasin, pas dans une variable d'environnement figée au démarrage.
+ */
+const isAdmin = (id) => estAdmin(id);
 
 /** L'accueil : ce que voit quelqu'un qui vient d'ouvrir la conversation. */
 const accueillir = (ctx) =>
@@ -141,7 +147,7 @@ bot.use(async (ctx, next) => {
 
 bot.use(async (ctx, next) => {
   const id = ctx.from?.id;
-  if (!id || isAdmin(id)) return next();
+  if (!id || (await isAdmin(id))) return next();
   // `/admin` reste ouvert : c'est la commande par laquelle un vendeur découvre
   // son identifiant Telegram pour se déclarer. Lui opposer un calcul le
   // laisserait devant une porte dont il cherche justement la clé — et elle ne
@@ -269,25 +275,31 @@ function presqueLeMeme(demandeur, declares) {
 }
 
 bot.command('admin', async (ctx) => {
-  if (!isAdmin(ctx.from.id)) {
+  if (!(await isAdmin(ctx.from.id))) {
     // « Réservé à l'administrateur » laisse sans recours celui qui EST le
     // patron mais dont l'identifiant n'a pas été déclaré — le cas de loin le
     // plus fréquent à l'installation. On lui donne donc ce qui lui manque :
     // son identifiant, et où l'écrire.
-    const rien = config.adminIds.length === 0;
+    const tous = (await listerAdmins()).map((a) => a.id);
+    const rien = tous.length === 0;
+    // La faute de frappe ne se cherche que dans le `.env` : c'est le seul
+    // endroit où un identifiant se recopie à la main, et donc le seul où il
+    // peut se tromper d'un caractère.
     const voisin = presqueLeMeme(ctx.from.id, config.adminIds);
     return ctx.reply(
       "Cet espace est réservé à l'administrateur.\n\n" +
         `Ton identifiant Telegram : ${ctx.from.id}\n` +
         (rien
           ? "Aucun administrateur n'est déclaré pour l'instant."
-          : `Déclarés pour l'instant : ${config.adminIds.join(', ')}`) +
+          : `Déclarés pour l'instant : ${tous.join(', ')}`) +
         (voisin
           ? `\n\n⚠️ ${voisin} ne diffère du tien que d'un caractère : c'est ` +
             'très probablement une faute de frappe dans .env.'
           : '') +
         '\n\nSi la boutique est la tienne, ajoute ton identifiant à ADMIN_IDS ' +
-        'dans le fichier .env, puis redémarre la boutique.'
+        'dans le fichier .env, puis redémarre la boutique.\n' +
+        'Si elle est à quelqu\'un d\'autre, il peut te donner les clés avec ' +
+        `/addadmin ${ctx.from.id}`
     );
   }
   // Mieux vaut expliquer que laisser Telegram rejeter le message : sans URL,
@@ -302,7 +314,7 @@ bot.command('admin', async (ctx) => {
 /** Ouvre ou ferme la boutique sans quitter la conversation. */
 for (const [command, open] of [['ouvrir', true], ['fermer', false]]) {
   bot.command(command, async (ctx) => {
-    if (!isAdmin(ctx.from.id)) {
+    if (!(await isAdmin(ctx.from.id))) {
       return ctx.reply("Cette commande est réservée à l'administrateur.");
     }
     await saveSettings({ opening: { open } });
@@ -321,7 +333,7 @@ for (const [command, open] of [['ouvrir', true], ['fermer', false]]) {
  *   /verification on|off → bascule directe
  */
 bot.command('verification', async (ctx) => {
-  if (!isAdmin(ctx.from.id)) {
+  if (!(await isAdmin(ctx.from.id))) {
     return ctx.reply("Cette commande est réservée à l'administrateur.");
   }
 
@@ -348,7 +360,7 @@ bot.command('verification', async (ctx) => {
 });
 
 bot.callbackQuery(/^vfset:(on|off)$/, async (ctx) => {
-  if (!isAdmin(ctx.from.id)) {
+  if (!(await isAdmin(ctx.from.id))) {
     return ctx.answerCallbackQuery({ text: "Réservé à l'administrateur.", show_alert: true });
   }
   const enabled = ctx.match[1] === 'on';
@@ -369,7 +381,7 @@ bot.callbackQuery(/^vfset:(on|off)$/, async (ctx) => {
 bot.on(['message:photo', 'message:video', 'message:animation', 'message:document'], async (ctx) => {
   const settings = await getSettings();
 
-  if (isAdmin(ctx.from.id)) {
+  if (await isAdmin(ctx.from.id)) {
     if (!settings.features.photos) {
       return ctx.reply('Les photos par le bot sont désactivées (Réglages → Fonctionnalités).');
     }
@@ -557,7 +569,7 @@ async function handleIdentityDocument(ctx) {
 
 /** Verdict du vendeur, d'un appui, sans quitter la conversation. */
 bot.callbackQuery(/^vf:(\d+):(approved|refused)$/, async (ctx) => {
-  if (!isAdmin(ctx.from.id)) {
+  if (!(await isAdmin(ctx.from.id))) {
     return ctx.answerCallbackQuery({ text: "Réservé à l'administrateur.", show_alert: true });
   }
 
@@ -583,21 +595,202 @@ bot.callbackQuery(/^vf:(\d+):(approved|refused)$/, async (ctx) => {
   }
 });
 
-bot.command('aide', (ctx) =>
+bot.command('aide', async (ctx) =>
   ctx.reply(
     'Commandes disponibles :\n' +
       '/boutique — ouvrir le catalogue\n' +
       '/commandes — voir tes commandes\n' +
       '/stop — ne plus recevoir d\'annonces\n' +
       '/aide — ce message' +
-      (isAdmin(ctx.from.id)
+      ((await isAdmin(ctx.from.id))
         ? '\n/admin — espace administrateur' +
           '\n/ouvrir, /fermer — ouvrir ou fermer la boutique' +
           '\n/verification [on|off] — contrôle des pièces d\'identité' +
+          '\n/admins — qui a les clés' +
+          '\n/addadmin, /deladmin — donner ou reprendre les clés' +
           '\n📸 envoie une photo avec le nom du produit en légende pour changer son image'
         : '')
   )
 );
+
+/* ── Les clés de la boutique ─────────────────────────────── */
+
+/**
+ * Donner les clés à quelqu'un, depuis la conversation.
+ *
+ *   /addadmin 123456789
+ *   /addadmin @pseudo
+ *
+ * Un administrateur voit toutes les commandes, toutes les fiches clients, et
+ * peut effacer l'historique. Ce n'est donc pas un réglage : c'est une remise de
+ * clés, et elle se fait en deux temps — on montre à qui, puis on confirme.
+ * Sans cette confirmation, un identifiant mal recopié donnerait la boutique à
+ * un inconnu sans que rien ne s'y oppose.
+ */
+bot.command('addadmin', async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) {
+    return ctx.reply("Cette commande est réservée à l'administrateur.");
+  }
+
+  const argument = (ctx.match ?? '').trim();
+  if (!argument) {
+    return ctx.reply(
+      'Donne l\'identifiant ou le pseudo de la personne :\n\n' +
+        '/addadmin 123456789\n' +
+        '/addadmin @pseudo\n\n' +
+        'Elle trouve son identifiant en envoyant /admin au bot.\n' +
+        '/admins te dit qui a les clés aujourd\'hui.'
+    );
+  }
+
+  const trouvee = await resoudreQuelquun(argument);
+  if (trouvee.erreur) return ctx.reply(`⚠️ ${trouvee.erreur}`);
+
+  if (await isAdmin(trouvee.id)) {
+    return ctx.reply(`${nommer(trouvee)} est déjà administrateur.`);
+  }
+
+  await ctx.reply(
+    `🔑 Donner les clés à ${nommer(trouvee)} ?\n\n` +
+      'Il pourra voir toutes les commandes, toutes les fiches clients, ' +
+      'modifier le catalogue et effacer l\'historique.\n\n' +
+      'À ne faire que pour quelqu\'un en qui tu as confiance.',
+    {
+      reply_markup: new InlineKeyboard()
+        .text('✅ Donner les clés', `adm+:${trouvee.id}`)
+        .row()
+        .text('Annuler', 'adm:non'),
+    }
+  );
+});
+
+/** Reprendre les clés. Sans confirmation : c'est le geste prudent des deux. */
+bot.command('deladmin', async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) {
+    return ctx.reply("Cette commande est réservée à l'administrateur.");
+  }
+
+  const argument = (ctx.match ?? '').trim();
+  if (!argument) {
+    return ctx.reply('Qui ?\n\n/deladmin 123456789\n/deladmin @pseudo\n\n/admins te donne la liste.');
+  }
+
+  const trouvee = await resoudreQuelquun(argument);
+  if (trouvee.erreur) return ctx.reply(`⚠️ ${trouvee.erreur}`);
+
+  try {
+    await retirerAdmin(trouvee.id);
+    await ctx.reply(`🔒 ${nommer(trouvee)} n'est plus administrateur.`);
+    // On le lui dit : découvrir la porte fermée sans explication, c'est une
+    // conversation pénible que personne n'a envie d'avoir.
+    await bot.api
+      .sendMessage(Number(trouvee.id), `Tes accès administrateur de ${config.shopName} ont été retirés.`)
+      .catch(() => {});
+  } catch (err) {
+    await ctx.reply(`⚠️ ${err.message}`);
+  }
+});
+
+/** Qui a les clés, et d'où elles viennent. */
+bot.command('admins', async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) {
+    return ctx.reply("Cette commande est réservée à l'administrateur.");
+  }
+
+  const liste = await listerAdmins();
+  const lignes = liste.map((a) => {
+    const qui = a.username ? `@${a.username}` : a.nom ?? `#${a.id}`;
+    // La provenance dit ce qu'on peut faire de cette ligne : un « fichier » ne
+    // se retire que sur le serveur, et le savoir évite d'essayer pour rien.
+    const ou = a.source === 'fichier' ? '🔒 fichier .env' : '🤖 ajouté depuis le bot';
+    return `• ${qui} — ${a.id}\n  ${ou}`;
+  });
+
+  await ctx.reply(
+    `🔑 ${liste.length} administrateur${liste.length > 1 ? 's' : ''}\n\n${lignes.join('\n')}\n\n` +
+      'Les administrateurs du fichier .env ne se retirent que sur le serveur : ' +
+      "c'est ce qui garantit qu'une conversation ne peut pas te mettre dehors de ta propre boutique."
+  );
+});
+
+bot.callbackQuery(/^adm\+:(\d+)$/, async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) {
+    return ctx.answerCallbackQuery({ text: "Réservé à l'administrateur.", show_alert: true });
+  }
+
+  const cible = ctx.match[1];
+  try {
+    const fiche = await ficheDuRegistre(cible);
+    await ajouterAdmin(cible, {
+      par: ctx.from.id,
+      nom: fiche?.prenom ?? null,
+      username: fiche?.username ?? null,
+    });
+
+    await ctx.answerCallbackQuery({ text: '🔑 Clés données.' });
+    await ctx.editMessageText(
+      `🔑 ${fiche?.username ? `@${fiche.username}` : fiche?.prenom ?? `#${cible}`} est administrateur.\n\n` +
+        'Il ouvre l\'espace admin avec /admin. Pour reprendre les clés : ' +
+        `/deladmin ${cible}`
+    );
+
+    // Le prévenir, sinon il ne saura jamais qu'il peut entrer.
+    await bot.api
+      .sendMessage(
+        Number(cible),
+        `🔑 Tu es maintenant administrateur de ${config.shopName}.\n\n` +
+          'Envoie /admin pour ouvrir l\'espace de gestion.',
+        { reply_markup: adminKeyboard() }
+      )
+      .catch(() => {});
+  } catch (err) {
+    await ctx.answerCallbackQuery({ text: err.message?.slice(0, 180) ?? 'Raté.', show_alert: true });
+  }
+});
+
+bot.callbackQuery('adm:non', async (ctx) => {
+  await ctx.answerCallbackQuery({ text: 'Annulé.' });
+  await ctx.editMessageText('Annulé, personne n\'a reçu les clés.');
+});
+
+/**
+ * Un identifiant ou un pseudo, ramenés à quelqu'un.
+ *
+ * Telegram ne sait pas convertir un pseudo en identifiant pour le compte d'un
+ * bot : seul le registre le permet, et seulement pour qui a déjà écrit au bot.
+ * Le refus doit donc dire quoi faire — « qu'il t'écrive d'abord » est la seule
+ * manœuvre possible, et la deviner tout seul prend un quart d'heure.
+ */
+async function resoudreQuelquun(argument) {
+  const propre = argument.trim();
+
+  if (/^\d+$/.test(propre)) {
+    const fiche = await ficheDuRegistre(propre);
+    return { id: propre, nom: fiche?.prenom ?? null, username: fiche?.username ?? null };
+  }
+
+  if (/^@?[A-Za-z0-9_]{4,32}$/.test(propre)) {
+    const fiche = await trouverParPseudo(propre);
+    if (!fiche) {
+      return {
+        erreur:
+          `Je ne connais pas ${propre.startsWith('@') ? propre : `@${propre}`}.\n\n` +
+          "Demande-lui d'envoyer /start au bot, puis recommence — ou donne " +
+          'directement son identifiant numérique, qu\'il obtient avec /admin.',
+      };
+    }
+    return { id: String(fiche.id), nom: fiche.prenom ?? null, username: fiche.username ?? null };
+  }
+
+  return { erreur: 'Donne un identifiant numérique (123456789) ou un pseudo (@quelquun).' };
+}
+
+/** Comment nommer quelqu'un dans un message, avec ce qu'on a de lui. */
+function nommer(qui) {
+  if (qui.username) return `@${qui.username}`;
+  if (qui.nom) return `${qui.nom} (${qui.id})`;
+  return `#${qui.id}`;
+}
 
 // Réception de sendData. La Mini App ne s'en sert pas : elle enregistre la
 // commande par l'API, et quand le serveur est injoignable elle emmène le client
@@ -634,7 +827,8 @@ bot.on('message:web_app_data', async (ctx) => {
  */
 bot.on('message:text', async (ctx) => {
   // Le vendeur qui répond à un message relayé parle au client, pas au bot.
-  const cible = isAdmin(ctx.from.id) ? idDuRelais(ctx.message.reply_to_message?.text) : null;
+  const patron = await isAdmin(ctx.from.id);
+  const cible = patron ? idDuRelais(ctx.message.reply_to_message?.text) : null;
   if (cible) {
     try {
       await ecrireAuClient(cible, ctx.message.text);
@@ -647,10 +841,10 @@ bot.on('message:text', async (ctx) => {
 
   // Un administrateur qui écrit au bot sans répondre à personne cherche ses
   // commandes : lui relayer son propre message à lui-même n'aiderait personne.
-  if (!isAdmin(ctx.from.id)) await relayerAuVendeur(ctx);
+  if (!patron) await relayerAuVendeur(ctx);
 
   await ctx.reply(
-    isAdmin(ctx.from.id)
+    patron
       ? 'Je ne comprends que quelques commandes :\n' +
           '/boutique — ouvrir le catalogue\n' +
           '/commandes — retrouver tes commandes\n' +
@@ -1034,7 +1228,7 @@ export function statusKeyboard(order) {
  * ouvrir l'espace admin pour confirmer ou marquer une commande prête.
  */
 bot.callbackQuery(/^st:([A-Za-z0-9-]+):([a-z]+)$/, async (ctx) => {
-  if (!isAdmin(ctx.from.id)) {
+  if (!(await isAdmin(ctx.from.id))) {
     return ctx.answerCallbackQuery({
       text: "Réservé à l'administrateur.",
       show_alert: true,

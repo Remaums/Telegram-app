@@ -68,6 +68,26 @@ export async function listUsers() {
   return Object.values(data).sort((a, b) => String(b.dernier).localeCompare(String(a.dernier)));
 }
 
+/**
+ * Retrouve quelqu'un par son pseudo, dans ce que le bot a déjà vu.
+ *
+ * Telegram ne sait pas convertir un pseudo en identifiant pour un bot : c'est
+ * le registre qui le permet, et seulement pour qui a déjà écrit au bot. D'où
+ * le message d'erreur qui compte, quand on ne trouve pas — « qu'il t'écrive
+ * d'abord » est la seule chose à faire, et il faut le dire.
+ */
+export async function trouverParPseudo(pseudo) {
+  const cible = String(pseudo ?? '').replace(/^@/, '').toLowerCase().trim();
+  if (!cible) return null;
+  const data = await store.read();
+  return Object.values(data).find((u) => String(u.username ?? '').toLowerCase() === cible) ?? null;
+}
+
+/** La fiche d'un identifiant, si le bot l'a déjà croisé. */
+export async function ficheDuRegistre(id) {
+  return (await store.read())[String(id)] ?? null;
+}
+
 /** Combien de personnes le bot a-t-il vues, en tout. */
 export async function countUsers() {
   return Object.keys(await store.read()).length;

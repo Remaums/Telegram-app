@@ -33,6 +33,7 @@ import {
   avisDuProduit, notesDuCatalogue, avisDeLaCommande, deposerAvis, refusDAvis, nomPublic,
 } from './avis.js';
 import { storageKind, claimDataDir } from './store.js';
+import { listerAdmins } from './admins.js';
 
 /** Vrai quand ce fichier est lancé directement (`npm start`), faux quand il
  *  est simplement importé — par la fonction serverless de `api/index.js`. */
@@ -920,11 +921,17 @@ if (standalone) {
       });
   }
 
-  app.listen(config.port, config.host, () => {
+  app.listen(config.port, config.host, async () => {
     console.log(`  Boutique servie sur http://${config.host}:${config.port}`);
     if (config.webappUrl) console.log(`  URL publique déclarée : ${config.webappUrl}`);
     console.log(`  Stockage : ${storageKind}`);
-    console.log(`  Admins autorisés : ${config.adminIds.join(', ') || 'aucun'}`);
+    // Les deux sources, distinguées : voir « 3 admins » au démarrage quand le
+    // .env n'en déclare qu'un, c'est précisément ce qu'on veut remarquer.
+    const ajoutes = (await listerAdmins().catch(() => [])).filter((a) => a.source === 'bot');
+    console.log(
+      `  Admins autorisés : ${config.adminIds.join(', ') || 'aucun'}` +
+        (ajoutes.length ? ` (+ ${ajoutes.map((a) => a.id).join(', ')} ajoutés depuis le bot)` : '')
+    );
     // Une boutique sans administrateur se gère depuis nulle part : ni produits,
     // ni stocks, ni commandes. Autant le dire au démarrage plutôt que de le
     // laisser découvrir par un /admin qui refuse.

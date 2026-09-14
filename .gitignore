@@ -17,3 +17,4 @@ server/data/media-cache/
 server/data/captcha-bot.json
 server/data/users.json
 server/data/avis.json
+server/data/admins.json

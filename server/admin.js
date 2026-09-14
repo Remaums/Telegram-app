@@ -32,6 +32,7 @@ import {
   deposerMedia, retrouverVignette, ficheTelegram, ecrireAuClient, POIDS_MAX,
 } from './bot.js';
 import { refusDeTelegram, texteValide } from './messagerie.js';
+import { estAdmin, listerAdmins } from './admins.js';
 import {
   tousLesAvis, resumeParProduit, changerStatut, repondreALAvis, supprimerAvis, oublierProduit,
 } from './avis.js';
@@ -49,19 +50,29 @@ import { toSvg, toPng } from './qr.js';
 export const adminRouter = express.Router();
 
 /**
- * N'ouvre l'espace admin qu'aux identifiants listés dans ADMIN_IDS.
+ * N'ouvre l'espace admin qu'aux administrateurs déclarés.
  *
- * La signature Telegram est revérifiée à chaque appel : le client ne peut pas
- * se déclarer admin, c'est l'identifiant contenu dans le `initData` signé qui
- * décide.
+ * Deux sources : le `.env` du serveur, et ceux que le propriétaire a ajoutés
+ * depuis le bot avec /addadmin. La signature Telegram est revérifiée à chaque
+ * appel : le client ne peut pas se déclarer admin, c'est l'identifiant contenu
+ * dans le `initData` signé qui décide.
+ *
+ * La lecture est asynchrone, et l'erreur est attrapée ici : une exception dans
+ * un middleware async n'est pas rattrapée par Express, elle laisserait la
+ * requête sans réponse — un écran d'admin bloqué sur « chargement » pour une
+ * base momentanément injoignable.
  */
-export function requireAdmin(req, res, next) {
+export async function requireAdmin(req, res, next) {
   const result = verifyInitData(req.get('X-Telegram-Init-Data'), config.botToken);
   if (!result.ok) {
     return res.status(401).json({ error: `Authentification refusée : ${result.reason}` });
   }
-  if (!config.adminIds.includes(String(result.user.id))) {
-    return res.status(403).json({ error: "Cet accès est réservé à l'administrateur." });
+  try {
+    if (!(await estAdmin(result.user.id))) {
+      return res.status(403).json({ error: "Cet accès est réservé à l'administrateur." });
+    }
+  } catch (err) {
+    return next(err);
   }
   req.telegramUser = result.user;
   next();
@@ -236,6 +247,19 @@ adminRouter.post(
       throw new HttpError(409, refusDeTelegram(err));
     }
   })
+);
+
+/**
+ * Qui a les clés de la boutique.
+ *
+ * En lecture seule ici : donner ou reprendre des accès se fait depuis la
+ * conversation du bot, où l'ajout passe par une confirmation explicite et où
+ * l'intéressé est prévenu. Un bouton dans un écran d'admin n'offrirait ni
+ * l'un ni l'autre.
+ */
+adminRouter.get(
+  '/admins',
+  route(async (req, res) => res.json(await listerAdmins()))
 );
 
 /* ── Avis ────────────────────────────────────────────────── */

@@ -116,7 +116,8 @@ et elle n'existe qu'à l'intérieur de Telegram.
 
 ![Espace admin](docs/admin.png)
 
-Envoie `/admin` au bot (réservé aux identifiants listés dans `ADMIN_IDS`) : la
+Envoie `/admin` au bot (réservé aux administrateurs — `ADMIN_IDS`, plus ceux
+ajoutés avec `/addadmin`) : la
 Mini App d'administration s'ouvre avec quatre onglets.
 
 | Onglet | Ce que tu y fais |
@@ -493,12 +494,44 @@ dans ton bot.
 | `/aide` | Liste des commandes |
 | `/stop` | ne plus recevoir d'annonces |
 | `/annonces` | les recevoir de nouveau |
-| `/admin` | Espace d'administration (réservé aux `ADMIN_IDS`) |
+| `/admin` | Espace d'administration (réservé) |
 | `/ouvrir` `/fermer` | Ouvre ou ferme la boutique (réservé) |
 | `/verification on\|off` | Allume ou coupe la vérification d'identité (réservé) |
+| `/admins` | Qui a les clés, et d'où elles viennent (réservé) |
+| `/addadmin <id\|@pseudo>` | Donne les clés à quelqu'un (réservé) |
+| `/deladmin <id\|@pseudo>` | Les reprend (réservé) |
 
-Tout autre message reçoit la liste des commandes et le bouton boutique : la
-porte d'entrée de la boutique ne doit pas rester muette devant un « bonjour ».
+Tout autre message d'un client est **relayé au vendeur**, qui répond en
+répondant au message. Un message du vendeur lui-même reçoit la liste des
+commandes.
+
+### Donner les clés à quelqu'un
+
+```
+/addadmin 123456789
+/addadmin @pseudo
+```
+
+Le bot demande **confirmation** avant de valider : un administrateur voit toutes
+les commandes, toutes les fiches clients, modifie le catalogue et peut effacer
+l'historique. Un identifiant mal recopié donnerait la boutique à un inconnu, et
+rien ne s'y opposerait sans cette étape. La personne est ensuite **prévenue**
+qu'elle a les accès — sinon elle ne le saurait jamais.
+
+Par `@pseudo`, il faut qu'elle ait **déjà écrit au bot** : Telegram ne convertit
+pas un pseudo en identifiant pour le compte d'un bot, c'est le registre des
+utilisateurs qui le permet. Si le bot ne la connaît pas, il le dit et explique
+quoi faire. Son identifiant numérique, elle l'obtient en envoyant `/admin`.
+
+`/deladmin` reprend les clés et prévient l'intéressé. Aucun redémarrage dans un
+sens ni dans l'autre : l'espace admin s'ouvre et se referme tout de suite.
+
+> 🔑 **Les administrateurs du `.env` ne se retirent pas depuis le bot.**
+> `ADMIN_IDS` et `ADMIN_CHAT_ID` sont la racine de confiance : ils vivent sur le
+> serveur et ne se modifient qu'avec un accès au fichier. Si une conversation
+> pouvait les entamer, il suffirait d'une session ouverte sur un téléphone perdu
+> pour te mettre dehors de ta propre boutique, sans recours. `/admins` marque
+> donc chaque ligne : 🔒 fichier `.env`, ou 🤖 ajouté depuis le bot.
 
 ---
 
