@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { config } from './config.js';
+import { creerCadence } from './cadence.js';
 
 /**
  * Épreuve d'entrée de la boutique.
@@ -30,6 +31,21 @@ const GRID = 9;
 const TARGET_COUNT = 3;
 const CHALLENGE_TTL = 5 * 60 * 1000;   // le temps de lire la consigne
 const PASS_TTL = 12 * 60 * 60 * 1000;  // ne pas réinterroger le client toute la journée
+
+/**
+ * Le nombre de réponses fausses tolérées, et pourquoi il y en a un.
+ *
+ * Neuf tuiles, trois à trouver : quatre-vingt-quatre combinaisons. Sans limite,
+ * les essayer toutes prenait quelques secondes — mesuré : la bonne tombait au
+ * trente-quatrième essai. L'épreuve ne prétend pas arrêter un robot déterminé,
+ * mais elle ne doit pas non plus se laisser épuiser gratuitement : douze essais
+ * couvrent très largement le client qui vise mal sur un petit écran, et
+ * laissent l'automate devant une attente qu'il ne peut pas raccourcir.
+ */
+const ESSAIS_MAX = 12;
+const PAUSE_MS = 10 * 60 * 1000;
+
+const cadenceDesEssais = creerCadence({ max: ESSAIS_MAX, fenetreMs: PAUSE_MS, nom: 'captcha' });
 
 const sign = (payload) =>
   crypto.createHmac('sha256', `captcha:${config.botToken}`).update(payload).digest('hex');
@@ -77,6 +93,18 @@ export function solveChallenge(userId, { nonce, expiresAt, token, selection } = 
     return { ok: false, reason: 'Épreuve expirée, on recommence.' };
   }
 
+  // Le décompte est pris avant de juger, et il est rendu si la réponse est
+  // bonne : un client qui réussit du premier coup n'a rien consommé, un
+  // automate qui balaie les combinaisons s'arrête au douzième essai.
+  const essai = cadenceDesEssais.passer(userId);
+  if (!essai.ok) {
+    return {
+      ok: false,
+      reason: `Trop d'essais. Réessaie dans ${Math.ceil(essai.attente / 60)} minute(s).`,
+      pause: essai.attente,
+    };
+  }
+
   const answer = [...new Set(selection.map(Number))]
     .filter((n) => Number.isInteger(n) && n >= 0 && n < GRID)
     .sort((a, b) => a - b)
@@ -85,6 +113,8 @@ export function solveChallenge(userId, { nonce, expiresAt, token, selection } = 
   if (!equal(sign(`${userId}:${nonce}:${expiresAt}:${answer}`), token)) {
     return { ok: false, reason: 'Raté. Essaie encore.' };
   }
+
+  cadenceDesEssais.absoudre(userId);
   return { ok: true, pass: issuePass(userId) };
 }
 

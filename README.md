@@ -537,19 +537,54 @@ sens ni dans l'autre : l'espace admin s'ouvre et se referme tout de suite.
 
 ## Sécurité
 
-- Le `initData` envoyé par Telegram est **vérifié par HMAC-SHA256** (`server/telegram-auth.js`) :
-  impossible de passer une commande en se faisant passer pour quelqu'un d'autre.
+- Le `initData` envoyé par Telegram est **vérifié par HMAC-SHA256** (`server/telegram-auth.js`),
+  en comparaison à temps constant : impossible de passer une commande en se
+  faisant passer pour quelqu'un d'autre, ni de remplacer le champ `user` après
+  coup — la signature couvre tous les champs.
 - Les signatures ont une **durée de vie de 24 h** pour éviter le rejeu.
-- Les **prix et les variantes sont revalidés côté serveur** à partir du catalogue.
-- Le `BOT_TOKEN` n'est jamais envoyé au navigateur (`.env` est dans `.gitignore`).
-- L'espace admin est verrouillé sur les identifiants de `ADMIN_IDS`, vérifiés à
+- Les **prix, variantes, remises, frais et minimums sont recalculés côté serveur**
+  à partir du catalogue. Rien de ce que le client envoie sur l'argent n'est cru.
+- Le stock et les codes promo sont **réservés dans la même opération que leur
+  vérification** : deux commandes simultanées n'emportent pas le même dernier
+  article ni le même code à usage unique.
+- Le `BOT_TOKEN` n'est jamais envoyé au navigateur (`.env` est dans `.gitignore`),
+  n'apparaît dans aucun message d'erreur et ne sort pas par `/api/health`.
+- L'espace admin est verrouillé sur les administrateurs déclarés, vérifiés à
   **chaque appel** à partir de la signature Telegram : un client ne peut pas se
-  déclarer administrateur.
+  déclarer administrateur. Le webhook, lui, exige le
+  `X-Telegram-Bot-Api-Secret-Token`.
+- Tout texte affiché est échappé, côté boutique comme côté panel ; les deux
+  seuls messages en MarkdownV2 échappent ce qu'ils interpolent.
 
-Tests automatisés — 45 tests couvrant l'authentification, la falsification de prix,
-les droits d'admin, la gestion du stock, les transitions de statut, la concurrence
-(cinq clients sur le dernier article) et la compatibilité serverless — serveur
-démarré dans un autre terminal :
+### Ce qui a été trouvé lors d'un audit, et fermé
+
+Un audit offensif de la boutique a été mené en rejouant de vraies attaques
+contre le serveur. Cinq failles ont été confirmées et corrigées ; `test/securite.test.mjs`
+les rejoue à chaque `npm test`.
+
+| Ce qui marchait | Correctif |
+|---|---|
+| **L'épreuve d'entrée se balayait.** 84 combinaisons, aucune limite d'essais : la bonne tombait au 34ᵉ, en quelques secondes | 12 essais par 10 minutes et par personne, remis à zéro dès une bonne réponse |
+| **Un compte bloqué publiait encore des avis** sur les fiches produits, s'inscrivait aux alertes de retour en stock — donc continuait de recevoir des messages du bot — et sondait les codes promo | Une seule porte (`refuserSiBloque`) posée sur toutes les routes où un client écrit, pas seulement sur les commandes |
+| **Le relais portait 100 messages en 18 ms** au téléphone du vendeur, y compris depuis un compte qu'il venait de bloquer. Bloquer le bot l'aurait coupé de toute sa boutique | Le blocage est respecté, et une cadence de 8 messages par quart d'heure borne le reste. Le client est prévenu, jamais laissé sans réponse |
+| **21 Mo étaient mis en mémoire avant toute vérification de signature** sur les routes de téléversement et de restauration : quelques requêtes simultanées suffisaient | Le portier d'admin est monté *devant* les analyseurs de corps |
+| **`/api/health` publiait les chemins absolus du serveur**, l'utilisateur système et le nom du service systemd en cas de panne de stockage | Le détail reste dans le journal, la route publique dit seulement que le stockage est injoignable |
+
+Ce que l'audit a trouvé **sain** : la signature `initData` (hash inventé, `user`
+remplacé après coup, rejeu à 48 h — tous refusés), la pollution de prototype,
+le laissez-passer de l'épreuve (non réutilisable par un autre compte, non
+prolongeable), la traversée de chemin, l'échappement HTML, l'injection
+MarkdownV2, et le `BOT_TOKEN` dans les messages d'erreur réseau.
+
+> ⚠️ **Ce que la cadence n'est pas.** C'est un compteur en mémoire, dans un
+> processus. Il rend l'abus fastidieux pour quelqu'un qui s'ennuie avec un
+> compte Telegram ; il n'arrête pas une attaque distribuée. Contre celle-là, la
+> vraie barrière reste la signature Telegram : sans compte, rien ne passe.
+
+Tests automatisés — authentification, falsification de prix, droits d'admin,
+gestion du stock, transitions de statut, concurrence (cinq clients sur le
+dernier article), compatibilité serverless et la suite de sécurité ci-dessus —
+serveur démarré dans un autre terminal :
 
 ```bash
 npm test

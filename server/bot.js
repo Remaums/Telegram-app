@@ -4,7 +4,7 @@ import { listOrders, STATUSES, setStatus } from './orders.js';
 import { restoreStock, getCatalog, addProductMedia, MEDIA_MAX } from './catalog.js';
 import { matchProduct } from './photos.js';
 import { adresseEnClair, liensItineraire } from './delivery.js';
-import { getSettings, saveSettings } from './settings.js';
+import { getSettings, saveSettings, isBlocked } from './settings.js';
 import { requestVerification, decideVerification } from './verification.js';
 import { desabonner, reabonner, estDesabonne, consignerResultat } from './annonces.js';
 import { estPasse, ouvrirLaPorte, demanderLEpreuve, repondre } from './bot-captcha.js';
@@ -16,6 +16,7 @@ import {
 } from './messagerie.js';
 import { deposerAvis, refusDAvis } from './avis.js';
 import { estAdmin, listerAdmins, ajouterAdmin, retirerAdmin } from './admins.js';
+import { creerCadence, attenteEnClair } from './cadence.js';
 import { noterUtilisateur, trouverParPseudo, ficheDuRegistre } from './users.js';
 
 /**
@@ -841,7 +842,7 @@ bot.on('message:text', async (ctx) => {
 
   // Un administrateur qui écrit au bot sans répondre à personne cherche ses
   // commandes : lui relayer son propre message à lui-même n'aiderait personne.
-  if (!patron) await relayerAuVendeur(ctx);
+  const refus = patron ? null : await relayerAuVendeur(ctx);
 
   await ctx.reply(
     patron
@@ -849,26 +850,62 @@ bot.on('message:text', async (ctx) => {
           '/boutique — ouvrir le catalogue\n' +
           '/commandes — retrouver tes commandes\n' +
           '/aide — tout ce que je sais faire'
-      : 'Message transmis à la boutique, on te répond ici.',
+      : refus ?? 'Message transmis à la boutique, on te répond ici.',
     { reply_markup: config.webappUrl ? shopKeyboard() : undefined }
   );
 });
 
 /**
+ * Ce qu'une personne peut faire arriver dans le téléphone du vendeur.
+ *
+ * Huit messages par quart d'heure : largement de quoi poser une question, en
+ * préciser deux et remercier. Au-delà, ce n'est plus une conversation. Sans
+ * cette borne, cent messages arrivaient en dix-huit millisecondes — mesuré —
+ * et le vendeur n'avait aucun moyen d'y couper court, puisque bloquer le bot
+ * l'aurait coupé de toute sa boutique.
+ */
+const cadenceDuRelais = creerCadence({ max: 8, fenetreMs: 15 * 60 * 1000, nom: 'relais' });
+
+/**
  * Porte le message d'un client au vendeur.
  *
- * Sans ADMIN_CHAT_ID il n'y a personne à prévenir : on le dit dans le journal
- * plutôt que de laisser croire au client que son message est parti.
+ * Deux refus avant d'y arriver, et ce sont eux qui comptent :
+ *
+ * - **un compte bloqué ne passe pas.** Bloquer quelqu'un doit le bloquer pour
+ *   de bon ; le laisser continuer d'écrire faisait de cette fonctionnalité un
+ *   bouton décoratif, et du bot un canal de harcèlement vers le téléphone du
+ *   vendeur ;
+ * - **une cadence**, parce qu'un compte parfaitement légitime peut noyer une
+ *   conversation aussi sûrement qu'un compte bloqué.
+ *
+ * Rend un texte à dire au client, ou `null` quand c'est passé — le silence
+ * serait pris pour une panne, et il réécrirait.
  */
 async function relayerAuVendeur(ctx) {
-  if (!config.adminChatId) {
-    return console.warn('ADMIN_CHAT_ID absent : message client reçu, personne à prévenir.');
+  const settings = await getSettings();
+  if (isBlocked(settings, ctx.from.id)) {
+    // On ne dit pas « tu es bloqué » : ça n'apporte rien et ça relance. Le
+    // message est simplement reçu et ne va nulle part.
+    return 'Message bien reçu.';
   }
+
+  const cadence = cadenceDuRelais.passer(ctx.from.id);
+  if (!cadence.ok) {
+    return 'Tu as déjà écrit plusieurs fois — on te répond dès que possible. ' +
+      `Réessaie dans ${attenteEnClair(cadence.attente)}.`;
+  }
+
+  if (!config.adminChatId) {
+    console.warn('ADMIN_CHAT_ID absent : message client reçu, personne à prévenir.');
+    return null;
+  }
+
   try {
     await bot.api.sendMessage(config.adminChatId, messageRelaye(ctx.from, ctx.message.text));
   } catch (err) {
     console.error('Relais du message client impossible :', err.message);
   }
+  return null;
 }
 
 /**

@@ -25,7 +25,7 @@ import {
   findZone, findSlot, availableSlots, slotLabel,
   normalizeAddress, adresseIncomplete, adresseEnClair,
 } from './delivery.js';
-import { adminRouter } from './admin.js';
+import { adminRouter, requireAdmin } from './admin.js';
 import {
   bot, notifyAdmin, notifyOrderPlaced, notifyLowStock, notifyNouvelAvis, configurerMenu,
 } from './bot.js';
@@ -60,6 +60,26 @@ app.use((req, res, next) => {
   req._body = true;
   next();
 });
+
+/**
+ * Les deux routes qui acceptent un gros corps, et le portier posé devant.
+ *
+ * L'ordre compte plus qu'il n'en a l'air. Ces analyseurs étaient montés avant
+ * `adminRouter`, donc avant toute vérification de signature : n'importe qui
+ * pouvait faire mettre vingt-et-un mégaoctets en mémoire au serveur, sans
+ * compte, sans rien — le refus 401 n'arrivait qu'une fois le corps entièrement
+ * reçu. Quelques requêtes simultanées suffisaient à faire tomber la boutique.
+ *
+ * Le portier est donc posé devant, sur ces chemins uniquement : il ne lit que
+ * les en-têtes, et coupe la connexion avant le premier octet de charge utile.
+ */
+const CHEMINS_LOURDS = [
+  '/api/admin/backup/restore',
+  '/api/admin/backup/inspect',
+  '/api/admin/products/:id/media/upload',
+  '/api/admin/products/:id/image/upload',
+];
+app.use(CHEMINS_LOURDS, requireAdmin);
 
 // Une sauvegarde complète pèse bien plus que ce qu'on accepte ailleurs : ces
 // deux routes ont leur propre limite, montée avant la limite générale pour
@@ -123,7 +143,12 @@ app.get('/api/health', async (req, res) => {
     health.medias = await etatDuCache();
   } catch (err) {
     health.ok = false;
-    health.error = `Stockage injoignable : ${err.message}`;
+    // Le détail reste dans le journal, où seul l'exploitant le lit. Le message
+    // du magasin nomme des chemins absolus, l'utilisateur système sous lequel
+    // la boutique tourne et le nom du service systemd — de quoi dessiner la
+    // machine à qui interroge une route publique et sans signature.
+    console.error('Stockage injoignable :', err.message);
+    health.error = 'Stockage injoignable — voir le journal du serveur.';
     return res.status(503).json(health);
   }
 
@@ -232,14 +257,27 @@ async function resolveItems(items) {
   return { resolved, units };
 }
 
+/**
+ * Refuse un compte que le vendeur a bloqué.
+ *
+ * Le contrôle ne vivait que sur la route des commandes. Il manquait donc
+ * partout ailleurs : un compte bloqué pour abus pouvait encore publier un avis
+ * sur les fiches produits, s'inscrire aux alertes de retour en stock — et donc
+ * continuer de recevoir des messages du bot — et sonder les codes promo.
+ * Bloquer quelqu'un doit le bloquer pour de bon ; un seul oubli suffit à faire
+ * de ce bouton une décoration.
+ */
+function refuserSiBloque(settings, userId, quoi = 'faire ça') {
+  if (!isBlocked(settings, userId)) return;
+  throw new HttpError(403, `Ce compte ne peut pas ${quoi}. Écris-nous si c'est une erreur.`);
+}
+
 app.post('/api/orders', authenticate, async (req, res, next) => {
   try {
     const { items, contact, address: adresseRecue, note, mode, promoCode, postalCode, slotId } = req.body ?? {};
     const settings = await getSettings();
 
-    if (isBlocked(settings, req.telegramUser.id)) {
-      throw new HttpError(403, 'Ce compte ne peut pas passer commande. Écris-nous si c\'est une erreur.');
-    }
+    refuserSiBloque(settings, req.telegramUser.id, 'passer commande');
 
     // L'épreuve ne vaut que si elle est exigée ici : côté client seul, elle
     // ne serait qu'un décor qu'on contourne en sautant l'écran.
@@ -554,6 +592,9 @@ app.post('/api/avis', authenticate, async (req, res, next) => {
   try {
     const settings = await getSettings();
     if (!settings.features.avis) throw new HttpError(403, 'Les avis sont désactivés.');
+    // Un compte bloqué pour abus publiait encore sur les fiches produits :
+    // c'est exactement ce que bloquer doit empêcher.
+    refuserSiBloque(settings, req.telegramUser.id, 'donner un avis');
 
     const reference = String(req.body?.reference ?? '');
     const order = await getOrder(reference);
@@ -632,6 +673,7 @@ app.post('/api/promo', authenticate, async (req, res, next) => {
   try {
     const { items, code } = req.body ?? {};
     const settings = await getSettings();
+    refuserSiBloque(settings, req.telegramUser.id, 'utiliser un code');
     if (code && !settings.features.promos) {
       throw new HttpError(400, 'Les codes promo ne sont pas actifs en ce moment.');
     }
@@ -666,6 +708,9 @@ app.post('/api/waitlist', authenticate, async (req, res, next) => {
     if (!settings.features.waitlist) {
       throw new HttpError(403, "La liste d'attente n'est pas activée.");
     }
+    // Sans ça, un compte bloqué s'inscrivait aux alertes de retour en stock et
+    // continuait donc de recevoir des messages du bot.
+    refuserSiBloque(settings, req.telegramUser.id, "s'inscrire à la liste d'attente");
 
     const { id, variantId } = req.body ?? {};
     const product = await getProduct(id, { includeHidden: false });
