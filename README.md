@@ -243,8 +243,17 @@ les vraies arrivent.
 ### Photos et vidéos d'une fiche produit
 
 Chaque produit porte une galerie : jusqu'à **huit médias**, photos et vidéos
-mêlées, que le client fait défiler du doigt sur la fiche. Le premier sert aussi
-de vignette dans la grille tant qu'aucune n'a été choisie.
+mêlées — pas une photo *et* une vidéo, huit en tout, dans l'ordre que tu veux.
+Le client les fait défiler du doigt sur la fiche. Le premier sert aussi de
+vignette dans la grille tant qu'aucune n'a été choisie.
+
+> 📸 **Où c'est.** Onglet **Produits** → touche un produit → le bloc **Photos et
+> vidéos de la fiche**, sous la description. Il n'existe que sur un produit
+> **déjà enregistré** : un média a besoin d'un produit auquel se rattacher.
+> C'est pourquoi un produit tout juste créé rouvre maintenant son éditeur sur
+> lui-même au lieu de se refermer — auparavant la galerie se cachait au moment
+> précis où elle devenait utilisable, et on croyait qu'un produit ne pouvait
+> porter qu'une seule image.
 
 Trois façons d'en ajouter :
 
@@ -270,6 +279,27 @@ Trois façons d'en ajouter :
 Sur la fiche, l'ordre se règle avec les flèches et chaque média se retire d'un
 bouton. La vignette montre le vrai visuel, pas son nom de fichier : c'est la
 seule façon de repérer d'un coup d'œil celui qui ne charge pas.
+
+#### Une photo par variété
+
+Un produit qui se décline — trois variétés, trois couleurs, trois formats — a
+besoin d'une photo par déclinaison. Chaque média porte donc un menu **format** :
+
+| Choix | Effet |
+|---|---|
+| **Tous les formats** | le média reste dans la galerie générale |
+| Un format précis | la fiche **saute sur cette photo** quand le client choisit cette variété |
+
+Le nom du format s'affiche sur le média, en bas à gauche : celui qui fait
+défiler la galerie sait ce qu'il regarde sans comparer avec les boutons, et
+celui qui a choisi son format s'y reconnaît. La fiche s'ouvre directement sur la
+photo du format présélectionné.
+
+Sans ce lien, une galerie de cinq photos oblige le client à deviner laquelle
+correspond à ce qu'il achète — et autant vendre sans photo. Le menu n'apparaît
+que sur un produit qui a des formats, et **supprimer un format fait tomber les
+rattachements qui n'ont plus de cible** : un média ne pointe jamais dans le
+vide.
 
 **Une galerie qui n'a que des vidéos passe en vitrine.** Faute de photo, la
 grille montrait le dessin par défaut, et rien n'annonçait au client la vidéo qui

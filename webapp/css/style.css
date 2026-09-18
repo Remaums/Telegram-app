@@ -1239,3 +1239,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
   font-size: 10.5px; font-weight: 800; line-height: 1;
   color: var(--ink); background: var(--neon);
 }
+
+/* Le format auquel un média est rattaché. En bas à gauche, en face de la
+   pastille « Vidéo » qui occupe le haut : les deux peuvent coexister sur la
+   même vidéo, et se superposer les rendrait illisibles toutes les deux. */
+.galerie__format {
+  position: absolute; bottom: 8px; left: 8px; z-index: 2;
+  padding: 3px 9px; border-radius: 999px;
+  background: rgb(var(--neon-rgb) / .9); color: var(--ink);
+  font-size: 11.5px; font-weight: 800; letter-spacing: .03em;
+}

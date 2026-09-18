@@ -269,6 +269,77 @@ r = await fetch(`${BASE}/api/media/${produit.id}/0/apercu`);
 check("Photos coupées, l'aperçu se ferme aussi", r.status === 404, `HTTP ${r.status}`);
 await call('/api/admin/settings', { method: 'PUT', body: { features: { photos: true } } });
 
+/* ── Un média rattaché à un format ───────────────────────── */
+
+/*
+ * C'est ce qui permet à une fiche à trois variétés de montrer la bonne photo
+ * quand le client choisit la sienne. Sans ce lien, une galerie de cinq photos
+ * oblige à deviner laquelle correspond au format sélectionné.
+ */
+
+check('Un rattachement à un format inconnu est écarté',
+  normalizeMedia([{ kind: 'photo', fileId: 'x', variantId: 'fantome' }], [{ id: '5g' }])[0].variantId === undefined);
+check('Un rattachement à un format connu est gardé',
+  normalizeMedia([{ kind: 'photo', fileId: 'x', variantId: '5g' }], [{ id: '5g' }])[0].variantId === '5g');
+check('Sans liste de formats, aucun rattachement ne survit',
+  normalizeMedia([{ kind: 'photo', fileId: 'x', variantId: '5g' }])[0].variantId === undefined);
+
+{
+  // Un produit à trois variétés, comme en boutique.
+  const trio = await (await call('/api/admin/products', {
+    method: 'POST',
+    body: {
+      name: `Trio ${Date.now()}`, category: produit.category, price: 1200,
+      variants: [
+        { label: 'Banana Kush', price: 1200, stock: 5 },
+        { label: 'Bubble Gum', price: 1400, stock: 5 },
+      ],
+    },
+  })).json();
+
+  const galerie = `/api/admin/products/${trio.id}/media`;
+  for (const url of ['/assets/products/jar.svg', '/assets/products/box.svg']) {
+    await call(galerie, { method: 'POST', body: { kind: 'photo', url } });
+  }
+
+  const lire = async () =>
+    (await (await fetch(`${BASE}/api/catalog`)).json()).products.find((p) => p.id === trio.id);
+
+  let r2 = await call(`${galerie}/0/format`, { method: 'PUT', body: { variantId: trio.variants[0].id } });
+  check('Une photo se rattache à un format', r2.status === 200, `HTTP ${r2.status}`);
+  check('Et le catalogue le porte', (await lire()).media[0].variantId === trio.variants[0].id);
+
+  r2 = await call(`${galerie}/0/format`, { method: 'PUT', body: { variantId: 'nexiste-pas' } });
+  check('Un format inventé est refusé', r2.status === 400, `HTTP ${r2.status}`);
+
+  r2 = await call(`${galerie}/99/format`, { method: 'PUT', body: { variantId: trio.variants[0].id } });
+  check('Un média hors galerie aussi', r2.status === 404, `HTTP ${r2.status}`);
+
+  r2 = await fetch(`${BASE}${galerie}/0/format`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ variantId: '' }),
+  });
+  check('Et un client ne rattache rien', r2.status === 401, `HTTP ${r2.status}`);
+
+  // Détacher passe par la même route : deux routes pour poser et retirer un
+  // lien finissent toujours par diverger.
+  await call(`${galerie}/0/format`, { method: 'PUT', body: { variantId: '' } });
+  check('La chaîne vide détache', (await lire()).media[0].variantId === undefined);
+
+  // Le cas qui laisserait un lien mort : le vendeur supprime le format.
+  await call(`${galerie}/1/format`, { method: 'PUT', body: { variantId: trio.variants[1].id } });
+  check('Rattaché au deuxième format', (await lire()).media[1].variantId === trio.variants[1].id);
+
+  await call(`/api/admin/products/${trio.id}`, {
+    method: 'PATCH',
+    body: { variants: [{ label: 'Banana Kush', price: 1200, stock: 5 }] },
+  });
+  check('Supprimer un format fait tomber les rattachements morts',
+    (await lire()).media.every((m) => m.variantId === undefined),
+    JSON.stringify((await lire()).media.map((m) => m.variantId ?? '—')));
+
+  await call(`/api/admin/products/${trio.id}`, { method: 'DELETE' });
+}
+
 // On rend le produit tel qu'on l'a trouvé.
 for (let i = MEDIA_MAX; i >= 0; i--) await call(`${chemin}/${i}`, { method: 'DELETE' });
 

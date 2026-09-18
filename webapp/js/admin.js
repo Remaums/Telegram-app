@@ -1636,15 +1636,29 @@ async function saveProduct() {
 
   try {
     const payload = collectForm();
-    if (state.editing) {
-      await api(`/products/${state.editing.id}`, { method: 'PATCH', body: payload });
-    } else {
-      await api('/products', { method: 'POST', body: payload });
-    }
+    const modifie = Boolean(state.editing);
+    const produit = modifie
+      ? await api(`/products/${state.editing.id}`, { method: 'PATCH', body: payload })
+      : await api('/products', { method: 'POST', body: payload });
+
     haptic('success');
-    toast(state.editing ? 'Produit mis à jour' : 'Produit créé');
-    closeEditor();
+
+    if (modifie) {
+      toast('Produit mis à jour');
+      closeEditor();
+      await refreshAll();
+      return;
+    }
+
+    // Un produit qui vient d'être créé garde son éditeur ouvert, sur lui.
+    // La galerie ne peut exister qu'une fois le produit enregistré : en
+    // refermant tout, on la cachait au moment précis où elle devenait
+    // utilisable, et personne ne revenait jamais l'ouvrir. C'est ce qui faisait
+    // croire qu'un produit ne pouvait porter qu'une seule image.
     await refreshAll();
+    openEditor(state.products.find((p) => p.id === produit.id) ?? produit);
+    toast('Produit créé — ajoute ses photos et vidéos ci-dessous');
+    $('mediaBlock').scrollIntoView({ behavior: 'smooth', block: 'center' });
   } catch (err) {
     error.textContent = err.message;
     error.hidden = false;
@@ -1981,9 +1995,15 @@ function renderMedia(product) {
   const medias = product.media ?? [];
   const plafond = state.mediaMax ?? 8;
 
+  const formats = product.variants?.length ?? 0;
   $('mediaHint').textContent = medias.length
-    ? `${medias.length} média${medias.length > 1 ? 's' : ''} sur ${plafond}. Le premier s'affiche en premier dans la fiche.`
-    : "Aucun média : la fiche montre l'illustration du produit. Tu peux aussi envoyer une photo ou une vidéo au bot, avec le nom du produit en légende.";
+    ? `${medias.length} média${medias.length > 1 ? 's' : ''} sur ${plafond}. Le premier s'affiche en premier dans la fiche.` +
+      (formats
+        ? ' Rattache une photo à un format : la fiche s\'ouvrira dessus quand le client choisira cette variété.'
+        : '')
+    : `Jusqu'à ${plafond} photos et vidéos mélangées, dans l'ordre que tu veux.` +
+      (formats ? ' Chacune peut être rattachée à un format.' : '') +
+      ' Tu peux aussi les envoyer au bot, avec le nom du produit en légende.';
 
   if (!medias.length) return liste.replaceChildren();
 
@@ -2023,6 +2043,22 @@ function renderMedia(product) {
         `<b>${rang + 1}. ${media.kind === 'video' ? '🎬 Vidéo' : '🖼 Photo'}` +
         `${rang === 0 ? ' · en tête' : ''}</b>` +
         `<span>${escapeHtml(media.url ?? 'envoyé au bot')}</span>`;
+
+      // Le format auquel ce média est rattaché. N'apparaît que si le produit a
+      // des formats : sur un produit unique, ce menu ne proposerait rien.
+      if (product.variants?.length) {
+        const choix = document.createElement('select');
+        choix.className = 'a-media__format';
+        choix.setAttribute('aria-label', 'Format montré par ce média');
+        choix.innerHTML =
+          '<option value="">Tous les formats</option>' +
+          product.variants
+            .map((v) => `<option value="${escapeHtml(v.id)}">${escapeHtml(v.label)}</option>`)
+            .join('');
+        choix.value = media.variantId ?? '';
+        choix.addEventListener('change', () => rattacherMedia(product.id, rang, choix.value, choix));
+        texte.append(choix);
+      }
 
       const actions = document.createElement('span');
       actions.className = 'a-media__actions';
@@ -2252,6 +2288,28 @@ async function retirerMedia(id, rang) {
     toast('Média retiré');
   } catch (err) {
     toast(err.message);
+  }
+}
+
+/**
+ * Rattache un média à un format, ou l'en détache.
+ *
+ * C'est ce lien qui fait qu'une fiche à trois variétés montre la bonne photo
+ * quand le client choisit la sienne.
+ */
+async function rattacherMedia(id, rang, variantId, champ) {
+  champ.disabled = true;
+  try {
+    const produit = await api(`/products/${id}/media/${rang}/format`, {
+      method: 'PUT',
+      body: { variantId },
+    });
+    await rafraichirApresMedia(produit);
+    toast(variantId ? 'Média rattaché au format' : 'Média remis sur tous les formats');
+    haptic('success');
+  } catch (err) {
+    toast(err.message);
+    champ.disabled = false;
   }
 }
 

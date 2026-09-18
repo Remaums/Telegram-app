@@ -125,7 +125,7 @@ export async function addProductMedia(id, media) {
       throw new HttpError(400, `La galerie est pleine (${MEDIA_MAX} médias au maximum).`);
     }
 
-    const galerie = normalizeMedia([...avant, media]);
+    const galerie = normalizeMedia([...avant, media], produit.variants);
 
     const ajoute = galerie[galerie.length - 1];
     const suite = { ...produit, media: galerie };
@@ -400,7 +400,7 @@ function normalizeProduct(input) {
     photoFileId: input.photoFileId ? String(input.photoFileId).slice(0, 200) : undefined,
     // Galerie de la fiche produit : photos et vidéos mêlées, dans l'ordre où
     // le vendeur les a mises. La première photo sert aussi de vignette.
-    media: normalizeMedia(input.media),
+    media: normalizeMedia(input.media, variants),
     badge: input.badge ? String(input.badge).slice(0, 20) : undefined,
     tags: Array.isArray(input.tags) ? input.tags.slice(0, 6).map((t) => String(t).slice(0, 24)) : [],
     short: String(input.short ?? '').slice(0, 140),
@@ -423,8 +423,17 @@ export const MEDIA_MAX = 8;
  *
  * Le nombre est borné : une fiche produit n'est pas un album, et chaque média
  * est une requête de plus à servir sur un VPS modeste.
+ *
+ * Un média peut être rattaché à un format (`variantId`). C'est ce qui permet à
+ * la fiche de montrer la bonne photo quand le client choisit sa variété : sans
+ * ce lien, une galerie de cinq photos oblige à deviner laquelle correspond au
+ * format sélectionné, et autant vendre sans photo.
  */
-export function normalizeMedia(input) {
+export function normalizeMedia(input, variantes = []) {
+  // Les identifiants de format connus : un média rattaché à un format qui
+  // n'existe plus doit redevenir un média de la galerie générale, pas pointer
+  // dans le vide.
+  const formats = new Set((variantes ?? []).map((v) => String(v.id)));
   if (!Array.isArray(input)) return [];
 
   const propres = [];
@@ -451,6 +460,9 @@ export function normalizeMedia(input) {
     // lui-même, affichée en attendant que la vidéo arrive.
     if (brut.thumbFileId) media.thumbFileId = String(brut.thumbFileId).slice(0, 200);
     if (brut.legende) media.legende = String(brut.legende).slice(0, 80);
+    if (brut.variantId && formats.has(String(brut.variantId))) {
+      media.variantId = String(brut.variantId);
+    }
     propres.push(media);
 
     if (propres.length >= MEDIA_MAX) break;

@@ -772,3 +772,13 @@ body.admin {
 .a-canal__piste span { display: block; height: 100%; background: rgb(var(--neon-rgb) / .65); }
 .a-canal__chiffre { flex: none; font-size: 13px; font-weight: 800; }
 .a-canal__chiffre small { color: var(--muted); font-weight: 700; }
+
+/* Le format auquel un média est rattaché, sous son adresse. */
+.a-media__format {
+  margin-top: 6px; width: 100%; max-width: 12rem;
+  padding: 5px 9px; border-radius: 9px;
+  font: inherit; font-size: 12px; font-weight: 700;
+  color: var(--cream); background: rgb(var(--cream-rgb) / .06);
+  border: 1px solid var(--line-soft);
+}
+.a-media__format:disabled { opacity: .5; }

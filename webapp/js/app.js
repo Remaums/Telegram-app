@@ -1263,6 +1263,12 @@ function openProduct(product) {
   // les autres feuilles, et cette fermeture détache les vidéos — elle vidait
   // donc la galerie qu'on venait tout juste de construire.
   renderGalerie(product);
+  // Et elle s'ouvre sur la photo du format présélectionné, quand il en a une.
+  // Le report d'un tour de boucle laisse la feuille prendre sa largeur : un
+  // défilement calculé sur une piste encore à zéro n'irait nulle part.
+  if (state.currentVariant) {
+    requestAnimationFrame(() => montrerLeMediaDuFormat(state.currentVariant));
+  }
   haptic('light');
 }
 
@@ -1326,6 +1332,18 @@ function renderGalerie(product) {
       img.loading = rang === 0 ? 'eager' : 'lazy';
       case_.append(img);
     }
+
+    // Le nom du format, sur le média qui lui est rattaché : le client qui fait
+    // défiler la galerie sait ce qu'il regarde sans avoir à comparer avec les
+    // boutons de format, et celui qui a choisi son format se reconnaît.
+    const format = (product.variants ?? []).find((v) => v.id === media.variantId);
+    if (format) {
+      const etiquette = document.createElement('span');
+      etiquette.className = 'galerie__format';
+      etiquette.textContent = format.label;
+      case_.append(etiquette);
+    }
+
     piste.append(case_);
 
     const point = document.createElement('span');
@@ -1355,6 +1373,26 @@ function suivreLeDefilement(piste, points) {
       [...points.children].forEach((p, i) => p.setAttribute('aria-selected', String(i === rang)));
     }, 90);
   };
+}
+
+/**
+ * Amène la galerie sur la photo du format choisi.
+ *
+ * Silencieux quand ce format n'a pas de photo à lui : déplacer la galerie vers
+ * un média au hasard serait pire que ne rien faire, et beaucoup de produits
+ * n'auront jamais qu'une photo pour tous leurs formats.
+ */
+function montrerLeMediaDuFormat(variantId) {
+  const medias = state.current?.media ?? [];
+  const rang = medias.findIndex((m) => m.variantId === variantId);
+  if (rang < 0) return;
+
+  const piste = $('pGalleryTrack');
+  if (!piste || piste.clientWidth === 0) return;
+  // Une vidéo qui jouait pendant qu'on change de format continuerait à parler
+  // par-dessus la photo qu'on vient d'amener.
+  arreterLesVideos();
+  piste.scrollTo({ left: rang * piste.clientWidth, behavior: anime() ? 'smooth' : 'auto' });
 }
 
 /** Déplace la galerie d'un média. */
@@ -1399,6 +1437,10 @@ function renderVariants() {
         state.currentVariant = v.id;
         renderVariants();
         setQty(state.currentQty);
+        // La galerie suit le format choisi : c'est tout l'intérêt de rattacher
+        // une photo à une variété. Sans ce saut, le client choisit « Bubble
+        // Gum » et continue de regarder la photo de la Banana Kush.
+        montrerLeMediaDuFormat(v.id);
         haptic('light');
       });
       return btn;

@@ -740,6 +740,46 @@ adminRouter.put(
   })
 );
 
+/**
+ * Rattache un média à un format, ou l'en détache.
+ *
+ * C'est ce lien qui fait qu'une fiche à trois variétés montre la bonne photo
+ * quand le client choisit la sienne. Sans lui, une galerie de cinq photos
+ * oblige à deviner laquelle correspond au format sélectionné — et autant vendre
+ * sans photo.
+ */
+adminRouter.put(
+  '/products/:id/media/:index/format',
+  route(async (req, res) => {
+    const produit = await getProduct(req.params.id);
+    if (!produit) throw new HttpError(404, 'Produit introuvable.');
+
+    const rang = Number(req.params.index);
+    const galerie = produit.media ?? [];
+    if (!Number.isInteger(rang) || rang < 0 || rang >= galerie.length) {
+      throw new HttpError(404, 'Média introuvable.');
+    }
+
+    // Chaîne vide : on détache. C'est le geste inverse, et il doit passer par
+    // la même route — deux routes pour poser et retirer un lien finissent
+    // toujours par diverger.
+    const demande = String(req.body?.variantId ?? '').trim();
+    if (demande && !(produit.variants ?? []).some((v) => v.id === demande)) {
+      throw new HttpError(400, "Ce format n'existe pas sur ce produit.");
+    }
+
+    const media = galerie.map((m, i) => {
+      if (i !== rang) return m;
+      const copie = { ...m };
+      if (demande) copie.variantId = demande;
+      else delete copie.variantId;
+      return copie;
+    });
+
+    res.json(await updateProduct(req.params.id, { media }));
+  })
+);
+
 adminRouter.put(
   '/categories',
   route(async (req, res) => res.json(await saveCategories(req.body?.categories)))
