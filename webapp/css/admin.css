@@ -823,3 +823,17 @@ body.admin {
   width: 8px; height: 8px; margin-right: 6px; border-radius: 50%;
   background: var(--neon); box-shadow: 0 0 6px rgb(var(--neon-rgb) / .8);
 }
+
+/* La traîne des trente minutes. Celui qui est encore là porte la couleur ;
+   celui qui vient de partir reste lisible mais s'efface — la différence doit
+   se voir sans avoir à lire la durée. */
+.a-presence__sur { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.a-presence__quoi small { font-weight: 700; opacity: .75; }
+.a-present { display: inline-flex; align-items: baseline; gap: 5px; opacity: .62; }
+.a-present small { font-size: 10.5px; font-weight: 700; color: var(--muted); }
+.a-present b { font-size: 10.5px; font-weight: 800; color: var(--neon); }
+.a-present--ici {
+  opacity: 1; color: var(--cream);
+  background: rgb(var(--neon-rgb) / .14); border-color: rgb(var(--neon-rgb) / .5);
+}
+.a-present--ici small { color: var(--neon); }

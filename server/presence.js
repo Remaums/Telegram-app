@@ -22,8 +22,20 @@
  * Et rien n'est écrit sur le disque à chaque requête.
  */
 
-/** Au-delà de ce délai sans signe de vie, on n'est plus là. */
+/**
+ * Deux durées, et c'est la distinction qui fait tout l'écran.
+ *
+ * `FENETRE_MS` : au-delà, on n'est plus **là**. Trois minutes, parce que c'est
+ * l'ordre de grandeur d'une page qu'on garde ouverte sans y toucher.
+ *
+ * `MEMOIRE_MS` : combien de temps on se souvient d'un passage. Une demi-heure,
+ * et c'est ce qui permet de lire la boutique plutôt qu'un instantané — savoir
+ * que onze personnes sont passées depuis une demi-heure vaut mieux que savoir
+ * que deux y sont à la seconde où l'on regarde. Un vendeur qui ouvre son écran
+ * entre deux clients ne voyait, sinon, qu'une boutique vide.
+ */
 export const FENETRE_MS = 3 * 60 * 1000;
+export const MEMOIRE_MS = 30 * 60 * 1000;
 
 /**
  * Le nombre de personnes suivies.
@@ -58,7 +70,12 @@ export function noterPassage(userId, ou = 'boutique', maintenant = Date.now()) {
     if (plusVieux !== null) presents.delete(plusVieux);
   }
 
-  presents.set(id, { vu: maintenant, ou });
+  // Combien de fois cette personne s'est manifestée dans la demi-heure.
+  // Quelqu'un qui revient trois fois n'est pas quelqu'un qui passe une fois, et
+  // c'est souvent celui-là qui hésite devant un produit.
+  const avant = presents.get(id);
+  const frais = avant && maintenant - avant.vu < MEMOIRE_MS;
+  presents.set(id, { vu: maintenant, ou, passages: frais ? (avant.passages ?? 1) + 1 : 1 });
 }
 
 /** Vrai si cette personne a donné signe de vie dans la fenêtre. */
@@ -75,15 +92,41 @@ export function estActif(userId, maintenant = Date.now()) {
  * du travail que le serveur fait pour rien.
  */
 export function actifs(maintenant = Date.now()) {
-  const vivants = [];
+  return visites({ depuisMs: FENETRE_MS, maintenant });
+}
+
+/**
+ * Les passages récents, du plus frais au plus ancien.
+ *
+ * C'est la même mémoire qu'`actifs`, lue sur une fenêtre plus large : « là
+ * maintenant » et « passé dans la demi-heure » sont deux questions, pas deux
+ * magasins. Chaque ligne porte `actif`, pour que l'écran distingue d'un coup
+ * d'œil celui qui est encore là de celui qui vient de partir.
+ *
+ * Le ménage se fait ici, sur `MEMOIRE_MS` : oublier à trois minutes effacerait
+ * précisément ce que cette fonction existe pour montrer.
+ */
+export function visites({ depuisMs = MEMOIRE_MS, maintenant = Date.now() } = {}) {
+  const fenetre = Math.min(depuisMs, MEMOIRE_MS);
+  const vus = [];
+
   for (const [id, etat] of presents) {
-    if (maintenant - etat.vu >= FENETRE_MS) {
+    const age = maintenant - etat.vu;
+    if (age >= MEMOIRE_MS) {
       presents.delete(id);
       continue;
     }
-    vivants.push({ id, ou: etat.ou, depuis: Math.round((maintenant - etat.vu) / 1000) });
+    if (age >= fenetre) continue;
+    vus.push({
+      id,
+      ou: etat.ou,
+      depuis: Math.round(age / 1000),
+      actif: age < FENETRE_MS,
+      passages: etat.passages ?? 1,
+    });
   }
-  return vivants.sort((a, b) => a.depuis - b.depuis);
+
+  return vus.sort((a, b) => a.depuis - b.depuis);
 }
 
 /** Combien de personnes sont là, sans construire la liste. */
@@ -97,9 +140,25 @@ export const combienActifs = (maintenant = Date.now()) => actifs(maintenant).len
  * fausse joie. Ce qu'on cherche ici, ce sont les clients.
  */
 export function clientsActifs(adminIds = [], maintenant = Date.now()) {
-  const patrons = new Set(adminIds.map(String));
-  return actifs(maintenant).filter((p) => !patrons.has(p.id));
+  return visitesDesClients(adminIds, { depuisMs: FENETRE_MS, maintenant });
 }
+
+/** Les passages récents, administrateurs retirés. Même raison. */
+export function visitesDesClients(adminIds = [], { depuisMs = MEMOIRE_MS, maintenant = Date.now() } = {}) {
+  const patrons = new Set(adminIds.map(String));
+  return visites({ depuisMs, maintenant }).filter((p) => !patrons.has(p.id));
+}
+
+/**
+ * Combien de personnes occupent la mémoire, oubliés compris.
+ *
+ * Ce n'est pas le nombre de visiteurs — c'est ce que le serveur porte. Deux
+ * usages : le diagnostic, et la vérification que le ménage se fait vraiment.
+ * Sans elle, supprimer l'éviction ne se voyait nulle part : la lecture filtre
+ * déjà ce qui est périmé, si bien que la mémoire pouvait enfler en silence
+ * pendant que l'écran affichait les bons chiffres.
+ */
+export const taille = () => presents.size;
 
 /** Pour les tests : on repart d'une boutique vide. */
 export function oublierTout() {

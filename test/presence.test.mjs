@@ -22,7 +22,8 @@
  */
 import 'dotenv/config';
 import {
-  noterPassage, estActif, actifs, clientsActifs, oublierTout, FENETRE_MS,
+  noterPassage, estActif, actifs, visites, clientsActifs, visitesDesClients,
+  oublierTout, taille, FENETRE_MS, MEMOIRE_MS,
 } from '../server/presence.js';
 import { signInitData } from './helpers.mjs';
 
@@ -92,6 +93,80 @@ console.log('\n── La fenêtre ───────────────�
     vus.find((v) => v.id === 'bavard')?.ou === 'conversation');
 }
 
+console.log('\n── La traîne des trente minutes ────────────────────');
+
+{
+  // « Là maintenant » et « passé récemment » sont deux questions, pas deux
+  // magasins : c'est la même mémoire, lue sur deux fenêtres.
+  oublierTout();
+  const T = Date.now();
+  noterPassage('ici', 'boutique', T);
+  noterPassage('parti', 'boutique', T - 12 * 60 * 1000);
+  noterPassage('presque', 'conversation', T - 29 * 60 * 1000);
+  noterPassage('oublie', 'boutique', T - 31 * 60 * 1000);
+
+  const vus = visites({ maintenant: T });
+  const ids = vus.map((v) => v.id);
+
+  check('La traîne garde une demi-heure', ids.includes('presque'), ids.join(','));
+  check('Et oublie au-delà', !ids.includes('oublie'), ids.join(','));
+  check('Du plus frais au plus ancien', ids.join(',') === 'ici,parti,presque', ids.join(','));
+
+  check('Celui qui est encore là est marqué actif', vus.find((v) => v.id === 'ici')?.actif === true);
+  check('Celui d il y a douze minutes ne l est pas',
+    vus.find((v) => v.id === 'parti')?.actif === false);
+  check('Mais il figure quand même dans la traîne', ids.includes('parti'));
+
+  // La distinction est ce qui rend l'écran lisible : « actifs » n'est qu'un
+  // sous-ensemble de « visites ».
+  const ici = actifs(T).map((v) => v.id);
+  check('« Actifs » reste le sous-ensemble court', ici.join(',') === 'ici', ici.join(','));
+
+  check('Chaque visite porte son ancienneté en secondes',
+    vus.find((v) => v.id === 'parti')?.depuis === 720,
+    String(vus.find((v) => v.id === 'parti')?.depuis));
+  check('Et d où venait le signe de vie',
+    vus.find((v) => v.id === 'presque')?.ou === 'conversation');
+
+  // Une fenêtre plus large que la mémoire ne ressuscite personne.
+  check('On ne peut pas demander plus loin que la mémoire',
+    visites({ depuisMs: MEMOIRE_MS * 10, maintenant: T }).length === 3);
+}
+
+{
+  // Le ménage doit vraiment libérer la mémoire, pas seulement masquer les
+  // périmés à la lecture. Sans ce contrôle, la mémoire pouvait enfler en
+  // silence pendant que l'écran affichait les bons chiffres.
+  oublierTout();
+  const T = Date.now();
+  for (let i = 0; i < 50; i += 1) noterPassage(`vieux-${i}`, 'boutique', T - 31 * 60 * 1000);
+  noterPassage('frais', 'boutique', T);
+
+  check('Les périmés occupent la mémoire avant lecture', taille() === 51, String(taille()));
+  visites({ maintenant: T });
+  check('La lecture les évacue pour de bon', taille() === 1, `${taille()} en mémoire`);
+}
+
+{
+  // Revenir trois fois en vingt minutes n'est pas passer une fois : c'est
+  // souvent quelqu'un qui hésite devant un produit.
+  oublierTout();
+  const T = Date.now();
+  for (let i = 0; i < 3; i += 1) noterPassage('revient', 'boutique', T - (20 - i * 5) * 60 * 1000);
+
+  const lui = visites({ maintenant: T })[0];
+  check('Les passages répétés sont comptés', lui.passages === 3, String(lui.passages));
+  check('Et la date retenue est la dernière', lui.depuis === 600, String(lui.depuis));
+
+  // Passé la mémoire, le compteur repart : sinon un habitué finirait avec des
+  // centaines de passages qui ne veulent plus rien dire.
+  oublierTout();
+  noterPassage('lointain', 'boutique', T - 40 * 60 * 1000);
+  noterPassage('lointain', 'boutique', T);
+  check('Un retour après la mémoire repart de un',
+    visites({ maintenant: T })[0].passages === 1);
+}
+
 console.log('\n── Les administrateurs ne se comptent pas ──────────');
 
 {
@@ -105,6 +180,16 @@ console.log('\n── Les administrateurs ne se comptent pas ──────�
     clients.length === 1 && clients[0].id === 'client-1', clients.map((c) => c.id).join(','));
   check('Seul dans sa boutique, le vendeur voit zéro client',
     (oublierTout(), noterPassage('424242', 'conversation'), clientsActifs(['424242']).length === 0));
+
+  // Et il ne s'y compte pas non plus dans la traîne : sinon il se verrait
+  // passer toute la journée dans sa propre liste de visites.
+  oublierTout();
+  const T = Date.now();
+  noterPassage('424242', 'conversation', T - 10 * 60 * 1000);
+  noterPassage('client-2', 'boutique', T - 10 * 60 * 1000);
+  const trainee = visitesDesClients(['424242'], { maintenant: T });
+  check('Ni dans la traîne des trente minutes',
+    trainee.length === 1 && trainee[0].id === 'client-2', trainee.map((v) => v.id).join(','));
 }
 
 console.log('\n── La mémoire est bornée ───────────────────────────');
@@ -132,8 +217,17 @@ const vu = await r.json();
 check('La présence se lit depuis le panel', r.status === 200, `HTTP ${r.status}`);
 check('Un appel signé a suffi à marquer le passage',
   vu.actifs.some((a) => String(a.id) === '999501'), `${vu.total} actif(s)`);
-check('La fenêtre voyage avec la réponse',
+check('La fenêtre « actif » voyage avec la réponse',
   vu.fenetreSecondes === Math.round(FENETRE_MS / 1000), String(vu.fenetreSecondes));
+check('La mémoire aussi',
+  vu.memoireSecondes === Math.round(MEMOIRE_MS / 1000), String(vu.memoireSecondes));
+check('La traîne est rendue à part des actifs',
+  Array.isArray(vu.visites) && Number.isInteger(vu.visitesTotal),
+  `${vu.total} actif(s), ${vu.visitesTotal} visite(s)`);
+check('Et les actifs en sont un sous-ensemble',
+  vu.actifs.every((a) => vu.visites.some((v) => v.id === a.id)) && vu.total <= vu.visitesTotal);
+check('Chaque visite dit si elle est encore active',
+  vu.visites.every((v) => typeof v.actif === 'boolean'));
 check("Le vendeur ne s'y compte pas lui-même",
   !vu.actifs.some((a) => String(a.id) === '424242'));
 

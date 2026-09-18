@@ -37,7 +37,7 @@ import {
   tousLesAvis, resumeParProduit, changerStatut, repondreALAvis, supprimerAvis, oublierProduit,
 } from './avis.js';
 import { CANAUX, toutesLesPreferences, compterParCanal } from './preferences.js';
-import { clientsActifs, FENETRE_MS } from './presence.js';
+import { visitesDesClients, FENETRE_MS, MEMOIRE_MS } from './presence.js';
 import { ficheDuRegistre } from './users.js';
 import {
   compterParProduit, oublierProduit as oublierFavoris, amateursDuProduit,
@@ -322,10 +322,14 @@ adminRouter.get(
     // Les administrateurs ne se comptent pas eux-mêmes : « 1 actif » alors
     // qu'on est seul dans sa boutique est une fausse joie, pas une information.
     const patrons = (await listerAdmins()).map((a) => a.id);
-    const presents = clientsActifs(patrons);
+
+    // Une seule lecture, sur la fenêtre large : « là maintenant » n'est qu'un
+    // sous-ensemble de « passé récemment », et le distinguer ici évite de
+    // parcourir deux fois la même mémoire.
+    const passages = visitesDesClients(patrons);
 
     const nommes = await Promise.all(
-      presents.map(async (p) => {
+      passages.map(async (p) => {
         const fiche = await ficheDuRegistre(p.id).catch(() => null);
         return {
           ...p,
@@ -336,11 +340,17 @@ adminRouter.get(
     );
 
     res.json({
-      actifs: nommes,
-      total: nommes.length,
-      // La fenêtre voyage avec la réponse : l'écran doit pouvoir dire
-      // « actif dans les 3 dernières minutes » sans recopier la constante.
+      // Ceux qui sont encore là : c'est la pastille verte et le pouls.
+      actifs: nommes.filter((p) => p.actif),
+      total: nommes.filter((p) => p.actif).length,
+      // Et la traîne : qui est passé dans la demi-heure, encore là ou non.
+      // C'est elle qui permet de lire la boutique plutôt qu'un instantané.
+      visites: nommes,
+      visitesTotal: nommes.length,
+      // Les deux fenêtres voyagent avec la réponse : l'écran ne doit pas
+      // recopier des constantes qui vivent côté serveur.
       fenetreSecondes: Math.round(FENETRE_MS / 1000),
+      memoireSecondes: Math.round(MEMOIRE_MS / 1000),
     });
   })
 );

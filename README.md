@@ -527,7 +527,7 @@ dans ton bot.
 | `/admin` | Espace d'administration (réservé) |
 | `/ouvrir` `/fermer` | Ouvre ou ferme la boutique (réservé) |
 | `/verification on\|off` | Allume ou coupe la vérification d'identité (réservé) |
-| `/enligne` | Quels clients sont **actifs en ce moment** (réservé) |
+| `/enligne` | Les **visites de la dernière demi-heure** (réservé) |
 | `/annonce <texte>` | Écrit à **tous ceux qui ont déjà ouvert le bot** (réservé) |
 | `/admins` | Qui a les clés, et d'où elles viennent (réservé) |
 | `/addadmin <id\|@pseudo>` | Donne les clés à quelqu'un (réservé) |
@@ -537,20 +537,42 @@ Tout autre message d'un client est **relayé au vendeur**, qui répond en
 répondant au message. Un message du vendeur lui-même reçoit la liste des
 commandes.
 
-### Qui est dans la boutique en ce moment
+### Les visites de la dernière demi-heure
 
 Un bandeau en haut de l'espace admin, rafraîchi **toutes les quinze secondes** :
 
 ```
-● 2 actifs                    signe de vie < 3 min
-  🛒 @ines_live   💬 @marc
+● 11 visites   sur 30 min          2 encore là  < 3 min
+  🛒 @ines_live 1 min   💬 @marc 2 min   🛒 @lea 9 min ×3   🛒 @sam 24 min
 ```
+
+**Deux fenêtres, une seule mémoire.** Ce qui est surligné est **encore là**
+(signe de vie < 3 min) ; le reste est **passé** dans la demi-heure et s'efface
+visuellement sans disparaître. C'est ce qui permet de lire la boutique plutôt
+qu'un instantané : un vendeur qui ouvre son écran entre deux clients ne voyait,
+sinon, qu'une boutique vide.
 
 🛒 = dans la boutique, 💬 = dans la conversation du bot. Les deux ne se valent
 pas : quelqu'un dans la boutique a le catalogue sous les yeux, quelqu'un dans la
-conversation attend une réponse. Les fiches des onglets **Clients** et
-**Utilisateurs** s'allument d'une pastille verte au même moment, sans se replier.
-La même chose depuis le bot : `/enligne`.
+conversation attend une réponse. Le `×3` compte les **passages répétés** —
+revenir trois fois en vingt minutes n'est pas passer une fois, c'est souvent
+quelqu'un qui hésite devant un produit. Passé la demi-heure, le compteur repart
+de zéro : sinon un habitué finirait avec des centaines de passages qui ne
+veulent plus rien dire.
+
+Les fiches des onglets **Clients** et **Utilisateurs** s'allument d'une pastille
+verte pour ceux qui sont **encore là**, sans se replier. La même chose depuis le
+bot : `/enligne`.
+
+```
+👤 11 visites sur 30 min
+🟢 2 encore là
+
+🟢 @ines_live — 🛒 à l'instant
+🟢 @marc — 💬 il y a 2 min
+·  @lea — 🛒 il y a 9 min (3 passages)
+·  @sam — 🛒 il y a 24 min
+```
 
 > ⚠️ **Ce n'est pas le « en ligne » de Telegram, et c'est important.**
 > Telegram **ne donne pas** le statut en ligne aux bots — ni la dernière
@@ -571,8 +593,8 @@ une fausse joie, pas une information : les administrateurs sont retirés de la
 liste.
 
 La boutique ouverte envoie un **battement** toutes les minutes, pour que
-quelqu'un qui lit une fiche produit pendant cinq minutes ne disparaisse pas de la
-liste. Rien ne bat quand la page n'est pas visible : une boutique laissée dans un
+quelqu'un qui lit une fiche produit pendant cinq minutes reste marqué comme
+encore là. Rien ne bat quand la page n'est pas visible : une boutique laissée dans un
 onglet de fond ne doit ni consommer de données, ni te faire croire qu'un client
 la regarde.
 

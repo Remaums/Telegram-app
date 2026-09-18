@@ -3461,29 +3461,41 @@ function renderPresence() {
   if (!bandeau) return;
 
   const data = state.presence;
-  if (!data || !data.total) {
+  const visites = data?.visites ?? [];
+  if (!visites.length) {
     bandeau.hidden = true;
     return;
   }
 
   const minutes = Math.round((data.fenetreSecondes ?? 180) / 60);
-  const noms = data.actifs
-    .slice(0, 6)
-    .map((a) => {
-      const qui = a.username ? `@${a.username}` : a.prenom ?? `#${a.id}`;
-      return `<span class="a-present ${a.ou === 'conversation' ? 'a-present--chat' : ''}">` +
-        `${a.ou === 'conversation' ? '💬' : '🛒'} ${escapeHtml(qui)}</span>`;
+  const memoire = Math.round((data.memoireSecondes ?? 1800) / 60);
+
+  // La traîne est déjà triée du plus frais au plus ancien : ceux qui sont
+  // encore là viennent donc naturellement en tête, sans tri supplémentaire.
+  const gens = visites
+    .slice(0, 12)
+    .map((v) => {
+      const qui = v.username ? `@${v.username}` : v.prenom ?? `#${v.id}`;
+      const quand = v.depuis < 60 ? "à l'instant" : `${Math.round(v.depuis / 60)} min`;
+      return (
+        `<span class="a-present${v.actif ? ' a-present--ici' : ''}" title="${escapeHtml(quand)}">` +
+        `${v.ou === 'conversation' ? '💬' : '🛒'} ${escapeHtml(qui)}` +
+        `<small>${escapeHtml(quand)}</small>` +
+        (v.passages > 1 ? `<b>×${v.passages}</b>` : '') +
+        '</span>'
+      );
     })
     .join('');
 
   bandeau.innerHTML =
     '<div class="a-presence__tete">' +
-    '<span class="a-presence__pouls" aria-hidden="true"></span>' +
-    `<b>${data.total} actif${data.total > 1 ? 's' : ''}</b>` +
-    `<span class="a-presence__quoi">signe de vie &lt; ${minutes} min</span>` +
+    (data.total ? '<span class="a-presence__pouls" aria-hidden="true"></span>' : '') +
+    `<b>${data.visitesTotal} visite${data.visitesTotal > 1 ? 's' : ''}</b>` +
+    `<span class="a-presence__sur">sur ${memoire} min</span>` +
+    `<span class="a-presence__quoi">${data.total} encore là <small>&lt; ${minutes} min</small></span>` +
     '</div>' +
-    `<div class="a-presence__gens">${noms}` +
-    (data.total > 6 ? `<span class="a-present">+${data.total - 6}</span>` : '') +
+    `<div class="a-presence__gens">${gens}` +
+    (visites.length > 12 ? `<span class="a-present">+${visites.length - 12}</span>` : '') +
     '</div>';
   bandeau.hidden = false;
 
