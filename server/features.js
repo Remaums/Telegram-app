@@ -130,6 +130,14 @@ export const FEATURES = [
     default: true,
   },
   {
+    key: 'favoris',
+    label: 'Favoris',
+    hint:
+      "Le cœur sur les fiches produits, et l'onglet Favoris du profil client. " +
+      'Coupé, les favoris déjà enregistrés sont conservés mais ne s\'affichent plus.',
+    default: true,
+  },
+  {
     key: 'clientNotifications',
     label: 'Suivi envoyé au client',
     hint: 'Confirmation de commande et messages à chaque changement de statut.',

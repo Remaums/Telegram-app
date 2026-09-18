@@ -24,6 +24,7 @@ const state = {
   avisResume: null,   // moyenne, total, masqués, notes par produit
   avisFiltre: 'tous', // tous | basses | masques
   avisCharges: false,
+  audience: null,     // qui accepte quoi, et ce qui est mis en favori
   periode: 30,       // en jours ; commande tout le tableau de bord
   settings: null,
   verifications: [],
@@ -191,6 +192,11 @@ async function refreshAll() {
   // une note basse sans réponse même si le vendeur n'ouvre jamais cet onglet —
   // et c'est exactement pour ça qu'elle existe.
   chargerLesAvis().catch(() => {});
+  // Qui accepte les alertes, et ce que les clients gardent de côté. Chargé avec
+  // le reste : ces deux chiffres se lisent sur les fiches clients, qui sont déjà
+  // à l'écran.
+  state.audience = await api('/audience').catch(() => null);
+  renderClients();
 
   $('pendingDot').hidden = stats.pending === 0;
 }
@@ -629,6 +635,8 @@ function renderClients() {
       (state.clientsTotal > liste.length ? ` · les ${liste.length} plus récents` : '')
     : '';
 
+  renderAudience();
+
   const conteneur = $('clientsList');
   if (!liste.length) {
     conteneur.innerHTML = `<p class="a-empty">${
@@ -637,6 +645,66 @@ function renderClients() {
     return;
   }
   conteneur.replaceChildren(...liste.map(carteClient));
+}
+
+/**
+ * Qui on peut encore prévenir, et ce que les clients gardent de côté.
+ *
+ * Deux chiffres que rien d'autre ne donne. Le second surtout : un article très
+ * mis en favori et peu vendu est un problème de prix ou de stock, pas de goût.
+ */
+function renderAudience() {
+  const zone = $('audience');
+  if (!zone) return;
+  const a = state.audience;
+  if (!a) return void (zone.hidden = true);
+
+  const canaux = a.canaux
+    .map((c) => {
+      const combien = a.parCanal?.[c.clef] ?? 0;
+      const part = a.joignables ? Math.round((combien / a.joignables) * 100) : 0;
+      return (
+        '<div class="a-canal">' +
+        `<span class="a-canal__nom">${escapeHtml(c.label)}</span>` +
+        `<span class="a-canal__piste"><span style="width:${part}%"></span></span>` +
+        `<span class="a-canal__chiffre">${combien}<small> / ${a.joignables}</small></span>` +
+        '</div>'
+      );
+    })
+    .join('');
+
+  const favoris = a.favoris?.length
+    ? '<h3 class="a-client__h3">Le plus mis en favori</h3>' +
+      `<ul class="a-list">${a.favoris
+        .slice(0, 5)
+        .map((f) => `<li><span>${escapeHtml(f.nom)}</span><b>${f.nombre}</b></li>`)
+        .join('')}</ul>`
+    : '';
+
+  zone.innerHTML =
+    '<h3 class="a-client__h3">Qui accepte les alertes</h3>' +
+    `<p class="a-hint" style="margin-bottom:10px">${a.joignables} client${a.joignables > 1 ? 's' : ''} joignable${a.joignables > 1 ? 's' : ''} — ceux qui ont déjà commandé et n'ont pas écrit /stop.</p>` +
+    canaux +
+    favoris;
+  zone.hidden = false;
+}
+
+/** Ce qu'une personne accepte de recevoir, ligne par ligne. */
+function alertesDe(id) {
+  const a = state.audience;
+  if (!a?.canaux) return '';
+  const siennes = a.preferences?.[String(id)] ?? {};
+
+  return (
+    '<h3 class="a-client__h3">Ses alertes</h3><p>' +
+    a.canaux
+      .map((c) => {
+        const actif = siennes[c.clef] !== false;
+        return `<span class="a-etat ${actif ? 'a-etat--ok' : ''}">${actif ? '🔔' : '🔕'} ${escapeHtml(c.label)}</span>`;
+      })
+      .join(' ') +
+    '</p>'
+  );
 }
 
 /* ── Utilisateurs ────────────────────────────────────────── */
@@ -758,6 +826,7 @@ function detailUtilisateur(u) {
       ? `<p class="a-client__gris" style="margin-top:12px">Ce visiteur a déjà commandé — sa fiche complète est dans l'onglet Clients.</p>`
       : '') +
     `<h3 class="a-client__h3">Comment le joindre</h3><div class="a-client__joindre"></div>` +
+    alertesDe(u.id) +
     '<div class="a-client__actions"></div>' +
     '<div class="a-client__telegram" hidden></div>';
 
@@ -913,6 +982,7 @@ function detailClient(fiche) {
       .map(([label, valeur]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(valeur)}</dd></div>`)
       .join('')}</dl>` +
     `<h3 class="a-client__h3">Comment le joindre</h3><div class="a-client__joindre"></div>` +
+    alertesDe(fiche.id) +
     (habitudes.length ? `<h3 class="a-client__h3">Quand il commande</h3><p>Il commande ${habitudes.join(', ')}.</p>` : '') +
     (fiche.produits.length
       ? `<h3 class="a-client__h3">Ce qu'il prend</h3><p>${fiche.produits

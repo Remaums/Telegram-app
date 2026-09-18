@@ -29,13 +29,17 @@ import { getSettings, saveSettings, blockClient, unblockClient } from './setting
 import { listVerifications, decideVerification, resetVerification } from './verification.js';
 import {
   notifyCustomer, notifyBackInStock, sendFileToAdmin, diffuser, botUsername,
-  deposerMedia, retrouverVignette, ficheTelegram, ecrireAuClient, POIDS_MAX,
+  deposerMedia, retrouverVignette, ficheTelegram, ecrireAuClient, proposerAnnonce, POIDS_MAX,
 } from './bot.js';
 import { refusDeTelegram, texteValide } from './messagerie.js';
 import { estAdmin, listerAdmins } from './admins.js';
 import {
   tousLesAvis, resumeParProduit, changerStatut, repondreALAvis, supprimerAvis, oublierProduit,
 } from './avis.js';
+import { CANAUX, toutesLesPreferences, compterParCanal } from './preferences.js';
+import {
+  compterParProduit, oublierProduit as oublierFavoris, amateursDuProduit,
+} from './favoris.js';
 import { waitlistKey, takeSubscribers } from './waitlist.js';
 import { listeDesabonnes } from './annonces.js';
 import { listPromos, savePromo, deletePromo } from './promos.js';
@@ -262,6 +266,42 @@ adminRouter.get(
   route(async (req, res) => res.json(await listerAdmins()))
 );
 
+/**
+ * Qui accepte quoi, et ce qui est mis en favori.
+ *
+ * Deux chiffres que rien d'autre ne donne : combien de clients on peut encore
+ * prévenir sur chaque canal, et quels articles sont attendus sans être achetés.
+ * Un produit très mis en favori et peu vendu est un problème de prix ou de
+ * stock, pas de goût — et c'est la seule page qui le montre.
+ */
+adminRouter.get(
+  '/audience',
+  route(async (req, res) => {
+    const [clients, { products }, favoris] = await Promise.all([
+      destinataires({ minCommandes: 1 }),
+      getCatalog(),
+      compterParProduit(),
+    ]);
+
+    const nomDu = new Map(products.map((p) => [p.id, p.name]));
+    res.json({
+      canaux: CANAUX,
+      joignables: clients.length,
+      parCanal: await compterParCanal(clients),
+      preferences: await toutesLesPreferences(),
+      favoris: Object.entries(favoris)
+        .map(([id, nombre]) => ({ id, nom: nomDu.get(id) ?? id, nombre }))
+        .sort((a, b) => b.nombre - a.nombre),
+    });
+  })
+);
+
+/** Qui attend ce produit : de quoi décider d'un réassort. */
+adminRouter.get(
+  '/products/:id/favoris',
+  route(async (req, res) => res.json({ amateurs: await amateursDuProduit(req.params.id) }))
+);
+
 /* ── Avis ────────────────────────────────────────────────── */
 
 /**
@@ -387,8 +427,32 @@ adminRouter.get(
 
 adminRouter.post(
   '/products',
-  route(async (req, res) => res.status(201).json(await createProduct(req.body ?? {})))
+  route(async (req, res) => {
+    const produit = await createProduct(req.body ?? {});
+    res.status(201).json(produit);
+
+    // La proposition part après la réponse : l'écran d'admin ne doit pas
+    // attendre Telegram pour afficher le produit qu'il vient de créer. Et un
+    // brouillon masqué ne s'annonce pas — c'est justement un produit qu'on
+    // prépare.
+    if (!produit.hidden) {
+      proposerAnnonce('nouveautes', {
+        titre: `🆕 Nouveau produit : ${produit.name}`,
+        texte:
+          `🆕 ${produit.name}\n\n` +
+          (produit.short ? `${produit.short}\n\n` : '') +
+          `À partir de ${(prixMini(produit) / 100).toFixed(2)} €\n\n` +
+          'Dispo dans la boutique.',
+      }).catch(() => {});
+    }
+  })
 );
+
+/** Le prix d'entrée d'un produit : celui qu'on annonce. */
+function prixMini(produit) {
+  const variantes = produit.variants ?? [];
+  return variantes.length ? Math.min(...variantes.map((v) => v.price)) : produit.price ?? 0;
+}
 
 adminRouter.patch(
   '/products/:id',
@@ -400,8 +464,13 @@ adminRouter.delete(
   route(async (req, res) => {
     await deleteProduct(req.params.id);
     // Les avis d'un produit supprimé ne mènent plus nulle part : ils pèseraient
-    // encore sur la moyenne d'un article que plus personne ne peut acheter.
-    await oublierProduit(req.params.id).catch(() => {});
+    // encore sur la moyenne d'un article que plus personne ne peut acheter. Et
+    // un favori vers un produit effacé est une carte vide dans le profil de
+    // quelqu'un, qu'il ne saurait ni ouvrir ni retirer.
+    await Promise.all([
+      oublierProduit(req.params.id).catch(() => {}),
+      oublierFavoris(req.params.id).catch(() => {}),
+    ]);
     res.status(204).end();
   })
 );
@@ -751,12 +820,40 @@ adminRouter.get(
 adminRouter.put(
   '/promos',
   route(async (req, res) => {
+    const avant = (await listPromos()).map((p) => p.code);
     await savePromo(req.body ?? {});
     // On renvoie la liste entière : l'écran admin se réaffiche d'un bloc,
     // sans avoir à deviner où insérer la ligne créée ou modifiée.
-    res.json(await listPromos());
+    const apres = await listPromos();
+    res.json(apres);
+
+    // Seulement à la création : modifier la date de fin d'un code existant
+    // n'est pas une nouvelle à annoncer, et le ferait annoncer deux fois.
+    const code = String(req.body?.code ?? '').trim().toUpperCase();
+    const neuf = apres.find((p) => p.code === code);
+    if (neuf && neuf.active && !avant.includes(code)) {
+      proposerAnnonce('promos', {
+        titre: `🎁 Nouveau code promo : ${code}`,
+        texte:
+          `🎁 Code ${code}\n\n${remiseEnClair(neuf)}\n\n` +
+          (neuf.expiresAt ? `Jusqu'au ${new Date(neuf.expiresAt).toLocaleDateString('fr-FR')}.\n\n` : '') +
+          'À saisir dans le panier.',
+      }).catch(() => {});
+    }
   })
 );
+
+/** « −10 % » ou « −5 € », selon la forme de la remise. */
+function remiseEnClair(promo) {
+  const remise = promo.type === 'amount'
+    ? `−${(promo.value / 100).toFixed(2)} €`
+    : `−${promo.value} %`;
+  // Le minimum de panier fait partie de l'offre : l'annoncer sans lui prépare
+  // une déception au moment de valider.
+  return promo.minSubtotal
+    ? `${remise} dès ${(promo.minSubtotal / 100).toFixed(2)} € d'achat`
+    : `${remise} sur ta commande`;
+}
 
 adminRouter.delete(
   '/promos/:code',

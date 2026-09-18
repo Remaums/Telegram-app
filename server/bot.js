@@ -6,7 +6,10 @@ import { matchProduct } from './photos.js';
 import { adresseEnClair, liensItineraire } from './delivery.js';
 import { getSettings, saveSettings, isBlocked } from './settings.js';
 import { requestVerification, decideVerification } from './verification.js';
-import { desabonner, reabonner, estDesabonne, consignerResultat } from './annonces.js';
+import {
+  desabonner, reabonner, estDesabonne, consignerResultat, destinataires, reserverEnvoi,
+} from './annonces.js';
+import { destinatairesDuCanal } from './preferences.js';
 import { estPasse, ouvrirLaPorte, demanderLEpreuve, repondre } from './bot-captcha.js';
 import {
   messageRelaye,
@@ -792,6 +795,133 @@ function nommer(qui) {
   if (qui.nom) return `${qui.nom} (${qui.id})`;
   return `#${qui.id}`;
 }
+
+/* ── Prévenir les abonnés ────────────────────────────────── */
+
+/**
+ * Propose au vendeur d'annoncer, plutôt que d'annoncer à sa place.
+ *
+ * Envoyer automatiquement à la création aurait été plus court à écrire et
+ * désastreux à l'usage : on crée un produit sans photo pour le remplir après,
+ * on en saisit cinq à la suite un dimanche soir, on se trompe de prix et on
+ * corrige dans la minute. Chacun de ces gestes aurait envoyé un message à toute
+ * la clientèle, sans rattrapage possible.
+ *
+ * Le vendeur reçoit donc le message tel qu'il partira, avec le nombre exact de
+ * destinataires, et un bouton. Un geste, une annonce — et le silence si on ne
+ * touche rien, ce qui est le bon défaut.
+ */
+export async function proposerAnnonce(canal, { titre, texte }) {
+  if (!config.adminChatId) return;
+
+  const settings = await getSettings();
+  if (!settings.features.announcements) return;
+
+  const cibles = await destinatairesDuCanal(await destinataires({ minCommandes: 1 }), canal);
+  if (!cibles.length) {
+    // Personne à prévenir : le dire une fois vaut mieux qu'un bouton qui
+    // n'enverra rien et laissera croire à une panne.
+    await bot.api
+      .sendMessage(config.adminChatId, `${titre}\n\nAucun client abonné à ce canal pour l'instant.`)
+      .catch(() => {});
+    return;
+  }
+
+  // Le texte voyage dans le message, pas dans une mémoire du serveur : un
+  // redémarrage entre la proposition et l'appui ne doit pas perdre l'annonce.
+  const brouillon = enAttente.deposer(canal, texte);
+
+  await bot.api
+    .sendMessage(
+      config.adminChatId,
+      `${titre}\n\n— — —\n${texte}\n— — —\n\n` +
+        `Envoyer à ${cibles.length} client${cibles.length > 1 ? 's' : ''} abonné${cibles.length > 1 ? 's' : ''} ?`,
+      {
+        reply_markup: new InlineKeyboard()
+          .text(`📣 Envoyer aux ${cibles.length}`, `ann:${brouillon}`)
+          .row()
+          .text('Pas maintenant', 'ann:non'),
+      }
+    )
+    .catch((err) => console.error('Proposition d\'annonce impossible :', err.message));
+}
+
+/**
+ * Les brouillons en attente d'un appui.
+ *
+ * En mémoire, volontairement : une annonce qu'on n'a pas envoyée dans l'heure
+ * n'est plus une annonce, c'est une vieille nouvelle. Le redémarrage les efface,
+ * et c'est le bon comportement — mieux vaut ne rien envoyer qu'envoyer lundi
+ * une nouveauté de vendredi.
+ */
+const enAttente = (() => {
+  const brouillons = new Map();
+  let suite = 0;
+
+  const nettoyer = () => {
+    const limite = Date.now() - 60 * 60 * 1000;
+    for (const [clef, b] of brouillons) if (b.quand < limite) brouillons.delete(clef);
+  };
+
+  return {
+    deposer(canal, texte) {
+      nettoyer();
+      const clef = String(++suite);
+      brouillons.set(clef, { canal, texte, quand: Date.now() });
+      return clef;
+    },
+    prendre(clef) {
+      nettoyer();
+      const b = brouillons.get(clef);
+      // Retiré à la prise : deux appuis sur le même bouton, c'est deux fois le
+      // même message chez trois cents personnes.
+      if (b) brouillons.delete(clef);
+      return b ?? null;
+    },
+  };
+})();
+
+bot.callbackQuery(/^ann:(\d+)$/, async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) {
+    return ctx.answerCallbackQuery({ text: "Réservé à l'administrateur.", show_alert: true });
+  }
+
+  const brouillon = enAttente.prendre(ctx.match[1]);
+  if (!brouillon) {
+    await ctx.answerCallbackQuery({ text: 'Cette annonce a expiré.', show_alert: true });
+    return void (await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {}));
+  }
+
+  try {
+    const cibles = await destinatairesDuCanal(await destinataires({ minCommandes: 1 }), brouillon.canal);
+    if (!cibles.length) {
+      return ctx.answerCallbackQuery({ text: 'Plus personne à prévenir.', show_alert: true });
+    }
+
+    const envoi = await reserverEnvoi({ texte: brouillon.texte, cibles: cibles.length, force: true });
+    await ctx.answerCallbackQuery({ text: `📣 Envoi à ${cibles.length} client(s)…` });
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
+
+    // On rend la main tout de suite : trois cents messages prennent une minute,
+    // et personne ne doit rester devant un bouton grisé pendant ce temps.
+    diffuser(envoi, cibles)
+      .then(({ recus, echecs }) =>
+        bot.api.sendMessage(
+          config.adminChatId,
+          `📣 Annonce partie : ${recus} reçu${recus > 1 ? 's' : ''}` +
+            (echecs ? `, ${echecs} échec${echecs > 1 ? 's' : ''}` : '') + '.'
+        )
+      )
+      .catch((err) => console.error('Diffusion impossible :', err.message));
+  } catch (err) {
+    await ctx.answerCallbackQuery({ text: err.message?.slice(0, 180) ?? 'Raté.', show_alert: true });
+  }
+});
+
+bot.callbackQuery('ann:non', async (ctx) => {
+  await ctx.answerCallbackQuery({ text: 'Rien envoyé.' });
+  await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
+});
 
 // Réception de sendData. La Mini App ne s'en sert pas : elle enregistre la
 // commande par l'API, et quand le serveur est injoignable elle emmène le client

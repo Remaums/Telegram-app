@@ -34,6 +34,9 @@ const state = {
   avisADonner: [],    // ses commandes reçues dont il n'a encore rien dit
   avisEnCours: null,  // la commande qu'il est en train de noter
   prenom: '',         // son prénom Telegram, pour lui montrer ce qu'il signerait
+  favoris: new Set(), // les produits qu'il garde de côté
+  preferences: {},    // ce qu'il accepte de recevoir
+  profilVue: 'commandes',  // l'onglet ouvert dans le profil
   avisTousVisibles: false,  // « voir tous les avis » d'une fiche
   blocked: false,     // compte privé de commande par le vendeur
   mode: 'pickup',
@@ -125,6 +128,7 @@ async function init() {
   loadSlots();
   chargerLaDerniereCommande();
   chargerLesAvisADonner();
+  chargerLesFavoris();
   runGates();
 }
 
@@ -216,7 +220,21 @@ function bindStaticHandlers() {
   $('ageNo').addEventListener('click', () => (tg ? tg.close() : window.history.back()));
 
   $('cartBtn').addEventListener('click', () => openSheet('cartSheet'));
-  $('ordersBtn').addEventListener('click', openOrders);
+  $('profilBtn').addEventListener('click', ouvrirProfil);
+  $('pCoeur').addEventListener('click', async () => {
+    if (!state.current) return;
+    await basculerFavori(state.current.id);
+    peindreLeCoeur($('pCoeur'), state.current.id);
+    // La grille derrière la feuille porte le même cœur : sans ça, il reste
+    // allumé après qu'on l'a éteint ici.
+    renderGrid();
+  });
+  for (const onglet of $('profilOnglets').querySelectorAll('.profil__onglet')) {
+    onglet.addEventListener('click', () => {
+      montrerLaVue(onglet.dataset.vue);
+      haptic('light');
+    });
+  }
   $('captchaSubmit').addEventListener('click', submitCaptcha);
   // Fermer la Mini App ramène le client dans la conversation du bot, là où il
   // envoie sa pièce : pas besoin de connaître le nom du bot.
@@ -326,7 +344,12 @@ function renderModes() {
 
 /** Retire de l'interface ce que la boutique n'offre pas en ce moment. */
 function applyFeatures() {
-  $('ordersBtn').hidden = state.features.orderHistory === false;
+  // Le profil reste accessible même sans historique : il porte aussi les
+  // favoris et les alertes, et chaque section dit elle-même si elle est éteinte.
+  $('profilBtn').hidden =
+    state.features.orderHistory === false &&
+    state.features.favoris === false &&
+    state.features.announcements === false;
   $('promoField').hidden = state.features.promos === false;
   $('findBar').hidden = state.features.search === false;
 }
@@ -1174,6 +1197,24 @@ function productCard(product) {
       </span>
     </div>`;
 
+  // Le cœur est posé sur l'illustration, pas dans le corps : il doit rester
+  // atteignable au pouce sans ouvrir la fiche, et ne pas pousser le prix.
+  if (state.features.favoris !== false && tg?.initData) {
+    const coeur = document.createElement('button');
+    coeur.type = 'button';
+    coeur.className = 'card__coeur';
+    coeur.textContent = '♥';
+    peindreLeCoeur(coeur, product.id);
+    coeur.addEventListener('click', async (ev) => {
+      // Sans ça, mettre en favori ouvrirait la fiche par-dessus : la carte
+      // entière est un bouton.
+      ev.stopPropagation();
+      await basculerFavori(product.id);
+      peindreLeCoeur(coeur, product.id);
+    });
+    card.querySelector('.card__art').append(coeur);
+  }
+
   const lecteur = card.querySelector('.card__video');
   if (lecteur) {
     // L'attribut seul ne suffit pas partout : sans cette ligne, un navigateur
@@ -1206,6 +1247,10 @@ function openProduct(product) {
       return span;
     })
   );
+
+  const coeur = $('pCoeur');
+  coeur.hidden = state.features.favoris === false || !tg?.initData;
+  if (!coeur.hidden) peindreLeCoeur(coeur, product.id);
 
   renderVariants();
   setQty(1);
@@ -2176,39 +2221,6 @@ function openSellerChat(message) {
  * L'historique vit côté serveur : c'est l'identifiant Telegram signé qui
  * décide de ce qu'on affiche, jamais le panier local.
  */
-async function openOrders() {
-  const list = $('ordersList');
-  const empty = $('ordersEmpty');
-  list.replaceChildren();
-  empty.hidden = false;
-  empty.textContent = 'Chargement…';
-  openSheet('ordersSheet');
-  haptic('light');
-
-  try {
-    const res = await fetch('/api/orders', {
-      headers: { 'X-Telegram-Init-Data': tg?.initData ?? '' },
-    });
-    if (res.status === 401) {
-      empty.textContent = 'Ouvre la boutique depuis Telegram pour retrouver tes commandes.';
-      return;
-    }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    const orders = await res.json();
-    if (!orders.length) {
-      empty.textContent = "Tu n'as pas encore passé de commande.";
-      return;
-    }
-
-    empty.hidden = true;
-    list.replaceChildren(...orders.map(orderCard));
-  } catch (err) {
-    console.error(err);
-    empty.textContent = 'Historique indisponible pour le moment.';
-  }
-}
-
 function orderCard(order) {
   const status = state.statuses[order.status] ?? { label: order.status, emoji: '•' };
   const date = new Date(order.createdAt).toLocaleDateString('fr-FR', {
@@ -2683,4 +2695,261 @@ function dateCourte(iso) {
   const quand = new Date(iso);
   if (!Number.isFinite(quand.getTime())) return '';
   return quand.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/* ── Profil ──────────────────────────────────────────────── */
+
+/**
+ * Ouvre le profil, et charge tout d'un coup.
+ *
+ * Commandes, favoris et alertes arrivent dans la même réponse : trois
+ * allers-retours pour ouvrir un écran, c'est trois occasions de l'afficher à
+ * moitié rempli sur un réseau de téléphone.
+ */
+async function ouvrirProfil() {
+  openSheet('profilSheet');
+  haptic('light');
+  montrerLaVue(state.profilVue);
+
+  $('profilQui').textContent = state.prenom ? `Salut ${state.prenom}` : '';
+  $('ordersEmpty').hidden = false;
+  $('ordersEmpty').textContent = 'Chargement…';
+
+  if (!tg?.initData) {
+    $('ordersEmpty').textContent = 'Ouvre la boutique depuis Telegram pour retrouver tes commandes.';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/profil', { headers: { 'X-Telegram-Init-Data': tg.initData } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const profil = await res.json();
+
+    state.favoris = new Set(profil.favoris.map((p) => p.id));
+    state.preferences = profil.preferences;
+
+    renderCommandes(profil.commandes);
+    renderFavoris(profil.favoris);
+    renderAlertes(profil);
+    renderPastilleProfil();
+    // La grille porte les mêmes cœurs : les repeindre ici évite qu'un favori
+    // retiré depuis le profil reste allumé derrière la feuille.
+    renderGrid();
+  } catch (err) {
+    console.error(err);
+    $('ordersEmpty').textContent = 'Profil indisponible pour le moment.';
+  }
+}
+
+/** Une vue à la fois : les trois d'un bloc feraient défiler trois écrans. */
+function montrerLaVue(vue) {
+  state.profilVue = vue;
+  for (const onglet of $('profilOnglets').querySelectorAll('.profil__onglet')) {
+    onglet.setAttribute('aria-selected', String(onglet.dataset.vue === vue));
+  }
+  for (const section of document.querySelectorAll('.profil__vue')) {
+    section.hidden = section.dataset.vue !== vue;
+  }
+}
+
+function renderCommandes(commandes) {
+  const liste = $('ordersList');
+  const vide = $('ordersEmpty');
+  liste.replaceChildren();
+
+  if (state.features.orderHistory === false) {
+    vide.hidden = false;
+    vide.textContent = "L'historique des commandes n'est pas activé sur cette boutique.";
+    return;
+  }
+  if (!commandes.length) {
+    vide.hidden = false;
+    vide.textContent = "Tu n'as pas encore passé de commande.";
+    return;
+  }
+  vide.hidden = true;
+  liste.replaceChildren(...commandes.map(orderCard));
+}
+
+/**
+ * Les favoris, en cartes qu'on peut rouvrir.
+ *
+ * Une carte mène à la fiche produit, pas au panier : un favori est une envie,
+ * pas une commande. Le raccourci « ajouter » ferait acheter un format et une
+ * quantité que personne n'a choisis.
+ */
+function renderFavoris(favoris) {
+  const liste = $('favorisList');
+  const vide = $('favorisEmpty');
+  const compte = $('favorisCompte');
+
+  compte.hidden = !favoris.length;
+  compte.textContent = String(favoris.length);
+
+  if (state.features.favoris === false) {
+    liste.replaceChildren();
+    vide.hidden = false;
+    vide.textContent = "Les favoris ne sont pas activés sur cette boutique.";
+    return;
+  }
+  if (!favoris.length) {
+    liste.replaceChildren();
+    vide.hidden = false;
+    vide.textContent = 'Touche le ♥ sur un produit pour le garder ici.';
+    return;
+  }
+
+  vide.hidden = true;
+  liste.replaceChildren(
+    ...favoris.map((produit) => {
+      const carte = document.createElement('article');
+      carte.className = 'favori';
+      const epuise = isSoldOut(produit);
+
+      carte.innerHTML =
+        `<img class="favori__image" src="${escapeHtml(produit.image)}" alt="" loading="lazy">` +
+        '<div class="favori__corps">' +
+        `<span class="favori__nom">${escapeHtml(produit.name)}</span>` +
+        `<span class="favori__prix goldtext">${produit.variants ? '<small>dès</small> ' : ''}${formatPrice(produit.price)}</span>` +
+        (epuise ? '<span class="favori__etat">Épuisé — active l\'alerte de retour</span>' : '') +
+        '</div>' +
+        '<button class="favori__coeur" type="button" aria-label="Retirer des favoris">♥</button>';
+
+      carte.querySelector('.favori__image').addEventListener('click', () => openProduct(produit));
+      carte.querySelector('.favori__corps').addEventListener('click', () => openProduct(produit));
+      carte.querySelector('.favori__coeur').addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        await basculerFavori(produit.id);
+        // On recharge la liste plutôt que de retirer la carte à la main : le
+        // compteur, le vide et la grille doivent bouger ensemble.
+        ouvrirProfil();
+      });
+      return carte;
+    })
+  );
+}
+
+/**
+ * Les interrupteurs d'alertes.
+ *
+ * Construits depuis ce que le serveur déclare, pas depuis une liste recopiée
+ * ici : ajouter un canal côté serveur doit suffire à le voir apparaître.
+ */
+function renderAlertes({ canaux, preferences, desabonne }) {
+  $('profilStop').hidden = !desabonne;
+
+  $('alertesList').replaceChildren(
+    ...canaux.map((canal) => {
+      const ligne = document.createElement('button');
+      ligne.type = 'button';
+      ligne.className = 'alerte';
+      ligne.setAttribute('role', 'switch');
+      ligne.setAttribute('aria-checked', String(preferences[canal.clef] !== false));
+      ligne.innerHTML =
+        '<span class="alerte__texte">' +
+        `<b>${escapeHtml(canal.label)}</b>` +
+        `<small>${escapeHtml(canal.hint)}</small>` +
+        '</span>' +
+        '<span class="alerte__bouton" aria-hidden="true"></span>';
+
+      ligne.addEventListener('click', () => basculerAlerte(canal.clef, ligne));
+      return ligne;
+    })
+  );
+}
+
+async function basculerAlerte(clef, ligne) {
+  const avant = ligne.getAttribute('aria-checked') === 'true';
+  // On bascule tout de suite : un interrupteur qui attend le réseau avant de
+  // bouger donne l'impression de ne pas avoir été touché, et on appuie deux fois.
+  ligne.setAttribute('aria-checked', String(!avant));
+  haptic('light');
+
+  try {
+    const res = await fetch('/api/profil/preferences', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': tg?.initData ?? '' },
+      body: JSON.stringify({ [clef]: !avant }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    state.preferences = await res.json();
+    ligne.setAttribute('aria-checked', String(state.preferences[clef] !== false));
+  } catch {
+    // Le serveur n'a pas suivi : on remet l'interrupteur où il était, sinon
+    // l'écran promet un réglage qui n'existe pas.
+    ligne.setAttribute('aria-checked', String(avant));
+    toast('Réglage non enregistré, réessaie.');
+    haptic('error');
+  }
+}
+
+/* ── Favoris ─────────────────────────────────────────────── */
+
+/** Charge les identifiants seuls : de quoi peindre les cœurs de la grille. */
+async function chargerLesFavoris() {
+  state.favoris = new Set();
+  if (!tg?.initData || state.features.favoris === false) return;
+  try {
+    const res = await fetch('/api/favoris', { headers: { 'X-Telegram-Init-Data': tg.initData } });
+    if (!res.ok) return;
+    const data = await res.json();
+    state.favoris = new Set(data.favoris);
+    renderPastilleProfil();
+    renderGrid();
+  } catch {
+    /* pas de favoris : la boutique marche très bien sans */
+  }
+}
+
+const estFavori = (id) => state.favoris?.has(id) ?? false;
+
+/**
+ * Met ou retire un favori, et rend le nouvel état.
+ *
+ * L'écran est peint avant la réponse du serveur — un cœur qui attend le réseau
+ * paraît cassé — mais il est remis en place si le serveur refuse.
+ */
+async function basculerFavori(productId) {
+  const avant = estFavori(productId);
+  if (avant) state.favoris.delete(productId);
+  else state.favoris.add(productId);
+  renderPastilleProfil();
+  haptic('light');
+
+  try {
+    const res = await fetch('/api/favoris', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': tg?.initData ?? '' },
+      body: JSON.stringify({ id: productId }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
+
+    const { favori } = await res.json();
+    if (favori) state.favoris.add(productId);
+    else state.favoris.delete(productId);
+  } catch (err) {
+    if (avant) state.favoris.add(productId);
+    else state.favoris.delete(productId);
+    toast(err.message);
+    haptic('error');
+  }
+
+  renderPastilleProfil();
+  return estFavori(productId);
+}
+
+/** Le compteur sur l'icône du profil : il dit qu'il y a quelque chose à y voir. */
+function renderPastilleProfil() {
+  const pastille = $('profilPastille');
+  const combien = state.favoris?.size ?? 0;
+  pastille.hidden = combien === 0;
+  pastille.textContent = String(combien);
+}
+
+/** Le cœur d'une fiche produit, avec son état. */
+function peindreLeCoeur(bouton, id) {
+  const actif = estFavori(id);
+  bouton.classList.toggle('est-favori', actif);
+  bouton.setAttribute('aria-pressed', String(actif));
+  bouton.setAttribute('aria-label', actif ? 'Retirer des favoris' : 'Mettre en favori');
 }

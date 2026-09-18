@@ -753,3 +753,22 @@ body.admin {
 /* La corbeille n'a pas à occuper un tiers de la rangée : c'est le geste
    qu'on fait le moins, et celui qu'on ne veut pas faire par erreur. */
 .a-avis__actions .a-btn--danger { flex: 0 0 auto; }
+
+/* ── Audience ─────────────────────────────────────────────
+   Qui on peut encore prévenir, et sur quel canal. La barre dit
+   d'un coup d'œil si un canal s'est vidé — ce qu'un pourcentage
+   seul ne montre pas. */
+.a-audience {
+  padding: 14px; margin-bottom: 14px; border-radius: 16px;
+  background: var(--panel); border: 1px solid var(--line-soft);
+}
+.a-audience .a-client__h3:first-child { margin-top: 0; }
+.a-canal { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.a-canal__nom { flex: 0 0 8.5rem; font-size: 13px; font-weight: 800; }
+.a-canal__piste {
+  flex: 1; height: 7px; border-radius: 999px; overflow: hidden;
+  background: rgb(var(--cream-rgb) / .08);
+}
+.a-canal__piste span { display: block; height: 100%; background: rgb(var(--neon-rgb) / .65); }
+.a-canal__chiffre { flex: none; font-size: 13px; font-weight: 800; }
+.a-canal__chiffre small { color: var(--muted); font-weight: 700; }

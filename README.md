@@ -828,6 +828,85 @@ le bot », « ce compte a été supprimé », « il doit d'abord envoyer /start 
 > livraison — vient de ce que le client a écrit lui-même, et c'est la seule qui
 > soit exacte : une adresse IP désigne le fournisseur d'accès, pas le domicile.
 
+### Le profil du client
+
+Un bouton 👤 en haut de la boutique ouvre **Mon profil**, en trois onglets.
+
+**Commandes** — l'historique, qui vivait avant derrière son propre bouton. Même
+contenu, même cartes, mais rangé là où on va chercher ce qui nous appartient.
+
+**Favoris** — un ♥ sur chaque carte du catalogue et sur chaque fiche produit.
+Le cœur est posé sur l'image : il reste atteignable au pouce sans ouvrir la
+fiche, et un appui dessus n'ouvre pas la fiche par-dessus. Une carte de favori
+ramène au produit, jamais au panier : un favori est une envie, pas une commande,
+et un raccourci « ajouter » ferait acheter un format que personne n'a choisi.
+Un compteur sur l'icône 👤 dit qu'il y a quelque chose à y voir. Plafonné à
+**100** par personne.
+
+**Alertes** — deux interrupteurs, et le client décide :
+
+| Canal | Ce qu'il déclenche |
+|---|---|
+| **Nouveaux produits** | un message quand un article arrive au catalogue |
+| **Promos et codes** | un message quand une remise ou un code démarre |
+
+Séparés, parce qu'ils ne se valent pas : être prévenu d'une nouveauté est une
+invitation, être prévenu d'une promo est une affaire. Les mêmes personnes ne
+veulent pas les deux, et les mélanger fait perdre les deux — celui que les
+nouveautés lassent coupe tout, promos comprises.
+
+Ouverts par défaut, et couper est immédiat. Le `/stop` du bot reste **au-dessus
+de tout** : qui a dit stop ne reçoit plus rien, quel que soit l'état des deux
+interrupteurs — une seule règle à retenir plutôt que deux qui se contrediraient.
+Le profil le signale, sinon le client bascule ses interrupteurs sans comprendre
+pourquoi rien n'arrive.
+
+#### Le vendeur propose, il n'envoie pas tout seul
+
+Quand tu crées un produit visible ou un code promo actif, **le bot t'écrit** avec
+l'annonce telle qu'elle partira, le nombre exact de destinataires, et un bouton.
+
+```
+🆕 Nouveau produit : Néon Kush
+— — —
+🆕 Néon Kush
+Fleur indoor, sélection maison
+À partir de 12,00 €
+Dispo dans la boutique.
+— — —
+Envoyer à 812 clients abonnés ?
+
+   [ 📣 Envoyer aux 812 ]
+   [ Pas maintenant ]
+```
+
+Envoyer automatiquement aurait été plus court à écrire et désastreux à l'usage :
+on crée un produit sans photo pour le remplir après, on en saisit cinq à la
+suite un dimanche soir, on se trompe de prix et on corrige dans la minute.
+Chacun de ces gestes aurait envoyé un message à toute la clientèle, sans
+rattrapage. Un brouillon masqué ne s'annonce pas, un code inactif non plus, et
+modifier un code existant n'annonce rien — c'est une correction, pas une
+nouvelle.
+
+Les brouillons vivent une heure en mémoire : une annonce qu'on n'a pas envoyée
+dans l'heure n'est plus une annonce. Un redémarrage les efface, et c'est le bon
+comportement.
+
+#### Ce que tu vois, toi
+
+L'onglet **Clients** s'ouvre sur **qui accepte quoi** : combien de clients sont
+joignables, et la part qui accepte chaque canal, en barres — un canal qui se
+vide se voit d'un coup d'œil. Dessous, **le plus mis en favori** : un article
+très mis de côté et peu vendu est un problème de prix ou de stock, pas de goût,
+et c'est la seule page qui le montre.
+
+Chaque fiche client et chaque fiche utilisateur porte la ligne **Ses alertes** :
+🔔 ou 🔕 par canal.
+
+Les favoris se coupent dans **Réglages → Favoris**. Un produit supprimé
+disparaît des favoris de tout le monde : sans ça, il resterait une carte vide
+dans le profil de quelqu'un, qu'il ne saurait ni ouvrir ni retirer.
+
 ### Les avis
 
 Un avis ne se donne pas sur un produit qu'on a vu, mais sur **un produit qu'on a

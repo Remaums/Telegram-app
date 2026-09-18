@@ -34,6 +34,9 @@ import {
 } from './avis.js';
 import { storageKind, claimDataDir } from './store.js';
 import { listerAdmins } from './admins.js';
+import { CANAUX, preferencesDe, enregistrerPreferences } from './preferences.js';
+import { favorisDe, basculerFavori, MAX as FAVORIS_MAX } from './favoris.js';
+import { estDesabonne } from './annonces.js';
 
 /** Vrai quand ce fichier est lancé directement (`npm start`), faux quand il
  *  est simplement importé — par la fonction serverless de `api/index.js`. */
@@ -618,6 +621,85 @@ app.post('/api/avis', authenticate, async (req, res, next) => {
 
     notifyNouvelAvis(order, neufs).catch(() => {});
     res.status(201).json({ deposes: neufs.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ── Profil ──────────────────────────────────────────────── */
+
+/**
+ * Tout ce que l'onglet Profil affiche, en un seul appel.
+ *
+ * Commandes, favoris et préférences arrivent ensemble : trois allers-retours
+ * pour ouvrir un écran, c'est trois occasions de l'afficher à moitié rempli sur
+ * un réseau de téléphone. Les favoris sont rendus avec le produit complet —
+ * l'écran a besoin du nom, du prix et de la photo, pas d'un identifiant.
+ */
+app.get('/api/profil', authenticate, async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    const [commandes, favoris, preferences, { products }] = await Promise.all([
+      settings.features.orderHistory ? listOrders({ userId: req.telegramUser.id, limit: 20 }) : [],
+      settings.features.favoris ? favorisDe(req.telegramUser.id) : [],
+      preferencesDe(req.telegramUser.id),
+      getCatalog(),
+    ]);
+
+    const parId = new Map(products.map((p) => [p.id, p]));
+    res.json({
+      commandes,
+      // Un favori dont le produit a disparu du catalogue n'est pas une erreur :
+      // c'est un article retiré ou masqué. On le laisse tomber ici plutôt que
+      // d'afficher une carte vide que personne ne saurait quoi faire.
+      favoris: favoris.map((id) => parId.get(id)).filter(Boolean),
+      preferences,
+      canaux: CANAUX,
+      // Le client doit savoir qu'il s'est coupé lui-même du bot : sinon il
+      // bascule ses deux interrupteurs sans comprendre pourquoi rien n'arrive.
+      desabonne: await estDesabonne(req.telegramUser.id),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Ce que le client accepte de recevoir. Les canaux inconnus sont ignorés. */
+app.put('/api/profil/preferences', authenticate, async (req, res, next) => {
+  try {
+    res.json(await enregistrerPreferences(req.telegramUser.id, req.body ?? {}));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Met ou retire un produit des favoris.
+ *
+ * Une seule route pour les deux sens : le cœur d'une fiche bascule, il ne
+ * connaît pas son état avant d'être touché.
+ */
+app.post('/api/favoris', authenticate, async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.features.favoris) throw new HttpError(403, 'Les favoris sont désactivés.');
+    refuserSiBloque(settings, req.telegramUser.id, 'utiliser les favoris');
+
+    const produit = await getProduct(req.body?.id, { includeHidden: false });
+    if (!produit) throw new HttpError(400, 'Produit indisponible.');
+
+    res.json(await basculerFavori(req.telegramUser.id, produit.id));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Les identifiants seuls : de quoi peindre les cœurs de la grille. */
+app.get('/api/favoris', authenticate, async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.features.favoris) return res.json({ favoris: [], max: FAVORIS_MAX });
+    res.json({ favoris: await favorisDe(req.telegramUser.id), max: FAVORIS_MAX });
   } catch (err) {
     next(err);
   }

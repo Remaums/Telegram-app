@@ -1130,3 +1130,112 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: rgb(var(--neon-rgb) / .12); border-color: rgb(var(--neon-rgb) / .55);
 }
 .signature__choix[aria-pressed="true"] b { color: var(--neon); }
+
+/* ── Favoris ──────────────────────────────────────────────────
+   Le cœur porte le rouge, seul endroit de la boutique où il ne
+   veut pas dire « erreur » : il est posé sur l'image, jamais
+   dans le corps de la carte, pour rester atteignable au pouce
+   sans pousser le prix. */
+.card__coeur, .pdetail__coeur {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  width: 34px; height: 34px; padding: 0; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+  font-size: 17px; line-height: 1;
+  color: rgb(var(--cream-rgb) / .55);
+  background: rgb(var(--ink-rgb) / .55); border: 1px solid rgb(var(--cream-rgb) / .18);
+  backdrop-filter: blur(6px);
+}
+.card__coeur.est-favori, .pdetail__coeur.est-favori {
+  color: var(--red); border-color: rgb(var(--red-rgb) / .55);
+  background: rgb(var(--red-rgb) / .16);
+}
+.card__coeur:active, .pdetail__coeur:active { transform: scale(.86); }
+.pdetail__coeur { position: absolute; top: -46px; right: 0; width: 38px; height: 38px; font-size: 19px; }
+.pdetail__body { position: relative; }
+
+/* ── Profil ───────────────────────────────────────────────── */
+.profil__qui { margin: -6px 0 14px; font-size: 13.5px; font-weight: 700; color: var(--muted); }
+.profil__onglets {
+  display: flex; gap: 6px; margin-bottom: 16px;
+  padding: 4px; border-radius: 14px;
+  background: rgb(var(--cream-rgb) / .05); border: 1px solid var(--line-soft);
+}
+.profil__onglet {
+  flex: 1; padding: 9px 6px; border: 0; border-radius: 11px; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 800;
+  color: var(--muted); background: transparent;
+}
+.profil__onglet[aria-selected="true"] {
+  color: var(--ink); background: linear-gradient(180deg, var(--neon-hi), var(--neon));
+}
+.profil__compte {
+  display: inline-block; margin-left: 5px; padding: 0 6px; border-radius: 999px;
+  font-size: 11px; background: rgb(var(--ink-rgb) / .22);
+}
+.profil__onglet[aria-selected="false"] .profil__compte { background: rgb(var(--cream-rgb) / .12); }
+.profil__intro { margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.profil__stop {
+  margin: 14px 0 0; padding: 11px 13px; border-radius: 13px;
+  font-size: 12.5px; line-height: 1.5;
+  background: rgb(var(--red-rgb) / .1); border: 1px solid rgb(var(--red-rgb) / .4);
+}
+
+.favoris { display: flex; flex-direction: column; gap: 10px; }
+.favori {
+  position: relative; display: flex; align-items: center; gap: 12px;
+  padding: 10px; border-radius: 16px; cursor: pointer;
+  background: rgb(var(--panel-rgb) / .5); border: 1px solid var(--line-soft);
+}
+.favori__image { width: 58px; height: 58px; border-radius: 12px; object-fit: cover; flex: none; }
+.favori__corps { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.favori__nom { font-size: 14.5px; font-weight: 800; overflow-wrap: anywhere; }
+.favori__prix { font-size: 14px; font-weight: 800; }
+.favori__prix small { font-size: 11px; font-weight: 700; color: var(--muted); }
+.favori__etat { font-size: 11.5px; font-weight: 700; color: var(--red); }
+.favori__coeur {
+  flex: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+  display: grid; place-items: center; font-size: 17px;
+  color: var(--red); background: rgb(var(--red-rgb) / .14);
+  border: 1px solid rgb(var(--red-rgb) / .45);
+}
+.favori__coeur:active { transform: scale(.86); }
+
+/* Les alertes : une ligne entière qui bascule, pas une case à cocher de 12 px
+   qu'on rate une fois sur deux au pouce. */
+.alertes { display: flex; flex-direction: column; gap: 10px; }
+.alerte {
+  display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
+  padding: 13px 14px; border-radius: 15px; cursor: pointer; font: inherit;
+  color: var(--cream);
+  background: rgb(var(--panel-rgb) / .5); border: 1px solid var(--line-soft);
+}
+.alerte__texte { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.alerte__texte b { font-size: 14.5px; font-weight: 800; }
+.alerte__texte small { font-size: 12px; font-weight: 600; line-height: 1.4; color: var(--muted); }
+.alerte__bouton {
+  flex: none; position: relative; width: 46px; height: 27px; border-radius: 999px;
+  background: rgb(var(--cream-rgb) / .14); border: 1px solid var(--line-soft);
+  transition: background .16s ease;
+}
+.alerte__bouton::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 21px; height: 21px; border-radius: 50%;
+  background: rgb(var(--cream-rgb) / .8);
+  transition: transform .16s ease, background .16s ease;
+}
+.alerte[aria-checked="true"] { border-color: rgb(var(--neon-rgb) / .5); }
+.alerte[aria-checked="true"] .alerte__bouton { background: rgb(var(--neon-rgb) / .55); }
+.alerte[aria-checked="true"] .alerte__bouton::after { transform: translateX(19px); background: var(--ink); }
+@media (prefers-reduced-motion: reduce) {
+  .alerte__bouton, .alerte__bouton::after { transition: none; }
+}
+
+/* La pastille du profil : elle dit qu'il y a quelque chose à y voir. */
+.iconbtn { position: relative; }
+.iconbtn__pastille {
+  position: absolute; top: -3px; right: -3px; min-width: 17px; height: 17px;
+  padding: 0 4px; border-radius: 999px;
+  display: grid; place-items: center;
+  font-size: 10.5px; font-weight: 800; line-height: 1;
+  color: var(--ink); background: var(--neon);
+}

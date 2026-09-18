@@ -71,8 +71,9 @@
     <span class="topbar__name goldtext" id="shopName">Napoli Coffee</span>
   </div>
   <div class="topbar__actions">
-  <button class="iconbtn" id="ordersBtn" type="button" aria-label="Mes commandes">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-2 2-2-2-2 2-2-2-3 2V4a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 8h6M9 12h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  <button class="iconbtn" id="profilBtn" type="button" aria-label="Mon profil">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="iconbtn__pastille" id="profilPastille" hidden></span>
   </button>
   <button class="cartbtn" id="cartBtn" type="button" aria-label="Ouvrir le panier">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h3l2.6 11.2a2 2 0 0 0 2 1.6h7.1a2 2 0 0 0 2-1.5L21.5 8H7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/></svg>
@@ -184,6 +185,7 @@
       </div>
       <div class="pdetail__body">
         <div class="pdetail__tags" id="pTags"></div>
+        <button class="pdetail__coeur" id="pCoeur" type="button" aria-pressed="false" hidden>♥</button>
         <h2 class="pdetail__name goldtext" id="pName"></h2>
         <!-- La note, juste sous le nom : c'est là qu'on la cherche. -->
         <button class="note note--lien" id="pNote" type="button" hidden></button>
@@ -352,15 +354,52 @@
   </div>
 </div>
 
-<!-- ══ Mes commandes ══ -->
-<div class="sheet" id="ordersSheet" hidden>
+<!-- ══ Profil ══ ═══════════════════════════════════════════════
+     Trois sections sous un seul toit : ce qu'il a commandé, ce
+     qu'il garde de côté, et ce qu'il accepte de recevoir. Un
+     onglet par section, parce que dérouler les trois d'un bloc
+     ferait défiler trois écrans pour atteindre un interrupteur. -->
+<div class="sheet" id="profilSheet" hidden>
   <div class="sheet__backdrop" data-close></div>
-  <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="ordersTitle">
+  <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="profilTitre">
     <button class="sheet__close" type="button" data-close aria-label="Fermer">✕</button>
     <div class="sheet__scroll">
-      <h2 class="cart__title goldtext" id="ordersTitle">Mes commandes</h2>
-      <div class="orders" id="ordersList"></div>
-      <p class="orders__empty" id="ordersEmpty" hidden></p>
+      <h2 class="cart__title goldtext" id="profilTitre">Mon profil</h2>
+      <p class="profil__qui" id="profilQui"></p>
+
+      <div class="profil__onglets" id="profilOnglets" role="tablist">
+        <button class="profil__onglet" type="button" role="tab" data-vue="commandes" aria-selected="true">
+          Commandes
+        </button>
+        <button class="profil__onglet" type="button" role="tab" data-vue="favoris" aria-selected="false">
+          Favoris<span class="profil__compte" id="favorisCompte" hidden></span>
+        </button>
+        <button class="profil__onglet" type="button" role="tab" data-vue="alertes" aria-selected="false">
+          Alertes
+        </button>
+      </div>
+
+      <section class="profil__vue" data-vue="commandes">
+        <div class="orders" id="ordersList"></div>
+        <p class="orders__empty" id="ordersEmpty" hidden></p>
+      </section>
+
+      <section class="profil__vue" data-vue="favoris" hidden>
+        <div class="favoris" id="favorisList"></div>
+        <p class="orders__empty" id="favorisEmpty" hidden></p>
+      </section>
+
+      <section class="profil__vue" data-vue="alertes" hidden>
+        <p class="profil__intro">
+          Ce que la boutique peut t'envoyer dans cette conversation.
+          Tu coupes et rallumes quand tu veux.
+        </p>
+        <div class="alertes" id="alertesList"></div>
+        <p class="profil__stop" id="profilStop" hidden>
+          ⚠️ Tu as envoyé <b>/stop</b> au bot : rien ne t'arrivera tant que tu
+          n'auras pas écrit <b>/annonces</b> pour rouvrir la porte.
+        </p>
+      </section>
     </div>
   </div>
 </div>
