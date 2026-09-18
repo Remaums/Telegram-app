@@ -37,6 +37,8 @@ import {
   tousLesAvis, resumeParProduit, changerStatut, repondreALAvis, supprimerAvis, oublierProduit,
 } from './avis.js';
 import { CANAUX, toutesLesPreferences, compterParCanal } from './preferences.js';
+import { clientsActifs, FENETRE_MS } from './presence.js';
+import { ficheDuRegistre } from './users.js';
 import {
   compterParProduit, oublierProduit as oublierFavoris, amateursDuProduit,
 } from './favoris.js';
@@ -300,6 +302,47 @@ adminRouter.get(
 adminRouter.get(
   '/products/:id/favoris',
   route(async (req, res) => res.json({ amateurs: await amateursDuProduit(req.params.id) }))
+);
+
+/**
+ * Qui est dans la boutique en ce moment.
+ *
+ * Ce n'est pas le « en ligne » de Telegram — un bot n'y a pas accès, et
+ * prétendre le contraire ferait chercher une panne le jour où un client
+ * « hors ligne » passe commande. C'est ce qui se passe chez nous : un message
+ * reçu, une boutique ouverte, un panier rempli dans les dernières minutes.
+ *
+ * Volontairement léger : cette route est appelée toutes les quinze secondes
+ * tant qu'un écran d'administration est ouvert. Elle ne touche donc aucun
+ * magasin sauf pour nommer les présents, et il n'y en a jamais beaucoup.
+ */
+adminRouter.get(
+  '/presence',
+  route(async (req, res) => {
+    // Les administrateurs ne se comptent pas eux-mêmes : « 1 actif » alors
+    // qu'on est seul dans sa boutique est une fausse joie, pas une information.
+    const patrons = (await listerAdmins()).map((a) => a.id);
+    const presents = clientsActifs(patrons);
+
+    const nommes = await Promise.all(
+      presents.map(async (p) => {
+        const fiche = await ficheDuRegistre(p.id).catch(() => null);
+        return {
+          ...p,
+          prenom: fiche?.prenom ?? null,
+          username: fiche?.username ?? null,
+        };
+      })
+    );
+
+    res.json({
+      actifs: nommes,
+      total: nommes.length,
+      // La fenêtre voyage avec la réponse : l'écran doit pouvoir dire
+      // « actif dans les 3 dernières minutes » sans recopier la constante.
+      fenetreSecondes: Math.round(FENETRE_MS / 1000),
+    });
+  })
 );
 
 /* ── Avis ────────────────────────────────────────────────── */

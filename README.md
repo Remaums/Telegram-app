@@ -527,6 +527,7 @@ dans ton bot.
 | `/admin` | Espace d'administration (réservé) |
 | `/ouvrir` `/fermer` | Ouvre ou ferme la boutique (réservé) |
 | `/verification on\|off` | Allume ou coupe la vérification d'identité (réservé) |
+| `/enligne` | Quels clients sont **actifs en ce moment** (réservé) |
 | `/annonce <texte>` | Écrit à **tous ceux qui ont déjà ouvert le bot** (réservé) |
 | `/admins` | Qui a les clés, et d'où elles viennent (réservé) |
 | `/addadmin <id\|@pseudo>` | Donne les clés à quelqu'un (réservé) |
@@ -535,6 +536,50 @@ dans ton bot.
 Tout autre message d'un client est **relayé au vendeur**, qui répond en
 répondant au message. Un message du vendeur lui-même reçoit la liste des
 commandes.
+
+### Qui est dans la boutique en ce moment
+
+Un bandeau en haut de l'espace admin, rafraîchi **toutes les quinze secondes** :
+
+```
+● 2 actifs                    signe de vie < 3 min
+  🛒 @ines_live   💬 @marc
+```
+
+🛒 = dans la boutique, 💬 = dans la conversation du bot. Les deux ne se valent
+pas : quelqu'un dans la boutique a le catalogue sous les yeux, quelqu'un dans la
+conversation attend une réponse. Les fiches des onglets **Clients** et
+**Utilisateurs** s'allument d'une pastille verte au même moment, sans se replier.
+La même chose depuis le bot : `/enligne`.
+
+> ⚠️ **Ce n'est pas le « en ligne » de Telegram, et c'est important.**
+> Telegram **ne donne pas** le statut en ligne aux bots — ni la dernière
+> connexion, ni le « est en train d'écrire ». Aucune méthode, aucun
+> contournement : seuls les vrais clients Telegram y ont droit, et encore, selon
+> la confidentialité de chacun.
+>
+> Ce qui s'affiche ici est **l'activité chez toi** : un message reçu par le bot,
+> une boutique ouverte, un panier rempli dans les **3 dernières minutes**. C'est
+> même l'information la plus utile des deux — tu ne veux pas savoir qui a
+> Telegram ouvert, tu veux savoir qui regarde ton catalogue maintenant. D'où le
+> mot « actif » partout, jamais « en ligne » : un vendeur qui croit lire un
+> statut Telegram finira par chercher une panne le jour où un client
+> « hors ligne » passe commande.
+
+**Toi, tu ne te comptes pas.** « 1 actif » quand on est seul dans sa boutique est
+une fausse joie, pas une information : les administrateurs sont retirés de la
+liste.
+
+La boutique ouverte envoie un **battement** toutes les minutes, pour que
+quelqu'un qui lit une fiche produit pendant cinq minutes ne disparaisse pas de la
+liste. Rien ne bat quand la page n'est pas visible : une boutique laissée dans un
+onglet de fond ne doit ni consommer de données, ni te faire croire qu'un client
+la regarde.
+
+Tout vit **en mémoire**, jamais sur le disque : une présence est éphémère par
+nature, rien n'est écrit à chaque requête, et un redémarrage remet tout le monde
+à zéro — ce qui est exactement juste, personne ne regarde une boutique qui vient
+de repartir.
 
 ### Écrire à tout le monde
 

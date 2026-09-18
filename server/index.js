@@ -34,6 +34,7 @@ import {
 } from './avis.js';
 import { storageKind, claimDataDir } from './store.js';
 import { listerAdmins } from './admins.js';
+import { noterPassage } from './presence.js';
 import { CANAUX, preferencesDe, enregistrerPreferences } from './preferences.js';
 import { favorisDe, basculerFavori, MAX as FAVORIS_MAX } from './favoris.js';
 import { estDesabonne } from './annonces.js';
@@ -210,6 +211,10 @@ function authenticate(req, res, next) {
     return res.status(401).json({ error: `Authentification refusée : ${result.reason}` });
   }
   req.telegramUser = result.user;
+  // Un appel signé, c'est quelqu'un qui a la boutique ouverte à cet instant.
+  // Noté ici plutôt que sur chaque route : il n'y a qu'une porte, et une route
+  // ajoutée demain sera comptée sans qu'on ait à y penser.
+  noterPassage(result.user.id, 'boutique');
   next();
 }
 
@@ -625,6 +630,16 @@ app.post('/api/avis', authenticate, async (req, res, next) => {
     next(err);
   }
 });
+
+/**
+ * Le battement de la boutique ouverte.
+ *
+ * Sans lui, quelqu'un qui lit une fiche produit pendant cinq minutes
+ * disparaîtrait de la liste des présents : la porte d'entrée ne compte que les
+ * appels, et lire n'en fait aucun. La réponse est volontairement vide — c'est
+ * le passage par `authenticate` qui fait tout le travail.
+ */
+app.post('/api/presence', authenticate, (req, res) => res.status(204).end());
 
 /* ── Profil ──────────────────────────────────────────────── */
 

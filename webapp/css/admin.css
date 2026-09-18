@@ -782,3 +782,44 @@ body.admin {
   border: 1px solid var(--line-soft);
 }
 .a-media__format:disabled { opacity: .5; }
+
+/* ── Présence ─────────────────────────────────────────────
+   « Actif », jamais « en ligne » : Telegram ne donne pas le
+   statut en ligne aux bots, et le bandeau ne doit pas laisser
+   croire le contraire. */
+.a-presence {
+  margin: 0 16px 12px; padding: 11px 13px; border-radius: 14px;
+  background: linear-gradient(180deg, rgb(var(--neon-rgb) / .14), rgb(var(--neon-rgb) / .05));
+  border: 1px solid rgb(var(--neon-rgb) / .38);
+}
+.a-presence__tete { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.a-presence__tete b { font-size: 15px; font-weight: 800; }
+.a-presence__quoi { margin-left: auto; font-size: 11.5px; font-weight: 700; color: var(--muted); }
+
+/* Le pouls : il dit que le chiffre est vivant, pas figé depuis ce matin. */
+.a-presence__pouls {
+  width: 9px; height: 9px; border-radius: 50%; flex: none;
+  background: var(--neon); box-shadow: 0 0 0 0 rgb(var(--neon-rgb) / .6);
+  animation: pouls 2s ease-out infinite;
+}
+@keyframes pouls {
+  70% { box-shadow: 0 0 0 9px rgb(var(--neon-rgb) / 0); }
+  100% { box-shadow: 0 0 0 0 rgb(var(--neon-rgb) / 0); }
+}
+@media (prefers-reduced-motion: reduce) { .a-presence__pouls { animation: none; } }
+
+.a-presence__gens { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.a-present {
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 800;
+  color: var(--cream); background: rgb(var(--cream-rgb) / .08);
+  border: 1px solid var(--line-soft);
+}
+.a-present--chat { color: var(--neon); border-color: rgb(var(--neon-rgb) / .45); }
+
+/* La pastille sur une fiche : discrète, à gauche du nom. */
+.a-client.est-actif .a-client__qui::before {
+  content: ''; display: inline-block; vertical-align: middle;
+  width: 8px; height: 8px; margin-right: 6px; border-radius: 50%;
+  background: var(--neon); box-shadow: 0 0 6px rgb(var(--neon-rgb) / .8);
+}

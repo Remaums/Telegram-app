@@ -129,6 +129,7 @@ async function init() {
   chargerLaDerniereCommande();
   chargerLesAvisADonner();
   chargerLesFavoris();
+  battreLePouls();
   runGates();
 }
 
@@ -2994,4 +2995,41 @@ function peindreLeCoeur(bouton, id) {
   bouton.classList.toggle('est-favori', actif);
   bouton.setAttribute('aria-pressed', String(actif));
   bouton.setAttribute('aria-label', actif ? 'Retirer des favoris' : 'Mettre en favori');
+}
+
+/* ── Présence ────────────────────────────────────────────── */
+
+/**
+ * Dit au serveur qu'on est toujours là.
+ *
+ * Sans ce battement, quelqu'un qui lit une fiche produit pendant cinq minutes
+ * disparaîtrait de la liste des présents : le serveur ne compte que les appels,
+ * et lire n'en fait aucun.
+ *
+ * Deux précautions qui comptent sur un téléphone :
+ *
+ * - **rien ne bat quand la page n'est pas visible.** Une boutique laissée
+ *   ouverte dans un onglet de fond ne doit ni consommer de données ni faire
+ *   croire au vendeur qu'un client la regarde ;
+ * - **le premier geste au retour**, pour que revenir sur la boutique se voie
+ *   tout de suite et pas à la minute suivante.
+ */
+function battreLePouls() {
+  if (!tg?.initData) return;
+
+  const battre = () => {
+    if (document.visibilityState !== 'visible') return;
+    fetch('/api/presence', {
+      method: 'POST',
+      headers: { 'X-Telegram-Init-Data': tg.initData },
+      // La réponse ne nous intéresse pas, et une coupure de réseau n'a aucune
+      // raison de remonter : ce n'est qu'un signe de vie.
+      keepalive: true,
+    }).catch(() => {});
+  };
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') battre();
+  });
+  setInterval(battre, 60000);
 }

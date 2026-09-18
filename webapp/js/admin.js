@@ -25,6 +25,8 @@ const state = {
   avisFiltre: 'tous', // tous | basses | masques
   avisCharges: false,
   audience: null,     // qui accepte quoi, et ce qui est mis en favori
+  presence: null,     // qui est dans la boutique en ce moment
+  presents: new Set(),// leurs identifiants, pour peindre les pastilles
   periode: 30,       // en jours ; commande tout le tableau de bord
   settings: null,
   verifications: [],
@@ -91,6 +93,7 @@ function bindHandlers() {
   for (const tab of document.querySelectorAll('.a-tab')) {
     tab.addEventListener('click', () => selectTab(tab.dataset.tab));
   }
+  suivreLaPresence();
   $('refreshBtn').addEventListener('click', async () => {
     haptic('light');
     await refreshAll();
@@ -778,6 +781,8 @@ function chercherDesUtilisateurs() {
 function carteUtilisateur(u) {
   const carte = document.createElement('article');
   carte.className = 'a-client';
+  carte.dataset.id = String(u.id);
+  if (state.presents?.has(String(u.id))) carte.classList.add('est-actif');
 
   const qui = u.username ? `@${u.username}` : [u.prenom, u.nom].filter(Boolean).join(' ') || `#${u.id}`;
   const etats = [
@@ -881,6 +886,8 @@ function chercherDesClients() {
 function carteClient(fiche) {
   const carte = document.createElement('article');
   carte.className = 'a-client';
+  carte.dataset.id = String(fiche.id);
+  if (state.presents?.has(String(fiche.id))) carte.classList.add('est-actif');
 
   const qui = fiche.username ? `@${fiche.username}` : fiche.nom ?? `#${fiche.id}`;
   const depuis = fiche.derniere ? ilYA(fiche.derniere) : '—';
@@ -3410,4 +3417,79 @@ function carteAvisAdmin(avis) {
   });
 
   return carte;
+}
+
+/* ── Présence ────────────────────────────────────────────── */
+
+/**
+ * Qui est dans la boutique, rafraîchi tant que l'écran est ouvert.
+ *
+ * Toutes les quinze secondes : assez pour que le bandeau suive quelqu'un qui
+ * arrive, assez peu pour ne pas marteler un VPS modeste. Rien ne tourne quand
+ * l'écran n'est pas visible — un panel laissé ouvert dans un onglet de fond
+ * n'a aucune raison d'interroger le serveur toute la nuit.
+ */
+function suivreLaPresence() {
+  const relever = async () => {
+    if (document.visibilityState !== 'visible') return;
+    try {
+      const data = await api('/presence');
+      state.presence = data;
+      state.presents = new Set(data.actifs.map((a) => String(a.id)));
+      renderPresence();
+    } catch {
+      /* la présence n'est pas la boutique : son absence ne bloque rien */
+    }
+  };
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') relever();
+  });
+  relever();
+  setInterval(relever, 15000);
+}
+
+/**
+ * Le bandeau du haut, et les pastilles sur les fiches.
+ *
+ * Le libellé dit « actif », jamais « en ligne » : Telegram ne donne pas le
+ * statut en ligne aux bots. Écrire « en ligne » ferait chercher une panne le
+ * jour où un client « hors ligne » passe commande.
+ */
+function renderPresence() {
+  const bandeau = $('presence');
+  if (!bandeau) return;
+
+  const data = state.presence;
+  if (!data || !data.total) {
+    bandeau.hidden = true;
+    return;
+  }
+
+  const minutes = Math.round((data.fenetreSecondes ?? 180) / 60);
+  const noms = data.actifs
+    .slice(0, 6)
+    .map((a) => {
+      const qui = a.username ? `@${a.username}` : a.prenom ?? `#${a.id}`;
+      return `<span class="a-present ${a.ou === 'conversation' ? 'a-present--chat' : ''}">` +
+        `${a.ou === 'conversation' ? '💬' : '🛒'} ${escapeHtml(qui)}</span>`;
+    })
+    .join('');
+
+  bandeau.innerHTML =
+    '<div class="a-presence__tete">' +
+    '<span class="a-presence__pouls" aria-hidden="true"></span>' +
+    `<b>${data.total} actif${data.total > 1 ? 's' : ''}</b>` +
+    `<span class="a-presence__quoi">signe de vie &lt; ${minutes} min</span>` +
+    '</div>' +
+    `<div class="a-presence__gens">${noms}` +
+    (data.total > 6 ? `<span class="a-present">+${data.total - 6}</span>` : '') +
+    '</div>';
+  bandeau.hidden = false;
+
+  // Les fiches déjà à l'écran s'allument sans être reconstruites : refaire la
+  // liste toutes les quinze secondes replierait les cartes qu'on vient d'ouvrir.
+  for (const carte of document.querySelectorAll('.a-client[data-id]')) {
+    carte.classList.toggle('est-actif', state.presents.has(carte.dataset.id));
+  }
 }

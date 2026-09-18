@@ -22,6 +22,7 @@ import {
 import { deposerAvis, refusDAvis } from './avis.js';
 import { estAdmin, listerAdmins, ajouterAdmin, retirerAdmin } from './admins.js';
 import { creerCadence, attenteEnClair } from './cadence.js';
+import { noterPassage, clientsActifs, FENETRE_MS } from './presence.js';
 import { noterUtilisateur, trouverParPseudo, ficheDuRegistre } from './users.js';
 
 /**
@@ -147,7 +148,12 @@ const poserLEpreuve = (ctx, epreuve, avant = '') =>
 // calcul soit compté comme visiteur. Une panne du registre ne bloque rien —
 // c'est une observation, pas un contrôle.
 bot.use(async (ctx, next) => {
-  if (ctx.from) noterUtilisateur(ctx.from).catch(() => {});
+  if (ctx.from) {
+    noterUtilisateur(ctx.from).catch(() => {});
+    // Quelqu'un qui écrit au bot est là maintenant — et il attend souvent une
+    // réponse, ce qui n'est pas le cas de quelqu'un qui parcourt le catalogue.
+    noterPassage(ctx.from.id, 'conversation');
+  }
   return next();
 });
 
@@ -612,6 +618,7 @@ bot.command('aide', async (ctx) =>
         ? '\n/admin — espace administrateur' +
           '\n/ouvrir, /fermer — ouvrir ou fermer la boutique' +
           '\n/verification [on|off] — contrôle des pièces d\'identité' +
+          '\n/enligne — qui est dans la boutique en ce moment' +
           '\n/annonce <texte> — écrire à tous ceux qui ont ouvert le bot' +
           '\n/admins — qui a les clés' +
           '\n/addadmin, /deladmin — donner ou reprendre les clés' +
@@ -696,6 +703,46 @@ bot.command('deladmin', async (ctx) => {
   } catch (err) {
     await ctx.reply(`⚠️ ${err.message}`);
   }
+});
+
+/**
+ * Qui est dans la boutique en ce moment.
+ *
+ * Le libellé dit « actif », jamais « en ligne » : Telegram ne donne pas le
+ * statut en ligne aux bots, et laisser croire le contraire ferait chercher une
+ * panne le jour où un client « hors ligne » passe commande.
+ */
+bot.command('enligne', async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) {
+    return ctx.reply("Cette commande est réservée à l'administrateur.");
+  }
+
+  const minutes = Math.round(FENETRE_MS / 60000);
+  // Sans les administrateurs : celui qui tape la commande se comptait
+  // lui-même, et « 1 personne active » quand on est seul est une fausse joie.
+  const presents = clientsActifs((await listerAdmins()).map((a) => a.id));
+
+  if (!presents.length) {
+    return ctx.reply(`👤 Aucun client dans la boutique depuis ${minutes} minutes.`);
+  }
+
+  const lignes = await Promise.all(
+    presents.slice(0, 30).map(async (p) => {
+      const fiche = await ficheDuRegistre(p.id).catch(() => null);
+      const qui = fiche?.username ? `@${fiche.username}` : fiche?.prenom ?? `#${p.id}`;
+      const ou = p.ou === 'conversation' ? '💬 conversation' : '🛒 boutique';
+      const depuis = p.depuis < 60 ? "à l'instant" : `il y a ${Math.round(p.depuis / 60)} min`;
+      return `• ${qui} — ${ou}, ${depuis}`;
+    })
+  );
+
+  await ctx.reply(
+    `👤 ${presents.length} client${presents.length > 1 ? 's' : ''} actif${presents.length > 1 ? 's' : ''}\n\n` +
+      lignes.join('\n') +
+      (presents.length > 30 ? `\n… et ${presents.length - 30} autre(s)` : '') +
+      `\n\nActif = un signe de vie dans les ${minutes} dernières minutes. ` +
+      'Telegram ne dit pas à un bot qui est en ligne : ceci compte ce qui se passe ici.'
+  );
 });
 
 /** Qui a les clés, et d'où elles viennent. */
