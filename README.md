@@ -527,6 +527,7 @@ dans ton bot.
 | `/admin` | Espace d'administration (réservé) |
 | `/ouvrir` `/fermer` | Ouvre ou ferme la boutique (réservé) |
 | `/verification on\|off` | Allume ou coupe la vérification d'identité (réservé) |
+| `/annonce <texte>` | Écrit à **tous ceux qui ont déjà ouvert le bot** (réservé) |
 | `/admins` | Qui a les clés, et d'où elles viennent (réservé) |
 | `/addadmin <id\|@pseudo>` | Donne les clés à quelqu'un (réservé) |
 | `/deladmin <id\|@pseudo>` | Les reprend (réservé) |
@@ -534,6 +535,56 @@ dans ton bot.
 Tout autre message d'un client est **relayé au vendeur**, qui répond en
 répondant au message. Un message du vendeur lui-même reçoit la liste des
 commandes.
+
+### Écrire à tout le monde
+
+```
+/annonce Réassort ce soir, tout est en ligne.
+```
+
+Le bot répond par un **aperçu** — le texte tel qu'il arrivera, et le compte
+exact — puis attend un appui :
+
+```
+📣 Voilà ce qui partira :
+
+— — —
+Réassort ce soir, tout est en ligne.
+— — —
+
+Destinataires : 259 personnes ayant déjà ouvert le bot.
+Les désabonnés et les comptes bloqués en sont exclus.
+
+   [ 📣 Envoyer aux 259 ]
+   [ Annuler ]
+```
+
+**Deux publics, et c'est la distinction qui compte.** L'écran *Annonces* du
+panel part des **commandes** : il ne voit que les acheteurs. `/annonce` part du
+**registre** : tous ceux qui ont fait `/start`, y compris ceux qui ont regardé
+le catalogue sans rien prendre — souvent les plus nombreux, et ceux qu'une
+réouverture ou un réassort intéresse le plus.
+
+Trois exclusions, toujours :
+
+| | |
+|---|---|
+| **Les désabonnés** | « qui a dit stop ne reçoit plus rien » ne souffre aucune exception, pas même une annonce importante |
+| **Les comptes bloqués** | on ne fait pas de réclame à quelqu'un qu'on vient de mettre dehors |
+| **Les bots** | le registre ne les enregistre déjà pas |
+
+Le bas du message dit la vérité à celui qui le lit : *« tu as déjà ouvert cette
+boutique »*, et non *« tu as déjà commandé ici »* — beaucoup n'ont jamais rien
+acheté, et ce petit mensonge est exactement ce qui fait écrire `/stop`.
+
+L'envoi est **étalé** (vingt messages, une pause, vingt de plus) : Telegram
+coupe au-delà d'une trentaine par seconde. Un récapitulatif arrive à la fin.
+Un client qui a supprimé la conversation est désabonné automatiquement — insister
+à chaque annonce ne ferait qu'échouer à nouveau.
+
+> ⚠️ Le double appui ne double pas l'envoi : le brouillon est retiré dès la
+> première prise. Et un brouillon non envoyé dans l'heure expire — une annonce
+> qu'on n'a pas envoyée dans l'heure n'est plus une annonce.
 
 ### Donner les clés à quelqu'un
 

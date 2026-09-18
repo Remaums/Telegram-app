@@ -4,8 +4,12 @@
  * Un bot qui envoie trop finit bloqué par ses propres clients, et parfois par
  * Telegram. Cette suite vérifie surtout les garde-fous : le désabonnement
  * respecté avant tout, la cadence minimale entre deux annonces, et le fait
- * qu'on n'écrive qu'à ceux qui ont déjà commandé — Telegram interdit d'écrire
- * à qui n'a jamais parlé au bot.
+ * qu'on n'écrive qu'à ceux à qui Telegram nous autorise à écrire.
+ *
+ * Deux publics, et c'est la distinction qui compte : les **acheteurs**, tirés
+ * des commandes, et le **registre** — tous ceux qui ont déjà ouvert le bot,
+ * y compris ceux qui n'ont jamais rien pris. Le second est celui de /annonce,
+ * et il est souvent le plus nombreux.
  *
  * Prérequis : serveur démarré avec ADMIN_IDS contenant 424242.
  * Usage :  BOT_TOKEN=… node test/annonces.test.mjs
@@ -151,6 +155,49 @@ check('Un client ne diffuse rien', r.status === 403, `HTTP ${r.status}`);
 
 r = await call('/api/admin/announcements/audience', { init: acheteur });
 check('Un client ne voit pas l\'audience', r.status === 403, `HTTP ${r.status}`);
+
+/* ── Le registre : tous ceux qui ont ouvert le bot ───────── */
+
+{
+  const { noterUtilisateur } = await import('../server/users.js');
+  const { destinatairesDuRegistre, desabonner, reabonner } = await import('../server/annonces.js');
+  const { blockClient, unblockClient } = await import('../server/settings.js');
+
+  const CURIEUX = { id: 998801, first_name: 'Curieux', is_bot: false };
+  const STOPPE = { id: 998802, first_name: 'Stoppe', is_bot: false };
+  const BANNI = { id: 998803, first_name: 'Banni', is_bot: false };
+  const ROBOT = { id: 998804, first_name: 'Robot', is_bot: true };
+
+  for (const u of [CURIEUX, STOPPE, BANNI, ROBOT]) await noterUtilisateur(u);
+  await reabonner(String(CURIEUX.id));
+  await desabonner(String(STOPPE.id));
+  await blockClient(String(BANNI.id));
+
+  const cibles = await destinatairesDuRegistre();
+  const dedans = (id) => cibles.some((c) => c.id === String(id));
+
+  check('Un curieux qui n a jamais commandé est joignable', dedans(CURIEUX.id));
+  // Les trois exclusions, et ce sont elles qui comptent.
+  check('Un désabonné ne l est pas', !dedans(STOPPE.id));
+  check('Un compte bloqué non plus', !dedans(BANNI.id));
+  check('Un bot n entre même pas au registre', !dedans(ROBOT.id));
+
+  check('Chaque cible porte un identifiant en chaîne',
+    cibles.every((c) => typeof c.id === 'string'), typeof cibles[0]?.id);
+  check('Sans doublon', new Set(cibles.map((c) => c.id)).size === cibles.length);
+
+  // Le registre et les acheteurs ne se recouvrent pas : quelqu'un peut avoir
+  // ouvert le bot sans commander, et une commande peut venir d'un lien direct.
+  // Ce sont deux publics, pas deux vues du même.
+  const acheteurs = await (await call('/api/admin/announcements/audience')).json();
+  check('Les deux publics sont distincts',
+    Number.isInteger(acheteurs.total) && Array.isArray(cibles),
+    `${cibles.length} au registre, ${acheteurs.total} acheteurs`);
+
+  // Rendu propre : la suite doit se rejouer.
+  await unblockClient(String(BANNI.id));
+  await reabonner(String(STOPPE.id));
+}
 
 console.log(`\n${failures ? `${failures} test(s) en échec` : 'Annonces : OK'}`);
 process.exit(failures ? 1 : 0);

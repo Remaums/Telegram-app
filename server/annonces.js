@@ -1,5 +1,7 @@
 import { createStore } from './store.js';
 import { listOrders } from './orders.js';
+import { listUsers } from './users.js';
+import { getSettings, isBlocked } from './settings.js';
 import { HttpError } from './catalog.js';
 
 /**
@@ -58,6 +60,36 @@ export async function destinataires({ depuisJours, minCommandes = 1 } = {}) {
   return [...parClient.values()]
     .filter((c) => c.commandes >= minCommandes)
     .sort((a, b) => String(b.derniere).localeCompare(String(a.derniere)));
+}
+
+/**
+ * Tout le monde : quiconque a déjà ouvert le bot.
+ *
+ * `destinataires` part des commandes et ne voit donc que les acheteurs. Le
+ * registre, lui, note chaque personne qui écrit au bot dès son premier /start —
+ * c'est-à-dire aussi ceux qui ont regardé le catalogue sans rien prendre, et
+ * qui sont souvent les plus nombreux. Une annonce de réouverture ou un réassort
+ * s'adresse à eux autant qu'aux clients.
+ *
+ * Telegram n'autorise un bot à écrire qu'à qui lui a déjà parlé : c'est
+ * précisément la définition du registre, donc cette liste est joignable par
+ * construction.
+ *
+ * Trois exclusions, et ce sont elles qui comptent :
+ *
+ * - **les désabonnés**, parce que « qui a dit stop ne reçoit plus rien » ne
+ *   souffre aucune exception, pas même une annonce importante ;
+ * - **les comptes bloqués**, parce qu'on ne fait pas de réclame à quelqu'un
+ *   qu'on vient de mettre dehors ;
+ * - **les bots**, que le registre n'enregistre déjà pas.
+ */
+export async function destinatairesDuRegistre() {
+  const [fiches, data, settings] = await Promise.all([listUsers(), store.read(), getSettings()]);
+  const desabonnes = new Set((data.desabonnes ?? []).map(String));
+
+  return fiches
+    .filter((u) => !desabonnes.has(String(u.id)) && !isBlocked(settings, u.id))
+    .map((u) => ({ id: String(u.id), prenom: u.prenom ?? null, derniere: u.dernier ?? null }));
 }
 
 /* ── Désabonnement ───────────────────────────────────────── */

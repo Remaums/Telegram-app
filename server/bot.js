@@ -8,6 +8,7 @@ import { getSettings, saveSettings, isBlocked } from './settings.js';
 import { requestVerification, decideVerification } from './verification.js';
 import {
   desabonner, reabonner, estDesabonne, consignerResultat, destinataires, reserverEnvoi,
+  destinatairesDuRegistre,
 } from './annonces.js';
 import { destinatairesDuCanal } from './preferences.js';
 import { estPasse, ouvrirLaPorte, demanderLEpreuve, repondre } from './bot-captcha.js';
@@ -16,6 +17,7 @@ import {
   idDuRelais,
   messagePourLeClient,
   refusDeTelegram,
+  texteValide,
 } from './messagerie.js';
 import { deposerAvis, refusDAvis } from './avis.js';
 import { estAdmin, listerAdmins, ajouterAdmin, retirerAdmin } from './admins.js';
@@ -610,6 +612,7 @@ bot.command('aide', async (ctx) =>
         ? '\n/admin — espace administrateur' +
           '\n/ouvrir, /fermer — ouvrir ou fermer la boutique' +
           '\n/verification [on|off] — contrôle des pièces d\'identité' +
+          '\n/annonce <texte> — écrire à tous ceux qui ont ouvert le bot' +
           '\n/admins — qui a les clés' +
           '\n/addadmin, /deladmin — donner ou reprendre les clés' +
           '\n📸 envoie une photo avec le nom du produit en légende pour changer son image'
@@ -881,6 +884,70 @@ const enAttente = (() => {
   };
 })();
 
+/**
+ * Écrire à tout le monde, depuis la conversation.
+ *
+ *   /annonce Réassort ce soir, tout est en ligne.
+ *
+ * « Tout le monde », ici, c'est le registre : quiconque a déjà ouvert le bot,
+ * y compris ceux qui ont regardé le catalogue sans rien prendre — souvent les
+ * plus nombreux, et ceux qu'une réouverture ou un réassort intéresse le plus.
+ * La diffusion qui existait déjà partait des commandes et ne voyait donc que
+ * les acheteurs.
+ *
+ * Comme /addadmin, l'envoi passe par une confirmation, et pour la même raison :
+ * un message parti chez trois cents personnes ne se rattrape pas. Le vendeur
+ * voit d'abord le texte tel qu'il arrivera, avec le compte exact.
+ */
+bot.command('annonce', async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) {
+    return ctx.reply("Cette commande est réservée à l'administrateur.");
+  }
+
+  const { texte, erreur } = texteValide(ctx.match ?? '');
+  if (erreur || !texte) {
+    return ctx.reply(
+      'Écris ton annonce après la commande :\n\n' +
+        '/annonce Réassort ce soir, tout est en ligne.\n\n' +
+        'Elle part à tous ceux qui ont déjà ouvert le bot, sauf ceux qui ont écrit /stop.' +
+        (erreur ? `\n\n⚠️ ${erreur}` : '')
+    );
+  }
+
+  if (!(await getSettings()).features.announcements) {
+    return ctx.reply(
+      'Les annonces sont désactivées (Réglages → Fonctionnalités).\n' +
+        'Rallume-les avant d\'écrire à tes clients.'
+    );
+  }
+
+  const cibles = await destinatairesDuRegistre();
+  if (!cibles.length) {
+    return ctx.reply("Personne n'a encore ouvert le bot — il n'y a personne à prévenir.");
+  }
+
+  // Le texte voyage dans le brouillon, pas dans une mémoire du serveur indexée
+  // par l'auteur : deux administrateurs qui préparent une annonce en même temps
+  // ne doivent pas s'écraser l'un l'autre.
+  const brouillon = enAttente.deposer('registre', texte);
+
+  await ctx.reply(
+    '📣 Voilà ce qui partira :\n\n' +
+      '— — —\n' +
+      `${texte}\n` +
+      '— — —\n\n' +
+      `Destinataires : ${cibles.length} personne${cibles.length > 1 ? 's' : ''} ` +
+      'ayant déjà ouvert le bot.\n' +
+      'Les désabonnés et les comptes bloqués en sont exclus.',
+    {
+      reply_markup: new InlineKeyboard()
+        .text(`📣 Envoyer aux ${cibles.length}`, `ann:${brouillon}`)
+        .row()
+        .text('Annuler', 'ann:non'),
+    }
+  );
+});
+
 bot.callbackQuery(/^ann:(\d+)$/, async (ctx) => {
   if (!(await isAdmin(ctx.from.id))) {
     return ctx.answerCallbackQuery({ text: "Réservé à l'administrateur.", show_alert: true });
@@ -893,23 +960,38 @@ bot.callbackQuery(/^ann:(\d+)$/, async (ctx) => {
   }
 
   try {
-    const cibles = await destinatairesDuCanal(await destinataires({ minCommandes: 1 }), brouillon.canal);
+    // Deux publics, deux raisons à écrire en bas du message. Le registre
+    // englobe ceux qui n'ont jamais rien acheté : leur dire « tu as déjà
+    // commandé ici » serait faux, et c'est ce genre de détail qui fait écrire
+    // /stop.
+    const versTous = brouillon.canal === 'registre';
+    const cibles = versTous
+      ? await destinatairesDuRegistre()
+      : await destinatairesDuCanal(await destinataires({ minCommandes: 1 }), brouillon.canal);
+
     if (!cibles.length) {
       return ctx.answerCallbackQuery({ text: 'Plus personne à prévenir.', show_alert: true });
     }
 
     const envoi = await reserverEnvoi({ texte: brouillon.texte, cibles: cibles.length, force: true });
-    await ctx.answerCallbackQuery({ text: `📣 Envoi à ${cibles.length} client(s)…` });
+    await ctx.answerCallbackQuery({ text: `📣 Envoi à ${cibles.length} personne(s)…` });
     await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
 
     // On rend la main tout de suite : trois cents messages prennent une minute,
     // et personne ne doit rester devant un bouton grisé pendant ce temps.
-    diffuser(envoi, cibles)
+    diffuser(envoi, cibles, {
+      raison: versTous
+        ? 'Tu reçois ce message parce que tu as déjà ouvert cette boutique.'
+        : undefined,
+    })
       .then(({ recus, echecs }) =>
         bot.api.sendMessage(
           config.adminChatId,
           `📣 Annonce partie : ${recus} reçu${recus > 1 ? 's' : ''}` +
-            (echecs ? `, ${echecs} échec${echecs > 1 ? 's' : ''}` : '') + '.'
+            (echecs ? `, ${echecs} échec${echecs > 1 ? 's' : ''}` : '') + '.' +
+            // Un échec sur ce canal est presque toujours quelqu'un qui a
+            // supprimé la conversation : le dire évite de chercher une panne.
+            (echecs ? '\nUn échec, c\'est le plus souvent une conversation supprimée.' : '')
         )
       )
       .catch((err) => console.error('Diffusion impossible :', err.message));
@@ -1233,14 +1315,17 @@ export async function retrouverVignette(chatId, fileId) {
  * Un client qui a bloqué le bot fait échouer son envoi sans que le reste en
  * souffre — et il est désabonné au passage, puisqu'il a dit non à sa manière.
  */
-export async function diffuser(envoi, clients, { paquet = 20, pause = 1200 } = {}) {
+export async function diffuser(envoi, clients, { paquet = 20, pause = 1200, raison } = {}) {
   let recus = 0;
   let echecs = 0;
 
+  // La raison doit être vraie pour celui qui lit. « Tu as déjà commandé ici »
+  // envoyé à quelqu'un qui n'a fait qu'ouvrir le bot est un mensonge, petit
+  // mais bien visible, et c'est ce genre de détail qui fait écrire /stop.
   const texte =
     `${envoi.texte}\n\n` +
     '— — —\n' +
-    'Tu reçois ce message parce que tu as déjà commandé ici. ' +
+    `${raison ?? 'Tu reçois ce message parce que tu as déjà commandé ici.'} ` +
     'Écris /stop pour ne plus en recevoir.';
 
   for (let i = 0; i < clients.length; i += paquet) {
