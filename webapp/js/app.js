@@ -63,7 +63,7 @@ async function init() {
   if (tg) {
     tg.ready();
     tg.expand();
-    const night = themeHex('--night-rgb', '#141110');
+    const night = themeHex('--night-rgb', '#0e0e10');
     tg.setHeaderColor?.(night);
     tg.setBackgroundColor?.(night);
     tg.enableClosingConfirmation?.();
@@ -874,8 +874,13 @@ async function gateVerification() {
  */
 function mesurerLaBarre() {
   const barre = $('tabbar');
-  const haut = barre?.offsetHeight;
-  if (haut) document.documentElement.style.setProperty('--tabbar-h', `${haut}px`);
+  if (!barre) return;
+  // Ce qu'on mesure, c'est la place prise depuis le bas de l'écran, pas la
+  // hauteur de la barre : depuis qu'elle flotte, il y a un vide sous elle, et
+  // la hauteur seule laissait la dernière carte passer dans ce vide.
+  const cadre = barre.getBoundingClientRect();
+  const occupe = Math.round(window.innerHeight - cadre.top);
+  if (occupe > 0) document.documentElement.style.setProperty('--tabbar-h', `${occupe}px`);
 }
 
 

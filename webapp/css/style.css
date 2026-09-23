@@ -1,17 +1,17 @@
 /* ══════════════════════════════════════════════════════════════
    Napoli Coffee — feuille de style
-   Direction artistique « Torréfaction » : un noir chaud de grain torréfié,
-   une crème pour le texte, et du laiton pour ce qui compte. Le vert reste,
-   mais en retrait et en sourdine — il ne dit plus que « disponible ».
+   Direction artistique « Ivoire sur encre » : un noir neutre et profond,
+   et un ivoire pour tout ce qui compte. Presque pas de teinte : ce qui
+   se détache le fait par sa clarté, pas par sa couleur.
 
-   Pourquoi pas le gris neutre et le vert vif : c'est la livrée de tout le
-   monde. Une boutique qui porte les couleurs de la boutique d'à côté n'a
-   pas d'enseigne, elle a un gabarit. Le laiton sur le brun est à la fois
-   sobre — ce qui était demandé — et à personne d'autre.
+   Pourquoi pas une couleur d'accent : elle date l'écran et le range dans
+   une famille — le vert des boutiques de la place, le bleu des banques.
+   L'ivoire ne range nulle part, et laisse les photos de produits être la
+   seule chose colorée de la page. C'est bien ce qu'on vend.
 
    Trois règles qui tiennent tout le reste :
-   - le fond est plat et chaud. Pas de dégradé, pas de halo qui dérive ;
-   - le laiton n'apparaît que sur une action ou une information ;
+   - le fond est plat. Pas de dégradé, pas de halo qui dérive ;
+   - l'ivoire n'apparaît que sur une action ou une information ;
    - les titres sont écrits, pas dessinés : une graisse, pas un relief.
    ══════════════════════════════════════════════════════════════ */
 
@@ -21,31 +21,33 @@
    données en composantes brutes pour pouvoir moduler l'opacité avec
    la syntaxe rgb(var(--x) / .5). */
 :root {
-  --void-rgb:    10  8  7;    /* fonds d'écran modaux */
-  --night-rgb:   20 17 15;    /* fond de page — grain torréfié */
-  --night2-rgb:  27 23 20;    /* barres hautes et basses */
-  --panel-rgb:   38 32 28;    /* surface haute (cartes, panneaux) */
-  --panel2-rgb:  29 25 22;    /* surface basse */
-  --ink-rgb:     14 11 10;    /* contours et texte posé sur le laiton */
-  --cream-rgb: 243 236 228;   /* texte — crème, pas blanc */
-  --line-rgb:   146 128 110;  /* filets et bordures — chauds */
+  --void-rgb:     6  6  7;    /* fonds d'écran modaux */
+  --night-rgb:   14 14 16;    /* fond de page — encre */
+  --night2-rgb:  20 20 23;    /* barres hautes et basses */
+  --panel-rgb:   30 30 34;    /* surface haute (cartes, panneaux) */
+  --panel2-rgb:  23 23 26;    /* surface basse */
+  --ink-rgb:      9  9 11;    /* contours, et texte posé sur l'ivoire */
+  --cream-rgb: 240 238 233;   /* texte */
+  --line-rgb:   130 130 138;  /* filets et bordures */
 
-  /* Le laiton. `--neon` a gardé son nom : il est cité par une centaine de
-     déclarations, et le renommer partout n'aurait rien changé à l'écran. */
-  --neon-rgb:  201 149  70;
-  --halo-rgb:  201 149  70;
-  --halo2-rgb: 199  98  82;   /* terre cuite : favoris */
-  --halo3-rgb: 124 143 110;   /* sauge : compteurs, disponibilité */
+  /* L'ivoire. C'est l'accent, et c'est presque une absence de couleur : ce
+     qui compte se détache par sa clarté, pas par sa teinte. `--neon` a gardé
+     son nom — il est cité par une centaine de déclarations, et le renommer
+     partout n'aurait rien changé à l'écran. */
+  --neon-rgb:  232 226 212;
+  --halo-rgb:  232 226 212;
+  --halo2-rgb: 190 140 120;   /* terre cuite sourde : favoris */
+  --halo3-rgb: 140 150 145;   /* gris-vert : compteurs */
 
-  --gold-rgb:  214 170  90;   /* sable clair : commandes en cours, avertissements */
-  --gold-lo-rgb: 168 120  48;
-  --red-rgb:   198  85  70;   /* alertes, ruptures — brique, pas rouge vif */
+  --gold-rgb:  214 196 150;   /* os : commandes en cours, avertissements */
+  --gold-lo-rgb: 170 150 110;
+  --red-rgb:   205  95  85;   /* alertes, ruptures */
   --tg-rgb:     42 171 238;   /* le bleu de Telegram : il ne nous appartient pas */
 
-  --neon-hi: #dcae62;         /* survol */
-  --neon-deep: #a97c33;       /* appui */
-  --gold-hi: #e6c47e;
-  --sauge: #8ea37c;           /* ce qui est ouvert, en stock, actif */
+  --neon-hi: #f4f0e6;         /* survol */
+  --neon-deep: #cfc8b6;       /* appui */
+  --gold-hi: #e8dcb8;
+  --sauge: #9aa89f;           /* ce qui est ouvert, en stock */
 }
 
 :root {
@@ -1423,42 +1425,51 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* La page laisse la hauteur de la barre sous elle, sinon la dernière
    carte finit dessous et personne ne peut l'ouvrir. */
-.page { padding-bottom: calc(var(--tabbar-h, calc(59px + var(--safe-bottom))) + 28px); }
+.page { padding-bottom: calc(var(--tabbar-h, 78px) + 24px); }
 
+/* La barre décolle du bord.
+   Collée en bas sur toute la largeur, elle fermait la page comme une
+   plinthe — et c'est le meuble qu'on retrouve dans toutes les boutiques
+   Telegram. Détachée, elle flotte au-dessus du catalogue : on voit que
+   la page continue dessous, et le pouce la trouve un peu plus haut,
+   c'est-à-dire plus près de là où il se repose. La marge du bas tient
+   compte de la barre d'accueil des téléphones sans bouton. */
 .tabbar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  position: fixed; z-index: 40;
+  left: 14px; right: 14px; bottom: calc(12px + var(--safe-bottom));
   display: grid; grid-template-columns: repeat(4, 1fr);
-  padding: 0 0 var(--safe-bottom);
-  background: rgb(var(--night2-rgb) / .96);
-  backdrop-filter: blur(16px);
-  border-top: 1px solid var(--line-soft);
+  gap: 4px; padding: 5px;
+  background: rgb(var(--night2-rgb) / .9);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--line-soft);
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgb(var(--void-rgb) / .6);
 }
 .tabbar__item {
   position: relative;
   display: grid; justify-items: center; gap: 4px;
-  padding: 11px 2px 8px;
-  border: 0; background: none; color: rgb(var(--cream-rgb) / .42);
-  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
-  transition: color .16s ease, transform .16s ease;
+  padding: 9px 2px 8px;
+  border: 0; border-radius: 15px;
+  background: none; color: rgb(var(--cream-rgb) / .45);
+  font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  transition: color .16s ease, background-color .16s ease;
 }
-.tabbar__item svg { width: 22px; height: 22px; }
+.tabbar__item svg { width: 21px; height: 21px; }
 .tabbar__item span { line-height: 1; }
 
-/* L'onglet actif : un trait de laiton au bord SUPÉRIEUR de l'onglet, et
-   l'icône qui monte d'un pixel. Ni pastille colorée ni soulignement sous
-   le libellé : ces deux-là sont la signature de la moitié des boutiques
-   Telegram, et on se reconnaît mal dans une signature partagée. Le trait
-   en haut a un autre mérite — il touche le bord de la barre, donc il
-   reste visible quand le pouce couvre le libellé. */
-.tabbar__item[aria-selected='true'] { color: var(--neon); transform: translateY(-1px); }
-.tabbar__item[aria-selected='true']::after {
-  content: ''; position: absolute; top: 0; left: 12%; right: 12%;
-  height: 2px; background: var(--neon);
+/* L'onglet actif est un bloc plein d'ivoire, texte en encre : dans une
+   barre flottante et sombre, c'est le contraste qui désigne, pas une
+   teinte posée sur un fond déjà coloré. Ni pastille translucide ni
+   soulignement sous le libellé — ces deux-là sont la signature de la
+   moitié des boutiques Telegram. */
+.tabbar__item[aria-selected='true'] {
+  color: var(--ink);
+  background: var(--neon);
 }
-.tabbar__item:active { color: var(--cream); }
+.tabbar__item:active { color: var(--cream); background: rgb(var(--cream-rgb) / .07); }
 
 .tabbar__pastille {
-  position: absolute; top: 7px; right: calc(50% - 21px);
+  position: absolute; top: 5px; right: calc(50% - 20px);
   min-width: 16px; height: 16px; padding: 0 4px;
   display: grid; place-items: center;
   font-size: 10px; font-weight: 800; line-height: 1;
@@ -1590,7 +1601,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .vue--produit {
   /* De quoi ne pas finir sous la barre d'achat, elle-même posée sur celle
      des onglets : sans cette réserve, le dernier carrousel était intouchable. */
-  padding-bottom: 86px;
+  padding-bottom: 74px;
 }
 
 /* La flèche du retour, en tête de page. Elle double celle de Telegram : la
@@ -1608,13 +1619,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* La barre d'achat : fixée au-dessus des onglets, jamais dessous. */
 .pbar {
-  position: fixed; left: 0; right: 0; z-index: 35;
-  bottom: var(--tabbar-h, calc(59px + var(--safe-bottom)));
+  position: fixed; left: 14px; right: 14px; z-index: 35;
+  border-radius: 18px;
+  bottom: calc(var(--tabbar-h, 78px) + 8px);
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  padding: 10px 14px;
-  background: rgb(var(--night2-rgb) / .96);
-  backdrop-filter: blur(14px);
-  border-top: 1px solid var(--line-soft);
+  padding: 9px 10px;
+  background: rgb(var(--night2-rgb) / .92);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--line-soft);
+  box-shadow: 0 10px 30px rgb(var(--void-rgb) / .6);
 }
 
 /* ── Les carrousels du bas de fiche ──────────────────────── */
