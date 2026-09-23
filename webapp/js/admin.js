@@ -145,6 +145,10 @@ function bindHandlers() {
   $('fPurgeMode').addEventListener('change', syncPurgeMode);
   $('doPurge').addEventListener('click', purgerLesCommandes);
   $('addMedia').addEventListener('click', ajouterMedia);
+  $('fMediaUrl').addEventListener('input', () => {
+    const nature = devinerLaNature($('fMediaUrl').value);
+    if (nature) $('fMediaKind').value = nature;
+  });
   $('pickMedia').addEventListener('click', () => $('mediaFile').click());
   $('mediaFile').addEventListener('change', envoyerDepuisLaGalerie);
   $('pickImage').addEventListener('click', () => $('imageFile').click());
@@ -2012,8 +2016,10 @@ function renderMedia(product) {
       (formats
         ? ' Rattache une photo à un format : la fiche s\'ouvrira dessus quand le client choisira cette variété.'
         : '')
-    : `Jusqu'à ${plafond} photos et vidéos mélangées, dans l'ordre que tu veux.` +
-      (formats ? ' Chacune peut être rattachée à un format.' : '') +
+    : `Jusqu'à ${plafond} médias mélangés — photos, vidéos et GIF animés — dans l'ordre que tu veux.` +
+      (formats ? ' Chacun peut être rattaché à un format.' : '') +
+      ' Un GIF tourne tout seul dans la fiche, et remplace la vignette fixe du' +
+      ' catalogue : c’est le moyen le plus court de faire bouger une carte.' +
       ' Tu peux aussi les envoyer au bot, avec le nom du produit en légende.';
 
   if (!medias.length) return liste.replaceChildren();
@@ -2026,7 +2032,10 @@ function renderMedia(product) {
       const vignette = document.createElement('span');
       vignette.className = 'a-media__vignette';
       const source = media.url ?? `/api/media/${product.id}/${rang}`;
-      if (media.kind === 'video') {
+      // Un GIF déposé au bot est revenu en MP4 : il se montre comme une vidéo.
+      // Un GIF resté fichier se montre comme une image, et s'anime tout seul.
+      const estFichierGif = /\.gif($|[?#])/i.test(String(media.url ?? ''));
+      if (media.kind === 'video' || (media.kind === 'gif' && !estFichierGif)) {
         // `preload=metadata` : on veut la première image, pas la vidéo entière.
         // Et la vignette de Telegram si on l'a, qui arrive avant tout le reste.
         const v = document.createElement('video');
@@ -2051,7 +2060,7 @@ function renderMedia(product) {
       const texte = document.createElement('span');
       texte.className = 'a-media__texte';
       texte.innerHTML =
-        `<b>${rang + 1}. ${media.kind === 'video' ? '🎬 Vidéo' : '🖼 Photo'}` +
+        `<b>${rang + 1}. ${{ video: '🎬 Vidéo', gif: '🌀 GIF' }[media.kind] ?? '🖼 Photo'}` +
         `${rang === 0 ? ' · en tête' : ''}</b>` +
         `<span>${escapeHtml(media.url ?? 'envoyé au bot')}</span>`;
 
@@ -2271,9 +2280,26 @@ function montrerImage(image) {
   syncImageField();
 }
 
+/**
+ * Devine la nature d'un média d'après son adresse.
+ *
+ * Le menu reste maître : on ne fait que le pré-remplir pendant la saisie, et
+ * le vendeur peut toujours corriger. Sans ça, coller l'adresse d'un GIF
+ * laissait le menu sur « Photo » — la galerie l'affichait quand même, mais il
+ * ne prenait pas la vignette du catalogue, et personne ne comprenait pourquoi
+ * la carte ne bougeait pas.
+ */
+function devinerLaNature(url) {
+  const adresse = String(url ?? '').toLowerCase();
+  if (/\.gif($|[?#])/.test(adresse)) return 'gif';
+  if (/\.(mp4|webm|mov|m4v)($|[?#])/.test(adresse)) return 'video';
+  if (/\.(jpe?g|png|webp|avif|svg)($|[?#])/.test(adresse)) return 'photo';
+  return null;
+}
+
 async function ajouterMedia() {
   const url = $('fMediaUrl').value.trim();
-  if (!url) return toast("Donne l'adresse de la photo ou de la vidéo");
+  if (!url) return toast("Donne l'adresse du média");
 
   const bouton = $('addMedia');
   bouton.disabled = true;

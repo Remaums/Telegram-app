@@ -458,7 +458,7 @@
       <!-- Galerie : n'apparaît que sur un produit déjà enregistré, puisqu'un
            média a besoin d'un produit auquel se rattacher. -->
       <div class="a-media" id="mediaBlock" hidden>
-        <span class="a-field__label">Photos et vidéos de la fiche</span>
+        <span class="a-field__label">Photos, vidéos et GIF de la fiche</span>
         <p class="a-hint" id="mediaHint"></p>
         <div class="a-media__list" id="mediaList"></div>
         <!-- Le chemin naturel depuis un téléphone : on prend dans la galerie.
@@ -477,7 +477,7 @@
 
         <div class="a-row">
           <label class="a-field a-field--grow">
-            <span>Adresse d'une photo ou d'une vidéo</span>
+            <span>Adresse d'un média</span>
             <input id="fMediaUrl" maxlength="300" placeholder="https://… ou /assets/products/ma-photo.jpg">
           </label>
           <label class="a-field">
@@ -485,6 +485,7 @@
             <select id="fMediaKind">
               <option value="photo">Photo</option>
               <option value="video">Vidéo</option>
+              <option value="gif">GIF animé</option>
             </select>
           </label>
         </div>

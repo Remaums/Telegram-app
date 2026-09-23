@@ -452,9 +452,10 @@ async function handleProductPhoto(ctx) {
   // jamais. Mieux vaut refuser en disant quoi faire.
   if (media.octets && media.octets > 20 * 1024 * 1024) {
     return ctx.reply(
-      `Cette vidéo pèse ${Math.round(media.octets / 1024 / 1024)} Mo, et Telegram ` +
+      `${{ video: 'Cette vidéo', gif: 'Ce GIF' }[media.kind] ?? 'Ce fichier'} pèse ` +
+        `${Math.round(media.octets / 1024 / 1024)} Mo, et Telegram ` +
         "ne laisse pas un bot en télécharger plus de 20.\n\n" +
-        'Raccourcis-la, ou baisse sa qualité avant de la renvoyer.'
+        'Raccourcis-le, ou baisse sa qualité avant de le renvoyer.'
     );
   }
 
@@ -466,7 +467,7 @@ async function handleProductPhoto(ctx) {
     });
     const combien = produit.media.length;
     await ctx.reply(
-      `✅ ${media.kind === 'video' ? 'Vidéo ajoutée' : 'Photo ajoutée'} à « ${match.name} » ` +
+      `✅ ${{ video: 'Vidéo ajoutée', gif: 'GIF ajouté' }[media.kind] ?? 'Photo ajoutée'} à « ${match.name} » ` +
         `(${combien} média${combien > 1 ? 's' : ''} sur ${MEDIA_MAX}).\n\n` +
         "L'ordre et la suppression se règlent dans l'espace admin, sur la fiche du produit."
     );
