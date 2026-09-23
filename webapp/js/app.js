@@ -253,6 +253,15 @@ function appliquerLesAnimations() {
   const sobre = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const coupe = state.features.animations === false || sobre;
   document.documentElement.dataset.anim = coupe ? 'off' : 'on';
+
+  // Un GIF ne se met pas en pause : une balise image le joue en boucle et
+  // n'écoute personne. La seule façon de respecter « pas d'animations » est
+  // donc de lui donner une autre adresse — le même dessin, immobile.
+  const embleme = document.getElementById('heroEmbleme');
+  if (embleme) {
+    const voulu = coupe ? '/assets/ui/leaf.svg' : '/assets/ui/napoli-feuille.gif';
+    if (!embleme.src.endsWith(voulu)) embleme.src = voulu;
+  }
   return !coupe;
 }
 
@@ -877,14 +886,36 @@ async function gateVerification() {
  * finit sous les onglets, hors de portée.
  */
 function mesurerLaBarre() {
-  const barre = $('tabbar');
-  if (!barre) return;
+  // `visualViewport` plutôt que `innerHeight` : dans la WebView de Telegram,
+  // `innerHeight` compte une zone plus haute que ce qu'on voit réellement.
+  // La barre se retrouvait alors placée trop haut, avec un vide sous elle —
+  // et elle recouvrait la fin de la page.
+  const bas = Math.round(window.visualViewport?.height ?? window.innerHeight);
+
   // Ce qu'on mesure, c'est la place prise depuis le bas de l'écran, pas la
-  // hauteur de la barre : depuis qu'elle flotte, il y a un vide sous elle, et
-  // la hauteur seule laissait la dernière carte passer dans ce vide.
-  const cadre = barre.getBoundingClientRect();
-  const occupe = Math.round(window.innerHeight - cadre.top);
-  if (occupe > 0) document.documentElement.style.setProperty('--tabbar-h', `${occupe}px`);
+  // hauteur de l'élément : depuis qu'ils flottent, il y a un vide sous eux,
+  // et la hauteur seule laissait le contenu passer dans ce vide.
+  // `offsetParent` ne dit rien d'un élément en `position: fixed` — il vaut
+  // `null` pour tous, visibles ou non. S'en servir pour tester la visibilité
+  // annulait donc les deux mesures, et les valeurs de secours prenaient la
+  // main : la barre d'achat se posait trop haut et recouvrait la fin de la
+  // fiche. C'est la hauteur réelle qui tranche.
+  const place = (el) => {
+    if (!el) return 0;
+    const cadre = el.getBoundingClientRect();
+    if (cadre.height <= 0) return 0;
+    return Math.max(0, Math.round(bas - cadre.top));
+  };
+
+  const onglets = place($('tabbar'));
+  if (onglets > 0) document.documentElement.style.setProperty('--tabbar-h', `${onglets}px`);
+
+  // La barre d'achat de la fiche produit se mesure aussi, et pour la même
+  // raison : la réserve écrite en dur sous la fiche ne tenait pas compte de
+  // sa hauteur réelle, si bien que le dernier carrousel finissait dessous —
+  // on voyait la vignette d'une suggestion, mais plus son nom ni son prix.
+  const achat = place($('pbar'));
+  if (achat > 0) document.documentElement.style.setProperty('--pbar-h', `${achat}px`);
 }
 
 
@@ -938,6 +969,10 @@ function montrerLOnglet(nom) {
   // le profil est un appel réseau, et les rayons un catalogue entier à
   // disposer. Les construire d'avance ralentirait l'ouverture de la boutique
   // pour deux écrans sur trois que le client n'ouvrira pas.
+  // La barre d'achat ne vit plus dans la vue : c'est ici qu'on la montre et
+  // qu'on la cache. Sa place change alors, et la réserve sous la fiche avec.
+  $('pbar').hidden = nom !== 'produit';
+  if (nom === 'produit') requestAnimationFrame(mesurerLaBarre);
   if (nom === 'categories') renderRayons();
   if (nom === 'contact') renderContact();
   if (nom === 'profil') ouvrirProfil();

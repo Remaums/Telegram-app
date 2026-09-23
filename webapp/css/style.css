@@ -438,11 +438,18 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .hero__sub { margin: 10px 0 0; font-size: 13.5px; line-height: 1.4; color: var(--muted); max-width: 24ch; }
 /* Feuille filigrane dans le coin : le décor de la bannière depuis que
    la mascotte a disparu. */
-.hero::after {
-  content: ''; position: absolute; right: -26px; bottom: -30px;
-  width: 150px; height: 150px; opacity: .07;
-  background: url('/assets/ui/leaf.svg') no-repeat center / contain;
-  transform: rotate(18deg); pointer-events: none;
+/* Le filigrane du coin n'est plus un dessin fixe mais l'emblème animé.
+   Posé en `img` plutôt qu'en fond : un fond ne se remplace pas par une
+   image fixe quand le client a coupé les animations, alors qu'une balise,
+   si — il suffit de lui changer d'adresse. */
+.hero__embleme {
+  position: absolute; right: -34px; bottom: -44px;
+  width: 210px; height: auto; opacity: .16;
+  transform: rotate(14deg);
+  pointer-events: none; user-select: none;
+  /* Le GIF est en ivoire sur encre : sur la surface du panneau, il faut le
+     fondre, sinon son fond noir dessine un rectangle dans le coin. */
+  mix-blend-mode: screen;
 }
 
 /* ── Chips d'arguments ───────────────────────────────────── */
@@ -1601,9 +1608,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
    prend l'écran, et la barre d'achat se pose au-dessus des onglets. */
 
 .vue--produit {
-  /* De quoi ne pas finir sous la barre d'achat, elle-même posée sur celle
-     des onglets : sans cette réserve, le dernier carrousel était intouchable. */
-  padding-bottom: 74px;
+  /* La réserve sous la fiche est celle que la barre d'achat occupe vraiment,
+     mesurée à l'affichage. Écrite en dur, elle se trompait dès que la barre
+     changeait de hauteur — deux lignes de boutons sur un article épuisé, un
+     texte grossi par le téléphone — et le dernier carrousel finissait sous
+     elle : on voyait la vignette d'une suggestion, plus son nom ni son prix.
+     Les 96 px de secours valent pour l'instant qui sépare l'affichage de la
+     mesure. */
+  padding-bottom: calc(var(--pbar-h, 96px) - var(--tabbar-h, 78px) + 20px);
 }
 
 /* La flèche du retour, en tête de page. Elle double celle de Telegram : la

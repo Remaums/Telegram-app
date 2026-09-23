@@ -127,6 +127,10 @@
   <!-- ══ Bannière ══ -->
   <section class="hero">
     <div class="hero__halo" aria-hidden="true"></div>
+    <!-- L'emblème de la maison, dans le coin de la bannière. Animé, mais
+         lentement : il donne un signe de vie à l'écran d'accueil sans se
+         disputer l'attention avec les photos de produits. -->
+    <img class="hero__embleme" id="heroEmbleme" src="/assets/ui/napoli-feuille.gif" alt="" aria-hidden="true">
     <div class="hero__body">
       <p class="hero__eyebrow">Commande sur Telegram</p>
       <h1 class="hero__title goldtext">Fraîchement<br>débarqué</h1>
@@ -258,20 +262,6 @@
     </section>
   </div>
 
-  <!-- La barre d'achat, posée au-dessus de celle des onglets. -->
-  <div class="pbar">
-    <div class="qty" role="group" aria-label="Quantité">
-      <button type="button" id="qtyMinus" aria-label="Retirer un">−</button>
-      <span id="qtyValue">1</span>
-      <button type="button" id="qtyPlus" aria-label="Ajouter un">+</button>
-    </div>
-    <button class="btn btn--primary btn--grow" id="addToCart" type="button">
-      Ajouter · <span id="pPrice"></span>
-    </button>
-    <button class="btn btn--ghost btn--grow" id="notifyMe" type="button" hidden>
-      🔔 Préviens-moi du retour
-    </button>
-  </div>
 </section>
 
 <!-- ══ Vue « Catégories » : le catalogue rangé, rayon par rayon ══
@@ -362,6 +352,27 @@
      tout empilé sur un seul écran, si bien que le profil et le contact
      n'existaient que pour qui savait où appuyer. Ici chaque chose a sa
      place, et la place se voit. -->
+<!-- ══ La barre d'achat de la fiche produit ══ ══════════════════
+     Hors de la vue, et ce n'est pas un détail de rangement. La vue porte
+     une animation d'entrée qui déplace son contenu ; or un élément qui
+     anime sa transformation devient le repère des positions fixes qu'il
+     contient. La barre se calait donc sur la vue et non sur l'écran :
+     elle flottait cent pixels trop haut et recouvrait la fin de la fiche.
+     Ici elle ne dépend que de la fenêtre. -->
+<div class="pbar" id="pbar" hidden>
+  <div class="qty" role="group" aria-label="Quantité">
+    <button type="button" id="qtyMinus" aria-label="Retirer un">−</button>
+    <span id="qtyValue">1</span>
+    <button type="button" id="qtyPlus" aria-label="Ajouter un">+</button>
+  </div>
+  <button class="btn btn--primary btn--grow" id="addToCart" type="button">
+    Ajouter · <span id="pPrice"></span>
+  </button>
+  <button class="btn btn--ghost btn--grow" id="notifyMe" type="button" hidden>
+    🔔 Préviens-moi du retour
+  </button>
+</div>
+
 <nav class="tabbar" id="tabbar" role="tablist" aria-label="Navigation">
   <span class="tabbar__curseur tabbar__curseur--pose" id="tabbarCurseur" aria-hidden="true"></span>
   <button class="tabbar__item" type="button" role="tab" data-onglet="filtres" aria-selected="true">
