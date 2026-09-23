@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<meta name="theme-color" content="#0f1113">
+<meta name="theme-color" content="#141110">
 <title>Napoli Coffee — Boutique</title>
 <link rel="icon" href="/assets/ui/leaf.svg">
 <link rel="stylesheet" href="/css/fonts.css">
@@ -96,12 +96,16 @@
 <header class="topbar">
   <div class="topbar__brand">
     <img src="/assets/ui/leaf.svg" alt="" class="topbar__leaf">
-    <span class="topbar__name goldtext" id="shopName">Napoli Coffee</span>
+    <span class="topbar__bloc">
+      <span class="topbar__name goldtext" id="shopName">Napoli Coffee</span>
+      <span class="topbar__sous" id="shopSous"></span>
+    </span>
   </div>
   <div class="topbar__actions">
   <button class="cartbtn" id="cartBtn" type="button" aria-label="Ouvrir le panier">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h3l2.6 11.2a2 2 0 0 0 2 1.6h7.1a2 2 0 0 0 2-1.5L21.5 8H7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/></svg>
     <span class="cartbtn__count" id="cartCount" hidden>0</span>
+    <span class="cartbtn__total" id="cartTotalPill" hidden></span>
   </button>
   </div>
 </header>

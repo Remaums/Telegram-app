@@ -1,14 +1,17 @@
 /* ══════════════════════════════════════════════════════════════
    Napoli Coffee — feuille de style
-   Direction artistique « Ardoise » : gris très sombre et neutre, un seul
-   vert pour ce qui compte, et rien d'autre qui brille. Le contraire du
-   néon : ici la couleur sert à désigner (un prix, un onglet actif, une
-   pastille), pas à décorer. Une boutique qui clignote de partout ne
-   désigne plus rien — c'est exactement ce qu'on a corrigé.
+   Direction artistique « Torréfaction » : un noir chaud de grain torréfié,
+   une crème pour le texte, et du laiton pour ce qui compte. Le vert reste,
+   mais en retrait et en sourdine — il ne dit plus que « disponible ».
+
+   Pourquoi pas le gris neutre et le vert vif : c'est la livrée de tout le
+   monde. Une boutique qui porte les couleurs de la boutique d'à côté n'a
+   pas d'enseigne, elle a un gabarit. Le laiton sur le brun est à la fois
+   sobre — ce qui était demandé — et à personne d'autre.
 
    Trois règles qui tiennent tout le reste :
-   - le fond est plat. Pas de dégradé vert, pas de fumée qui dérive ;
-   - le vert n'apparaît que sur une action ou une information ;
+   - le fond est plat et chaud. Pas de dégradé, pas de halo qui dérive ;
+   - le laiton n'apparaît que sur une action ou une information ;
    - les titres sont écrits, pas dessinés : une graisse, pas un relief.
    ══════════════════════════════════════════════════════════════ */
 
@@ -18,28 +21,31 @@
    données en composantes brutes pour pouvoir moduler l'opacité avec
    la syntaxe rgb(var(--x) / .5). */
 :root {
-  --void-rgb:     8 10 12;    /* fonds d'écran modaux */
-  --night-rgb:   15 17 19;    /* fond de page */
-  --night2-rgb:  20 23 26;    /* barres hautes et basses */
-  --panel-rgb:   30 34 38;    /* surface haute (cartes, panneaux) */
-  --panel2-rgb:  23 26 29;    /* surface basse */
-  --ink-rgb:      9 11 12;    /* contours et texte posé sur le vert */
-  --cream-rgb: 232 236 239;   /* texte */
-  --line-rgb:   116 126 134;  /* filets et bordures — gris, pas vert */
+  --void-rgb:    10  8  7;    /* fonds d'écran modaux */
+  --night-rgb:   20 17 15;    /* fond de page — grain torréfié */
+  --night2-rgb:  27 23 20;    /* barres hautes et basses */
+  --panel-rgb:   38 32 28;    /* surface haute (cartes, panneaux) */
+  --panel2-rgb:  29 25 22;    /* surface basse */
+  --ink-rgb:     14 11 10;    /* contours et texte posé sur le laiton */
+  --cream-rgb: 243 236 228;   /* texte — crème, pas blanc */
+  --line-rgb:   146 128 110;  /* filets et bordures — chauds */
 
-  --neon-rgb:   34 197 94;    /* le vert, et il n'y en a qu'un */
-  --halo-rgb:   34 197 94;    /* les halos ne servent plus qu'aux lueurs ponctuelles */
-  --halo2-rgb: 236  72 153;   /* rose : favoris, et rien d'autre */
-  --halo3-rgb:  20 184 166;   /* turquoise : compteurs du profil */
+  /* Le laiton. `--neon` a gardé son nom : il est cité par une centaine de
+     déclarations, et le renommer partout n'aurait rien changé à l'écran. */
+  --neon-rgb:  201 149  70;
+  --halo-rgb:  201 149  70;
+  --halo2-rgb: 199  98  82;   /* terre cuite : favoris */
+  --halo3-rgb: 124 143 110;   /* sauge : compteurs, disponibilité */
 
-  --gold-rgb:   245 158  11;  /* ambre : commandes en cours, avertissements */
-  --gold-lo-rgb: 217 119   6;
-  --red-rgb:    239  68  68;  /* alertes, ruptures */
-  --tg-rgb:      42 171 238;  /* le bleu de Telegram, pour ce qui y renvoie */
+  --gold-rgb:  214 170  90;   /* sable clair : commandes en cours, avertissements */
+  --gold-lo-rgb: 168 120  48;
+  --red-rgb:   198  85  70;   /* alertes, ruptures — brique, pas rouge vif */
+  --tg-rgb:     42 171 238;   /* le bleu de Telegram : il ne nous appartient pas */
 
-  --neon-hi: #34d97a;         /* survol du vert */
-  --neon-deep: #16a34a;       /* appui */
-  --gold-hi: #fbbf24;
+  --neon-hi: #dcae62;         /* survol */
+  --neon-deep: #a97c33;       /* appui */
+  --gold-hi: #e6c47e;
+  --sauge: #8ea37c;           /* ce qui est ouvert, en stock, actif */
 }
 
 :root {
@@ -64,7 +70,7 @@
   --ink: rgb(var(--ink-rgb));
   --cream: rgb(var(--cream-rgb));
   --muted: rgb(var(--cream-rgb) / .68);
-  --line-soft: rgb(var(--line-rgb) / .24);
+  --line-soft: rgb(var(--line-rgb) / .2);
   --tg: rgb(var(--tg-rgb));
 
   /* Alias hérités (admin.css et états produits) */
@@ -112,8 +118,7 @@ body {
   /* Une seule lueur, très faible, en haut : assez pour que la barre de
      titre ne flotte pas sur du noir mort, trop peu pour qu'on la
      remarque. Fixée, pour ne pas défiler avec la page. */
-  background-image:
-    radial-gradient(120% 40% at 50% -10%, rgb(var(--neon-rgb) / .05), transparent 70%);
+  background-image: none;
   background-attachment: fixed;
   background-repeat: no-repeat;
   overscroll-behavior-y: none;
@@ -224,10 +229,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
    Le bouton principal se distingue d'être le seul vert de l'écran ; il
    n'a pas besoin de briller en plus. */
 .btn--primary {
-  color: #ffffff;
+  color: var(--ink);
   background: var(--neon);
   border-color: transparent;
-  box-shadow: 0 4px 14px rgb(var(--neon-rgb) / .22);
+  box-shadow: 0 4px 14px rgb(var(--neon-rgb) / .18);
   text-shadow: none;
 }
 .btn--primary:active { background: var(--neon-deep); }
@@ -263,7 +268,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: grid; place-items: center;
   width: 84px; height: 84px; margin: -62px auto 6px;
   font-family: var(--display); font-weight: 700; font-synthesis-weight: none;
-  font-size: 27px; line-height: 1; color: #fff;
+  font-size: 27px; line-height: 1; color: var(--ink);
   background: var(--neon);
   border: 4px solid var(--night-2); border-radius: 50%;
   box-shadow: none;
@@ -327,19 +332,26 @@ button { font: inherit; color: inherit; cursor: pointer; }
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--line-soft);
 }
-.topbar__brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
-/* Le logo dans un anneau vert, comme la vignette d'un compte : ça lui
-   donne une place au lieu de le laisser flotter contre le titre. */
-.topbar__leaf {
-  width: 34px; height: 34px; flex: none; padding: 6px;
-  border: 1.5px solid rgb(var(--neon-rgb) / .5); border-radius: 50%;
-  background: rgb(var(--neon-rgb) / .08);
-}
+.topbar__brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* La feuille, nue. L'anneau autour du logo faisait « photo de profil », ce
+   qu'on voit sur toutes les boutiques Telegram ; une enseigne se pose sur sa
+   devanture, elle ne se met pas dans un médaillon. */
+.topbar__leaf { width: 26px; height: 26px; flex: none; opacity: .9; }
+.topbar__bloc { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .topbar__name {
-  font-size: 20px; font-weight: 800; letter-spacing: -.01em;
+  font-size: 18px; font-weight: 800; letter-spacing: .01em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  padding: 2px 0;
 }
+/* La seconde ligne dit l'état de la maison : ouvert, et combien d'articles.
+   C'est ce qu'on regarde en arrivant, et ça évitait jusqu'ici un bandeau
+   séparé qui poussait le catalogue vers le bas. */
+.topbar__sous {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: rgb(var(--cream-rgb) / .42);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.topbar__sous b { color: var(--sauge); font-weight: 800; }
+.topbar__sous b.est-ferme { color: rgb(var(--red-rgb)); }
 .topbar__actions { display: flex; align-items: center; gap: 9px; flex: none; }
 
 /* Bouton discret de la barre : l'accent néon reste au panier. */
@@ -354,23 +366,32 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .iconbtn svg { width: 22px; height: 22px; }
 .iconbtn:active { transform: scale(.94); border-color: rgb(var(--neon-rgb) / .6); }
 
+/* Le panier : une pastille qui dit le total, pas une icône avec un compteur
+   suspendu au coin. Le compteur flottant est l'ornement le plus recopié du
+   genre, et il annonce un nombre d'articles — ce qui n'est pas ce qu'on se
+   demande devant un panier. Le montant, si. Panier vide, la pastille
+   disparaît et il ne reste que l'icône. */
 .cartbtn {
   position: relative; flex: none;
-  width: 46px; height: 46px; display: grid; place-items: center;
+  display: flex; align-items: center; gap: 8px;
+  height: 40px; padding: 0 12px;
   color: var(--neon);
   background: rgb(var(--neon-rgb) / .1);
-  border: var(--line) solid rgb(var(--neon-rgb) / .5);
-  border-radius: 14px; box-shadow: var(--glow-neon);
-  transition: transform .12s ease, box-shadow .12s ease;
+  border: var(--line) solid rgb(var(--neon-rgb) / .34);
+  border-radius: 999px; box-shadow: none;
+  transition: transform .12s ease;
 }
-.cartbtn:active { transform: scale(.94); }
-.cartbtn svg { width: 24px; height: 24px; fill: currentColor; }
+.cartbtn:active { transform: scale(.96); }
+.cartbtn svg { width: 21px; height: 21px; fill: currentColor; }
+.cartbtn__total {
+  font-size: 13.5px; font-weight: 800; letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+/* Le nombre d'articles reste accessible aux lecteurs d'écran, mais ne
+   s'affiche plus : le montant le remplace à l'œil. */
 .cartbtn__count {
-  position: absolute; top: -8px; right: -8px; min-width: 24px; height: 24px;
-  display: grid; place-items: center; padding: 0 5px;
-  background: rgb(var(--halo2-rgb)); color: #fff; font-size: 12px; font-weight: 800;
-  border: 2px solid var(--night-2); border-radius: 999px;
-  box-shadow: none;
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
 }
 .cartbtn__count.pop { animation: pop .35s ease; }
 @keyframes pop { 0%{transform:scale(1)} 40%{transform:scale(1.45)} 100%{transform:scale(1)} }
@@ -446,7 +467,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   transition: transform .12s ease, box-shadow .12s ease, background .16s ease, color .16s ease;
 }
 .cat[aria-pressed="true"] {
-  color: #fff;
+  color: var(--ink);
   background: var(--neon);
   border-color: transparent;
   box-shadow: none;
@@ -489,7 +510,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
      boutique. Le dégradé rose vers vert disait surtout « regarde comme je
      brille », sur une vignette qui n'a que 170 px de large. */
   background: var(--neon);
-  color: #fff; font-size: 10px; font-weight: 800;
+  color: var(--ink); font-size: 10px; font-weight: 800;
   letter-spacing: .04em; padding: 4px 8px; border: 0;
   border-radius: 6px; box-shadow: none;
 }
@@ -506,7 +527,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   -webkit-text-fill-color: rgb(var(--cream-rgb) / .7); color: rgb(var(--cream-rgb) / .7); background: none; }
 .card__add {
   width: 32px; height: 32px; flex: none; display: grid; place-items: center;
-  color: #fff;
+  color: var(--ink);
   background: var(--neon);
   border: 0; border-radius: 10px;
   font-size: 20px; line-height: 1; font-weight: 800; box-shadow: none;
@@ -753,8 +774,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .mode small { font-size: 11.5px; font-weight: 700; color: var(--muted); }
 .mode[aria-pressed="true"] {
-  color: #fff; background: var(--neon);
-  border-color: rgb(var(--ink-rgb) / .5); box-shadow: var(--glow-neon);
+  color: var(--ink); background: var(--neon);
+  border-color: transparent; box-shadow: none;
 }
 .mode[aria-pressed="true"] small { color: rgb(var(--ink-rgb) / .75); }
 
@@ -787,7 +808,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .done { text-align: center; padding: 28px 20px 8px; }
 .done__seal {
   display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 14px;
-  font-size: 28px; font-weight: 800; color: #fff;
+  font-size: 28px; font-weight: 800; color: var(--ink);
   background: var(--neon);
   border-radius: 50%; box-shadow: none;
 }
@@ -1250,7 +1271,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   color: var(--muted); background: transparent;
 }
 .profil__onglet[aria-selected="true"] {
-  color: #fff; background: var(--neon);
+  color: var(--ink); background: var(--neon);
 }
 .profil__compte {
   display: inline-block; margin-left: 5px; padding: 0 6px; border-radius: 999px;
@@ -1309,7 +1330,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .alerte[aria-checked="true"] { border-color: rgb(var(--neon-rgb) / .5); }
 .alerte[aria-checked="true"] .alerte__bouton { background: var(--neon); }
-.alerte[aria-checked="true"] .alerte__bouton::after { transform: translateX(19px); background: #fff; }
+.alerte[aria-checked="true"] .alerte__bouton::after { transform: translateX(19px); background: var(--ink); }
 @media (prefers-reduced-motion: reduce) {
   .alerte__bouton, .alerte__bouton::after { transition: none; }
 }
@@ -1321,7 +1342,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   padding: 0 4px; border-radius: 999px;
   display: grid; place-items: center;
   font-size: 10.5px; font-weight: 800; line-height: 1;
-  color: #fff; background: var(--neon);
+  color: var(--ink); background: var(--neon);
 }
 
 /* Le format auquel un média est rattaché. En bas à gauche, en face de la
@@ -1330,7 +1351,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .galerie__format {
   position: absolute; bottom: 8px; left: 8px; z-index: 2;
   padding: 3px 9px; border-radius: 999px;
-  background: var(--neon); color: #fff;
+  background: var(--neon); color: var(--ink);
   font-size: 11.5px; font-weight: 800; letter-spacing: .03em;
 }
 
@@ -1407,38 +1428,37 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
   display: grid; grid-template-columns: repeat(4, 1fr);
-  padding: 6px 6px calc(6px + var(--safe-bottom));
-  background: rgb(var(--night2-rgb) / .94);
+  padding: 0 0 var(--safe-bottom);
+  background: rgb(var(--night2-rgb) / .96);
   backdrop-filter: blur(16px);
   border-top: 1px solid var(--line-soft);
 }
 .tabbar__item {
   position: relative;
-  display: grid; justify-items: center; gap: 3px;
-  padding: 8px 2px 7px;
-  border: 0; border-radius: 12px;
-  background: none; color: rgb(var(--cream-rgb) / .5);
-  font-size: 10.5px; font-weight: 700; letter-spacing: .01em;
-  transition: color .16s ease, background-color .16s ease;
+  display: grid; justify-items: center; gap: 4px;
+  padding: 11px 2px 8px;
+  border: 0; background: none; color: rgb(var(--cream-rgb) / .42);
+  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  transition: color .16s ease, transform .16s ease;
 }
-.tabbar__item svg { width: 21px; height: 21px; }
+.tabbar__item svg { width: 22px; height: 22px; }
 .tabbar__item span { line-height: 1; }
 
-/* L'onglet actif : une pastille verte et un trait sous le pied, comme
-   sur la référence. Le trait seul se perdait sur un écran de téléphone
-   tenu en main ; la pastille seule ressemblait à un bouton pressé. */
-.tabbar__item[aria-selected='true'] {
-  color: var(--neon);
-  background: rgb(var(--neon-rgb) / .12);
-}
+/* L'onglet actif : un trait de laiton au bord SUPÉRIEUR de l'onglet, et
+   l'icône qui monte d'un pixel. Ni pastille colorée ni soulignement sous
+   le libellé : ces deux-là sont la signature de la moitié des boutiques
+   Telegram, et on se reconnaît mal dans une signature partagée. Le trait
+   en haut a un autre mérite — il touche le bord de la barre, donc il
+   reste visible quand le pouce couvre le libellé. */
+.tabbar__item[aria-selected='true'] { color: var(--neon); transform: translateY(-1px); }
 .tabbar__item[aria-selected='true']::after {
-  content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 20px; height: 2px; border-radius: 2px; background: var(--neon);
+  content: ''; position: absolute; top: 0; left: 12%; right: 12%;
+  height: 2px; background: var(--neon);
 }
-.tabbar__item:active { background: rgb(var(--cream-rgb) / .06); }
+.tabbar__item:active { color: var(--cream); }
 
 .tabbar__pastille {
-  position: absolute; top: 4px; right: calc(50% - 22px);
+  position: absolute; top: 7px; right: calc(50% - 21px);
   min-width: 16px; height: 16px; padding: 0 4px;
   display: grid; place-items: center;
   font-size: 10px; font-weight: 800; line-height: 1;
@@ -1448,56 +1468,62 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* ── Les rayons : le catalogue rangé ─────────────────────── */
 .rayons { display: grid; gap: 22px; padding: 4px 0 0; }
+/* L'intitulé d'un rayon tient toute la largeur : nom à gauche, compte à
+   droite, un filet dessous. Le petit trait vertical collé à gauche du titre
+   était l'élément le plus reconnaissable de la boutique qui nous a servi de
+   départ ; celui-ci range le catalogue comme une carte range ses plats. */
 .rayon__tete {
-  display: flex; align-items: center; gap: 10px;
-  margin: 0 0 10px; padding-left: 10px;
-  border-left: 3px solid var(--neon);
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  margin: 0 0 12px; padding-bottom: 7px;
+  border-bottom: 1px solid var(--line-soft);
 }
 .rayon__nom {
-  margin: 0; font-size: 14px; font-weight: 800;
-  letter-spacing: .1em; text-transform: uppercase; color: var(--cream);
+  margin: 0; font-size: 13px; font-weight: 800;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--neon);
 }
 .rayon__compte {
-  font-size: 12px; font-weight: 700; color: var(--muted);
+  font-size: 11.5px; font-weight: 700; letter-spacing: .04em;
+  color: rgb(var(--cream-rgb) / .45);
 }
 .rayon__grille { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 
 /* ── Contact ─────────────────────────────────────────────── */
-.contact { padding: 14px 2px 0; text-align: center; }
+/* ── Contact ─────────────────────────────────────────────────
+   C'était un médaillon centré, un titre centré, un texte centré et une
+   légende entre deux filets — la mise en page de tous les écrans « nous
+   contacter » de la place. Ici tout est aligné à gauche, comme le reste
+   de la boutique : on lit une adresse, on ne contemple pas une vignette.
+   Le titre porte un filet de laiton court au-dessus, seul ornement. */
+.contact { padding: 18px 0 0; }
 .contact__icone {
-  width: 74px; height: 74px; margin: 6px auto 16px;
-  display: grid; place-items: center;
-  color: var(--neon);
-  background: rgb(var(--neon-rgb) / .12);
-  border: 1px solid rgb(var(--neon-rgb) / .3);
-  border-radius: 22px;
+  width: 34px; height: 3px; margin: 0 0 18px;
+  background: var(--neon); border: 0; border-radius: 2px;
+  display: block; color: transparent; overflow: hidden;
 }
-.contact__icone svg { width: 36px; height: 36px; }
+.contact__icone svg { display: none; }
 .contact__titre {
-  margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -.01em; color: var(--cream);
+  margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -.015em; color: var(--cream);
 }
 .contact__texte {
-  margin: 10px auto 0; max-width: 300px;
-  font-size: 14px; line-height: 1.5; color: var(--muted);
+  margin: 10px 0 0; max-width: 34ch;
+  font-size: 14px; line-height: 1.55; color: var(--muted);
 }
-/* Une légende entre deux filets : elle sépare le discours du bouton,
-   là où un simple blanc laissait les deux se regarder. */
+/* Une simple ligne d'intitulé, sans les filets qui l'encadraient. */
 .contact__legende {
-  display: flex; align-items: center; gap: 12px;
-  margin: 26px 0 14px;
-  font-size: 11px; font-weight: 800; letter-spacing: .18em;
-  text-transform: uppercase; color: rgb(var(--cream-rgb) / .45);
-}
-.contact__legende::before, .contact__legende::after {
-  content: ''; flex: 1; height: 1px; background: var(--line-soft);
+  margin: 26px 0 12px;
+  font-size: 10.5px; font-weight: 800; letter-spacing: .18em;
+  text-transform: uppercase; color: rgb(var(--cream-rgb) / .4);
 }
 .contact__fine { margin: 12px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
-.contact__infos { display: grid; gap: 8px; margin-top: 22px; }
+
+/* Les renseignements, en liste plutôt qu'en cartes : trois cartes empilées
+   sous un bouton ressemblaient à trois autres boutons. */
+.contact__infos { margin-top: 26px; border-top: 1px solid var(--line-soft); }
 .contact__info {
-  display: flex; align-items: center; gap: 10px; text-align: left;
-  padding: 12px 14px;
-  background: var(--panel); border: 1px solid var(--line-soft); border-radius: 14px;
-  font-size: 13.5px; font-weight: 600; color: var(--muted);
+  display: flex; align-items: baseline; gap: 11px;
+  padding: 13px 2px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13.5px; line-height: 1.45; font-weight: 600; color: var(--muted);
 }
 .contact__info b { color: var(--cream); font-weight: 800; }
 
@@ -1520,35 +1546,40 @@ button { font: inherit; color: inherit; cursor: pointer; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* Les quatre compteurs. Chacun porte un filet de couleur à gauche : c'est
-   ce qui les distingue au premier regard, sans qu'il faille lire quatre
-   libellés pour retrouver celui qu'on cherchait. */
-.chiffres { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
+/* Les quatre compteurs, en bandeau.
+   C'étaient quatre cartes en deux rangées, chacune avec son filet de
+   couleur à gauche et sa tuile d'icône — exactement la disposition qu'on
+   trouve partout ailleurs, et qui mange un tiers de l'écran pour dire
+   quatre nombres. Une seule ligne divisée par des filets les dit aussi
+   bien, laisse les commandes monter dans l'écran, et n'appartient qu'à
+   nous. Les icônes sautent : un chiffre et son mot suffisent. */
+.chiffres {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  margin-bottom: 20px; padding: 14px 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
 .chiffre {
-  position: relative; overflow: hidden;
-  display: flex; align-items: center; gap: 10px;
-  padding: 13px 13px 13px 15px;
-  background: var(--panel); border: 1px solid var(--line-soft); border-radius: 14px;
+  position: relative; text-align: center; padding: 0 4px;
 }
-.chiffre::before {
-  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--teinte);
+/* Un filet entre deux colonnes, jamais avant la première : une bordure
+   posée sur les quatre laisserait un trait pendu au bord de l'écran. */
+.chiffre + .chiffre::before {
+  content: ''; position: absolute; left: 0; top: 2px; bottom: 2px;
+  width: 1px; background: var(--line-soft);
 }
-.chiffre__tuile {
-  width: 34px; height: 34px; flex: none; display: grid; place-items: center;
-  border-radius: 10px; font-size: 16px;
-  background: rgb(var(--teinte-rgb) / .14); color: var(--teinte);
+.chiffre__valeur {
+  display: block; font-size: 21px; font-weight: 800; line-height: 1.1;
+  color: var(--cream); font-variant-numeric: tabular-nums;
 }
-.chiffre__corps { min-width: 0; }
-.chiffre__valeur { display: block; font-size: 19px; font-weight: 800; line-height: 1.1; color: var(--cream); }
 .chiffre__label {
-  display: block; font-size: 10px; font-weight: 800; letter-spacing: .12em;
-  text-transform: uppercase; color: rgb(var(--cream-rgb) / .5);
+  display: block; margin-top: 3px;
+  font-size: 9.5px; font-weight: 800; letter-spacing: .12em;
+  text-transform: uppercase; color: rgb(var(--cream-rgb) / .42);
 }
-.chiffre--panier    { --teinte-rgb: var(--tg-rgb);   --teinte: rgb(var(--tg-rgb)); }
-.chiffre--commandes { --teinte-rgb: var(--gold-rgb); --teinte: rgb(var(--gold-rgb)); }
-.chiffre--favoris   { --teinte-rgb: var(--halo2-rgb); --teinte: rgb(var(--halo2-rgb)); }
-.chiffre--produits  { --teinte-rgb: var(--halo3-rgb); --teinte: rgb(var(--halo3-rgb)); }
+/* Seul le compteur qui porte quelque chose prend la couleur : un panier
+   vide et un panier plein ne doivent pas se ressembler. */
+.chiffre--plein .chiffre__valeur { color: var(--neon); }
 
 /* ══ La fiche produit, en page ════════════════════════════════
    Elle occupait une feuille qui remontait du bas, en laissant voir le

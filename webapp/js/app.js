@@ -63,7 +63,7 @@ async function init() {
   if (tg) {
     tg.ready();
     tg.expand();
-    const night = themeHex('--night-rgb', '#0f1113');
+    const night = themeHex('--night-rgb', '#141110');
     tg.setHeaderColor?.(night);
     tg.setBackgroundColor?.(night);
     tg.enableClosingConfirmation?.();
@@ -123,6 +123,7 @@ async function init() {
   $('footLegal').textContent = legal;
 
   renderClosedBanner();
+  renderSousTitre();
   renderStatut();
   renderModes();
   renderCategories();
@@ -2374,8 +2375,14 @@ function renderCart() {
   const count = lines.reduce((sum, l) => sum + l.quantity, 0);
 
   const badge = $('cartCount');
-  badge.textContent = count;
+  badge.textContent = `${count} article${count > 1 ? 's' : ''}`;
   badge.hidden = count === 0;
+
+  // Le montant sur la pastille : c'est la question qu'on se pose devant un
+  // panier, pas le nombre de lignes. Panier vide, il n'y a rien à dire.
+  const pastille = $('cartTotalPill');
+  pastille.hidden = count === 0;
+  pastille.textContent = count === 0 ? '' : formatPrice(cartTotal());
   // Le profil affiche le même nombre : sans ça, il restait sur la valeur
   // qu'il avait à l'ouverture pendant qu'on remplissait le panier derrière.
   if (state.onglet === 'profil') renderChiffres();
@@ -3589,32 +3596,51 @@ function renderChiffres(commandes) {
   if (Number.isFinite(commandes)) commandesConnues = commandes;
 
   const lignes = [
-    ['panier', '🛒', state.cart.reduce((somme, l) => somme + l.quantity, 0), 'Panier'],
-    ['commandes', '📦', commandesConnues ?? '—', 'Commandes'],
-    ['favoris', '♥', state.favoris?.size ?? 0, 'Favoris'],
-    ['produits', '🌿', state.products.length, 'Produits'],
+    ['panier', state.cart.reduce((somme, l) => somme + l.quantity, 0), 'Panier'],
+    ['commandes', commandesConnues ?? '—', 'Commandes'],
+    ['favoris', state.favoris?.size ?? 0, 'Favoris'],
+    ['produits', state.products.length, 'Produits'],
   ];
 
   $('profilChiffres').replaceChildren(
-    ...lignes.map(([clef, emoji, valeur, label]) => {
-      const carte = document.createElement('div');
-      carte.className = `chiffre chiffre--${clef}`;
-      const tuile = document.createElement('span');
-      tuile.className = 'chiffre__tuile';
-      tuile.setAttribute('aria-hidden', 'true');
-      tuile.textContent = emoji;
-      const corps = document.createElement('span');
-      corps.className = 'chiffre__corps';
+    ...lignes.map(([clef, valeur, label]) => {
+      const colonne = document.createElement('div');
+      // « plein » teinte le nombre : un panier vide et un panier à trois
+      // articles ne doivent pas se ressembler dans un bandeau de quatre
+      // chiffres qu'on parcourt d'un regard.
+      const plein = Number(valeur) > 0;
+      colonne.className = `chiffre chiffre--${clef}${plein ? ' chiffre--plein' : ''}`;
       const nombre = document.createElement('b');
       nombre.className = 'chiffre__valeur';
       nombre.textContent = String(valeur);
       const nom = document.createElement('span');
       nom.className = 'chiffre__label';
       nom.textContent = label;
-      corps.append(nombre, nom);
-      carte.append(tuile, corps);
-      return carte;
+      colonne.append(nombre, nom);
+      return colonne;
     })
+  );
+}
+
+/**
+ * La ligne sous l'enseigne : ouvert ou fermé, et la taille du catalogue.
+ *
+ * Deux informations qu'on cherche en arrivant, et qui occupaient jusqu'ici
+ * un bandeau à part poussant le catalogue vers le bas. Sous le nom, elles ne
+ * coûtent pas une ligne d'écran — et elles suivent l'en-tête, qui reste
+ * collé en haut pendant qu'on fait défiler.
+ */
+function renderSousTitre() {
+  const ligne = $('shopSous');
+  if (!ligne) return;
+  const ouvert = state.opening?.open !== false;
+  const etat = document.createElement('b');
+  etat.textContent = ouvert ? 'Ouvert' : 'Fermé';
+  etat.classList.toggle('est-ferme', !ouvert);
+  const combien = state.products.length;
+  ligne.replaceChildren(
+    etat,
+    document.createTextNode(combien ? ` · ${combien} produit${combien > 1 ? 's' : ''}` : '')
   );
 }
 
