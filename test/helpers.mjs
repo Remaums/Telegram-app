@@ -63,7 +63,11 @@ export async function getShopPass(base, initData) {
 export async function resetShop(base, initData, patch = {}) {
   const body = {
     features: {
-      ageGate: true, captcha: true, verification: false, hours: false,
+      // Le décor de départ suit le défaut de la boutique : la porte d'âge est
+      // éteinte. Une suite qui la rallumait laissait l'écran « 18 ans ? »
+      // devant la vraie boutique après chaque `npm test` — le nettoyage
+      // changeait un réglage que personne n'avait demandé.
+      ageGate: false, captcha: true, verification: false, hours: false,
       zones: true, slots: false, tiers: true, promos: true, waitlist: true,
       stockAlerts: true, limits: true, photos: true, orderHistory: true,
       clientNotifications: true,
