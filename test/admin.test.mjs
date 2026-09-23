@@ -95,6 +95,47 @@ check(
   `${r.products.length} produits visibles`
 );
 
+/* ── Les caractéristiques de la fiche ────────────────────── */
+
+// Elles viennent d'un champ libre du panel : ce qui en sort doit être borné,
+// sinon une liste à rallonge redevient un paragraphe mal composé, et une
+// ligne vide laissée par le vendeur devient une puce vide sur la fiche.
+r = await call(`/api/admin/products/${created.id}`, {
+  method: 'PATCH',
+  body: { points: ['  Culture indoor  ', '', '   ', 'Séchage lent'] },
+});
+check(
+  'Caractéristiques rognées, les vides jetées',
+  JSON.stringify(r.data?.points) === JSON.stringify(['Culture indoor', 'Séchage lent']),
+  JSON.stringify(r.data?.points)
+);
+
+r = await call(`/api/admin/products/${created.id}`, {
+  method: 'PATCH',
+  body: { points: Array.from({ length: 12 }, (_, i) => `Point ${i}`) },
+});
+check('Six caractéristiques au plus', r.data?.points?.length === 6, `${r.data?.points?.length}`);
+
+r = await call(`/api/admin/products/${created.id}`, {
+  method: 'PATCH',
+  body: { points: ['x'.repeat(300)] },
+});
+check('Une caractéristique reste courte', r.data?.points?.[0]?.length === 80, `${r.data?.points?.[0]?.length}`);
+
+r = await call(`/api/admin/products/${created.id}`, { method: 'PATCH', body: { points: 'pas un tableau' } });
+check('Caractéristiques mal formées ignorées',
+  Array.isArray(r.data?.points) && r.data.points.length === 0, JSON.stringify(r.data?.points));
+
+// Et elles voyagent jusqu'au client : c'est là qu'elles servent.
+await call(`/api/admin/products/${created.id}`, {
+  method: 'PATCH',
+  body: { points: ['Visible depuis la boutique'], visible: true },
+});
+r = await fetch(`${BASE}/api/catalog`).then((x) => x.json());
+check('Caractéristiques servies au catalogue',
+  r.products.find((p) => p.id === created.id)?.points?.[0] === 'Visible depuis la boutique');
+await call(`/api/admin/products/${created.id}`, { method: 'PATCH', body: { visible: false } });
+
 /* ── Stock ───────────────────────────────────────────────── */
 r = await call(`/api/admin/products/${created.id}/stock`, { method: 'POST', body: { quantity: 3 } });
 check('Stock modifié', r.data?.stock === 3, `stock = ${r.data?.stock}`);

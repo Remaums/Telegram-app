@@ -587,23 +587,51 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .pdetail__name { font-size: 27px; line-height: 1.1; font-weight: 800; }
 .pdetail__desc { font-size: 14.5px; line-height: 1.55; margin: 10px 0 0; font-weight: 600; color: var(--muted); }
 
-.variants { display: flex; gap: 9px; flex-wrap: wrap; margin: 18px 0 6px; }
+/* ── Les formats, en grille ──────────────────────────────────
+   Des pastilles sur une ligne, il fallait les lire de gauche à droite pour
+   comparer quatre prix ; en grille on les embrasse d'un regard, et c'est
+   exactement ce qu'on vient faire ici. Deux colonnes, parce qu'un poids et
+   un prix tiennent dans la moitié d'un écran de téléphone et qu'au-delà les
+   chiffres se serrent. */
+.variants__titre {
+  margin: 20px 0 9px; font-size: 12px; font-weight: 800;
+  letter-spacing: .12em; text-transform: uppercase; color: rgb(var(--cream-rgb) / .5);
+}
+.variants { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 0 0 6px; }
 .variant {
   color: var(--cream);
-  background: rgba(255, 255, 255, .06);
-  border: var(--line) solid var(--line-soft); border-radius: 14px;
-  padding: 9px 15px; font-weight: 800; font-size: 14px;
-  display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.15;
-  transition: transform .12s ease, box-shadow .12s ease, background .16s ease, color .16s ease;
+  background: var(--panel);
+  border: var(--line) solid var(--line-soft); border-radius: 13px;
+  padding: 12px 14px; font-weight: 700; font-size: 14px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px; line-height: 1.15;
+  transition: background .16s ease, border-color .16s ease;
 }
-.variant small { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.variant__poids { font-size: 14.5px; font-weight: 800; }
+/* Le prix en vert, comme partout ailleurs : le vert désigne l'information
+   qu'on est venu chercher. */
+.variant__prix { font-size: 16px; font-weight: 800; color: var(--neon); }
+
+/* Le format choisi : un fond teinté et un liseré, pas un aplat plein. Rempli
+   de vert, il avalait son propre prix — qui est vert lui aussi. */
 .variant[aria-pressed="true"] {
-  color: #fff;
-  background: var(--neon);
-  border-color: transparent;
-  box-shadow: none;
+  background: rgb(var(--neon-rgb) / .14);
+  border-color: var(--neon);
 }
-.variant[aria-pressed="true"] small { color: rgb(var(--ink-rgb) / .75); }
+.variant[disabled] .variant__prix { color: rgb(var(--cream-rgb) / .38); }
+
+/* ── Les caractéristiques ────────────────────────────────── */
+.points { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 7px; }
+.points li {
+  position: relative; padding-left: 17px;
+  font-size: 13.5px; line-height: 1.45; font-weight: 600; color: var(--cream);
+}
+/* Le point vert, aligné sur la première ligne et non centré sur la puce :
+   une caractéristique qui passe à la ligne aurait sinon sa pastille au
+   milieu du vide. */
+.points li::before {
+  content: ''; position: absolute; left: 0; top: .52em;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--neon);
+}
 
 .qty {
   display: flex; align-items: center; gap: 2px; flex: none;
@@ -990,7 +1018,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
   scrollbar-width: none; -webkit-overflow-scrolling: touch;
 }
 .galerie__piste::-webkit-scrollbar { display: none; }
+/* `relative` n'est pas un détail d'implantation : sans lui, les pastilles
+   d'une case se positionnaient par rapport à la galerie entière. Une galerie
+   dont la première vue est une photo et la seconde une vidéo affichait donc
+   « ▶ Vidéo » sur la photo, et l'étiquette de format d'une case sur la
+   voisine. Chaque case porte maintenant ce qui la concerne. */
 .galerie__media {
+  position: relative;
   flex: 0 0 100%; scroll-snap-align: center;
   display: grid; place-items: center; background: rgb(var(--ink-rgb) / .55);
 }
@@ -1568,3 +1602,38 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .suggestion__prix { font-size: 13px; font-weight: 800; color: var(--neon); }
 .suggestion:active .suggestion__art { border-color: rgb(var(--neon-rgb) / .45); }
+
+/* ── L'attente d'une vidéo ───────────────────────────────────
+   La vignette tient la place mais ne dit rien : le client appuie sur
+   lecture, rien ne bouge, et il croit la vidéo cassée alors qu'elle
+   arrive. L'anneau dit qu'elle arrive, la durée dit combien de temps
+   il s'engage. Posé sans intercepter les appuis : les contrôles du
+   lecteur sont dessous, et il faut pouvoir les atteindre. */
+.vcharge {
+  position: absolute; inset: 0; z-index: 3;
+  display: grid; place-content: center; justify-items: center; gap: 9px;
+  /* Assez sombre pour que l'anneau se détache d'une vignette claire : à
+     45 % d'opacité il disparaissait sur une photo de produit bien exposée,
+     c'est-à-dire sur la plupart. */
+  background: rgb(var(--void-rgb) / .68);
+  pointer-events: none;
+  transition: opacity .25s ease, visibility .25s;
+}
+.vcharge--fini { opacity: 0; visibility: hidden; }
+.vcharge__arc {
+  width: 42px; height: 42px; border-radius: 50%;
+  border: 3px solid rgb(var(--cream-rgb) / .22);
+  border-top-color: var(--neon);
+  animation: charge-tour .95s linear infinite;
+}
+.vcharge__duree {
+  font-size: 12px; font-weight: 800; letter-spacing: .04em;
+  color: var(--cream);
+  background: rgb(var(--void-rgb) / .6);
+  border-radius: 999px; padding: 2px 9px;
+}
+[data-anim='off'] .vcharge__arc { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .vcharge__arc { animation: none; }
+  .vcharge { transition: none; }
+}

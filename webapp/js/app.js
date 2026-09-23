@@ -1566,6 +1566,7 @@ function openProduct(product) {
 
   $('pName').textContent = product.name;
   $('pDesc').textContent = product.description;
+  renderPoints(product);
 
   $('pTags').replaceChildren(
     ...(product.tags ?? []).map((t) => {
@@ -1605,6 +1606,70 @@ function openProduct(product) {
     requestAnimationFrame(() => montrerLeMediaDuFormat(state.currentVariant));
   }
   haptic('light');
+}
+
+/**
+ * L'anneau qui tourne pendant qu'une vidéo se charge, et sa durée.
+ *
+ * Une vidéo de plusieurs mégaoctets sur un réseau de téléphone met le temps
+ * qu'elle met. La vignette tient la place, mais elle ne dit rien : le client
+ * appuie sur lecture, rien ne bouge, et il croit la vidéo cassée — alors
+ * qu'elle arrive. L'anneau dit qu'elle arrive.
+ *
+ * Quatre événements suffisent à couvrir tous les cas, et ils sont tous posés
+ * avant que la source ne soit lue à fond : `canplay` et `playing` pour
+ * l'effacer, `waiting` pour le remettre quand la lecture se vide en cours de
+ * route, `error` pour cesser de faire attendre devant une vidéo qui ne
+ * viendra pas. Une vidéo déjà en cache ne déclenche parfois aucun des deux
+ * premiers : on regarde donc aussi l'état au montage.
+ *
+ * La durée s'affiche dès que les métadonnées arrivent — quelques kilo-octets,
+ * bien avant l'image. Savoir qu'on s'engage dans neuf secondes ou dans deux
+ * minutes change la décision d'appuyer.
+ */
+function voileDeChargement(video) {
+  const voile = document.createElement('span');
+  voile.className = 'vcharge';
+  voile.setAttribute('aria-hidden', 'true');
+
+  const anneau = document.createElement('span');
+  anneau.className = 'vcharge__arc';
+  const duree = document.createElement('span');
+  duree.className = 'vcharge__duree';
+  duree.hidden = true;
+  voile.append(anneau, duree);
+
+  const montrer = () => voile.classList.remove('vcharge--fini');
+  const cacher = () => voile.classList.add('vcharge--fini');
+
+  video.addEventListener('canplay', cacher);
+  video.addEventListener('playing', cacher);
+  video.addEventListener('waiting', montrer);
+  // Une vidéo injoignable ne doit pas laisser tourner l'anneau indéfiniment :
+  // le client attendrait quelque chose qui n'arrive pas.
+  video.addEventListener('error', cacher);
+  // Tous les conteneurs ne portent pas leur durée : un WebM produit à la
+  // volée annonce volontiers `Infinity`. Dans ce cas on ne montre rien —
+  // « 0:00 » sur une vidéo d'une minute est pire que pas de durée du tout.
+  video.addEventListener('loadedmetadata', () => {
+    const lisible = enMinutes(video.duration);
+    duree.hidden = lisible === null;
+    if (lisible) duree.textContent = lisible;
+  });
+
+  // HAVE_CURRENT_DATA : la vidéo était déjà en mémoire, aucun événement ne
+  // viendra. Sans cette ligne, l'anneau tournait pour toujours au deuxième
+  // passage sur la même fiche.
+  if (video.readyState >= 2) cacher();
+
+  return voile;
+}
+
+/** « 1:07 », ou `null` quand le fichier ne dit pas combien il dure. */
+function enMinutes(secondes) {
+  if (!Number.isFinite(secondes) || secondes <= 0) return null;
+  const entier = Math.round(secondes);
+  return `${Math.floor(entier / 60)}:${String(entier % 60).padStart(2, '0')}`;
 }
 
 /**
@@ -1744,6 +1809,8 @@ function renderGalerie(product) {
       pastille.className = 'galerie__type';
       pastille.textContent = '▶ Vidéo';
       case_.append(pastille);
+
+      case_.append(voileDeChargement(video));
     } else {
       const img = document.createElement('img');
       img.src = media.url ?? `/api/media/${product.id}/${rang}`;
@@ -1835,13 +1902,38 @@ function arreterLesVideos() {
   }
 }
 
+/**
+ * Les caractéristiques, en puces.
+ *
+ * Elles ne remplacent pas la description : celle-ci raconte, celles-là se
+ * lisent en diagonale. Un client qui compare deux variétés parcourt six
+ * points ; il ne lit pas deux paragraphes l'un après l'autre.
+ *
+ * Rien à afficher, rien d'affiché : une liste vide sous le titre laisserait
+ * un blanc qu'on prendrait pour un écran mal chargé.
+ */
+function renderPoints(product) {
+  const liste = $('pPoints');
+  const points = Array.isArray(product.points) ? product.points.filter(Boolean) : [];
+  liste.hidden = points.length === 0;
+  liste.replaceChildren(
+    ...points.map((texte) => {
+      const item = document.createElement('li');
+      item.textContent = texte;
+      return item;
+    })
+  );
+}
+
 function renderVariants() {
   const box = $('pVariants');
   const product = state.current;
   if (!product?.variants) {
     box.replaceChildren();
+    $('pVariantsTitre').hidden = true;
     return;
   }
+  $('pVariantsTitre').hidden = false;
   box.replaceChildren(
     ...product.variants.map((v) => {
       const btn = document.createElement('button');
@@ -1849,9 +1941,18 @@ function renderVariants() {
       btn.className = 'variant';
       btn.setAttribute('aria-pressed', String(v.id === state.currentVariant));
       btn.disabled = Number(v.stock ?? 0) <= 0;
-      btn.innerHTML = `${escapeHtml(v.label)}<small>${
-        btn.disabled ? 'épuisé' : formatPrice(v.price)
-      }</small>`;
+
+      // Deux lignes montées en éléments plutôt qu'en HTML recollé : le libellé
+      // vient du vendeur, et une chaîne concaténée redevient du balisage à la
+      // première apostrophe mal placée.
+      const poids = document.createElement('span');
+      poids.className = 'variant__poids';
+      poids.textContent = v.label;
+      const prix = document.createElement('span');
+      prix.className = 'variant__prix';
+      prix.textContent = btn.disabled ? 'épuisé' : formatPrice(v.price);
+      btn.append(poids, prix);
+
       btn.addEventListener('click', () => {
         state.currentVariant = v.id;
         renderVariants();

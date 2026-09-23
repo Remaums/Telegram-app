@@ -1545,6 +1545,7 @@ function openEditor(product) {
   $('fName').value = product?.name ?? '';
   $('fShort').value = product?.short ?? '';
   $('fDesc').value = product?.description ?? '';
+  $('fPoints').value = (product?.points ?? []).join('\n');
   $('fCategory').value = product?.category ?? state.categories[0]?.id ?? '';
   $('fBadge').value = product?.badge ?? '';
   $('fTags').value = (product?.tags ?? []).join(', ');
@@ -1605,6 +1606,9 @@ function collectForm() {
     name: $('fName').value.trim(),
     short: $('fShort').value.trim(),
     description: $('fDesc').value.trim(),
+    // Une ligne vide entre deux points ne fait pas un point : le vendeur qui
+    // aère sa saisie ne doit pas créer une puce vide sur la fiche.
+    points: $('fPoints').value.split('\n').map((l) => l.trim()).filter(Boolean),
     category: $('fCategory').value,
     badge: $('fBadge').value.trim() || undefined,
     tags: $('fTags').value.split(',').map((t) => t.trim()).filter(Boolean),

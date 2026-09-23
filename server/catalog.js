@@ -403,6 +403,14 @@ function normalizeProduct(input) {
     media: normalizeMedia(input.media, variants),
     badge: input.badge ? String(input.badge).slice(0, 20) : undefined,
     tags: Array.isArray(input.tags) ? input.tags.slice(0, 6).map((t) => String(t).slice(0, 24)) : [],
+    // Les caractéristiques, une par ligne sur la fiche. Elles ne remplacent
+    // pas la description : celle-ci raconte, celles-là se lisent en diagonale.
+    // Un client qui compare deux variétés lit six points, pas deux paragraphes.
+    // Bornées en nombre et en longueur — une liste à rallonge redevient un
+    // paragraphe, mal composé.
+    points: Array.isArray(input.points)
+      ? input.points.map((t) => String(t).trim().slice(0, 80)).filter(Boolean).slice(0, 6)
+      : [],
     short: String(input.short ?? '').slice(0, 140),
     description: String(input.description ?? '').slice(0, 2000),
     visible: input.visible !== false,
