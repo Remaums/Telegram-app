@@ -511,9 +511,12 @@ function mediaDuMessage(message) {
       octets: message.video.file_size,
     };
   }
+  // Une animation, c'est un GIF que Telegram a converti en MP4 muet. La
+  // ranger parmi les vidéos lui donnait des contrôles de lecture et un bouton
+  // « play » : le vendeur envoyait un GIF et recevait un film à démarrer.
   if (message.animation) {
     return {
-      kind: 'video',
+      kind: 'gif',
       fileId: message.animation.file_id,
       thumbFileId: vignetteDe(message.animation),
       octets: message.animation.file_size,
@@ -521,6 +524,14 @@ function mediaDuMessage(message) {
   }
   if (message.document) {
     const mime = message.document.mime_type ?? '';
+    if (mime.startsWith('image/gif')) {
+      return {
+        kind: 'gif',
+        fileId: message.document.file_id,
+        thumbFileId: vignetteDe(message.document),
+        octets: message.document.file_size,
+      };
+    }
     if (mime.startsWith('image/')) {
       return { kind: 'photo', fileId: message.document.file_id, octets: message.document.file_size };
     }
@@ -1261,7 +1272,13 @@ const DELAI_ENVOI = 25000;
  * que vingt : au-delà, le média serait accepté, rangé dans la galerie, et
  * resterait noir à l'affichage. On s'aligne donc sur ce qu'on saura resservir.
  */
-export const POIDS_MAX = { photo: 10 * 1024 * 1024, video: 20 * 1024 * 1024 };
+export const POIDS_MAX = {
+  photo: 10 * 1024 * 1024,
+  video: 20 * 1024 * 1024,
+  // Un GIF part par la porte des animations, qui a les mêmes plafonds qu'une
+  // vidéo — c'en est une, une fois que Telegram l'a converti.
+  gif: 20 * 1024 * 1024,
+};
 
 /**
  * Dépose un fichier chez Telegram et rend sa référence.
@@ -1289,6 +1306,19 @@ export async function deposerMedia(chatId, kind, octets, nomFichier, legende) {
       fileId: message.video.file_id,
       thumbFileId: vignetteDe(message.video),
     };
+  }
+
+  // Un GIF envoyé par `sendPhoto` revient aplati : Telegram n'en garde qu'une
+  // image fixe, et le vendeur qui avait choisi une image animée recevait une
+  // image morte sans qu'on lui dise pourquoi. `sendAnimation` est la porte
+  // prévue pour ça — elle rend un MP4 muet et bouclé, c'est-à-dire ce qu'un
+  // GIF est vraiment une fois affiché.
+  if (kind === 'gif') {
+    const message = await bot.api.sendAnimation(chatId, fichier, options, AbortSignal.timeout(DELAI_ENVOI));
+    // Selon ce que Telegram a reconnu, l'animation revient sous `animation`
+    // ou sous `document` : les deux portent le `file_id` qui nous intéresse.
+    const anime = message.animation ?? message.document;
+    return { kind: 'gif', fileId: anime.file_id, thumbFileId: vignetteDe(anime) };
   }
 
   const message = await bot.api.sendPhoto(chatId, fichier, options, AbortSignal.timeout(DELAI_ENVOI));

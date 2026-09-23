@@ -309,8 +309,11 @@ export async function servirMedia(req, res, media) {
     return res.status(502).json({ error: 'Média indisponible.' });
   }
 
-  const type =
-    upstream.headers.get('content-type') || (media.kind === 'video' ? 'video/mp4' : 'image/jpeg');
+  // Un GIF déposé chez Telegram revient en MP4 : c'est le type à annoncer
+  // faute de mieux, sans quoi le navigateur recevrait une vidéo étiquetée
+  // « image/jpeg » et n'afficherait rien.
+  const parDefaut = media.kind === 'video' || media.kind === 'gif' ? 'video/mp4' : 'image/jpeg';
+  const type = upstream.headers.get('content-type') || parDefaut;
 
   res.status(upstream.status === 206 ? 206 : 200);
   res.setHeader('Content-Type', type);

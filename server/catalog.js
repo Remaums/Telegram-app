@@ -447,7 +447,9 @@ export function normalizeMedia(input, variantes = []) {
   const propres = [];
   for (const brut of input.slice(0, MEDIA_MAX * 2)) {
     if (!brut) continue;
-    const kind = brut.kind === 'video' ? 'video' : 'photo';
+    // Trois natures, et une seule liste blanche : ce qui n'est pas reconnu
+    // retombe sur la photo, qui est la seule à s'afficher sans rien jouer.
+    const kind = brut.kind === 'video' ? 'video' : brut.kind === 'gif' ? 'gif' : 'photo';
     const fileId = brut.fileId ? String(brut.fileId).slice(0, 200) : '';
     const url = brut.url ? String(brut.url).trim().slice(0, 300) : '';
 

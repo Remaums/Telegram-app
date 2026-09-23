@@ -186,6 +186,36 @@ check('Une photo valide atteint la remise à Telegram',
 check("Et l'échec se lit, plutôt que « erreur interne »",
   r.status === 200 || !/interne/i.test(corps.error ?? ''), (corps.error ?? '').slice(0, 70));
 
+/* ── Le GIF ──────────────────────────────────────────────── */
+
+// Un GIF est une image au sens du type MIME, mais Telegram ne sait le garder
+// animé que par une autre porte : envoyé comme une photo, il revient aplati
+// en une image fixe, et le vendeur perd l'animation sans qu'on lui dise
+// pourquoi. Le type doit donc être reconnu avant le reste des images.
+r = await televerser(Buffer.alloc(1024), 'image/gif', { nom: 'anime.gif' });
+corps = await r.json().catch(() => ({}));
+check('Un GIF est accepté dans la galerie',
+  [200, 502, 409].includes(r.status), `HTTP ${r.status} — ${(corps.error ?? '').slice(0, 60)}`);
+
+// Et pas comme image principale : la vignette du catalogue est fixe, et un
+// GIF qui s'y animerait ferait bouger toute la grille.
+r = await vignette(Buffer.alloc(1024), 'image/gif');
+corps = await r.json().catch(() => ({}));
+check("Un GIF n'est pas une image principale", r.status === 400, `HTTP ${r.status}`);
+check('Et le refus parle du GIF, pas de la vidéo',
+  /GIF/.test(corps.error ?? '') && !/vidéo/i.test(corps.error ?? ''), (corps.error ?? '').slice(0, 80));
+
+// Il part par la porte des animations : son plafond est celui d'une vidéo,
+// pas celui d'une photo. Un GIF de quinze mégaoctets passe donc là où une
+// photo du même poids serait refusée.
+check('Le GIF a le plafond des vidéos', POIDS_MAX.gif === POIDS_MAX.video,
+  `${POIDS_MAX.gif / 1048576} Mo`);
+r = await televerser(Buffer.alloc(POIDS_MAX.gif + 1), 'image/gif', { nom: 'gros.gif' });
+corps = await r.json().catch(() => ({}));
+check('Un GIF trop lourd est refusé', r.status === 413, `HTTP ${r.status}`);
+check('Et le refus le nomme « un GIF »', /un GIF/.test(corps.error ?? ''),
+  (corps.error ?? '').split('\n')[0]?.slice(0, 80));
+
 // La galerie pleine ne gêne pas la vignette : ce sont deux choses distinctes.
 /* ── La galerie pleine ───────────────────────────────────── */
 

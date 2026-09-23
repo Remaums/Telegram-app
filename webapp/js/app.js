@@ -131,9 +131,13 @@ async function init() {
   renderCart();
   retirerLeVoile();
   mesurerLaBarre();
+  placerLeCurseur();
   // La barre bouge avec la rotation de l'écran et avec le clavier : une
   // mesure prise une fois au lancement se périme au premier quart de tour.
-  window.addEventListener('resize', mesurerLaBarre);
+  window.addEventListener('resize', () => {
+    mesurerLaBarre();
+    placerLeCurseur();
+  });
   runGates();
 }
 
@@ -927,6 +931,7 @@ function montrerLOnglet(nom) {
   for (const bouton of $('tabbar').querySelectorAll('.tabbar__item')) {
     bouton.setAttribute('aria-selected', String(bouton.dataset.onglet === nom));
   }
+  placerLeCurseur();
   syncBackButton();
 
   // Chaque écran se remplit au moment où on le demande, pas au lancement :
@@ -938,6 +943,41 @@ function montrerLOnglet(nom) {
   if (nom === 'profil') ouvrirProfil();
 
   if (change) window.scrollTo({ top: 0, behavior: 'auto' });
+}
+
+/**
+ * Pose le bloc de l'onglet actif, et le fait glisser vers le suivant.
+ *
+ * Un seul rectangle qui se déplace, et non quatre fonds qu'on allume et qu'on
+ * éteint : quatre fonds ne peuvent pas glisser, et le saut d'un onglet à
+ * l'autre ne dit pas d'où l'on vient. Ici le regard suit le bloc.
+ *
+ * Sur la fiche produit, aucun onglet n'est actif — le bloc s'efface plutôt que
+ * de rester allumé sur « Filtres » pendant qu'on lit autre chose.
+ */
+function placerLeCurseur() {
+  const curseur = $('tabbarCurseur');
+  const actif = $('tabbar').querySelector('.tabbar__item[aria-selected="true"]');
+  if (!curseur) return;
+
+  if (!actif) {
+    curseur.style.opacity = '0';
+    return;
+  }
+  curseur.style.opacity = '1';
+  // `offsetLeft` plutôt qu'une soustraction de positions à l'écran : les deux
+  // se mesurent depuis le même bord — celui de la zone intérieure de la barre
+  // — alors que retrancher les marges à la main laissait le bloc décalé de
+  // l'épaisseur du filet.
+  curseur.style.setProperty('--curseur-l', `${actif.offsetWidth}px`);
+  curseur.style.setProperty('--curseur-x', `${actif.offsetLeft}px`);
+
+  // Le premier placement ne glisse pas : voir le bloc traverser l'écran
+  // depuis le bord gauche au lancement ferait croire à un défaut. On rend la
+  // glissade au tour de boucle suivant, une fois la position posée.
+  if (curseur.classList.contains('tabbar__curseur--pose')) {
+    requestAnimationFrame(() => curseur.classList.remove('tabbar__curseur--pose'));
+  }
 }
 
 /* ── Les rayons ──────────────────────────────────────────── */
@@ -1462,6 +1502,21 @@ function trier(produits) {
  * @returns {string|null} l'adresse d'une vraie photo, ou `null` s'il n'y en a
  *   aucune — auquel cas le dessin par défaut reprend sa place.
  */
+/**
+ * Un GIF animé arrive par deux chemins, et les deux ne se lisent pas pareil.
+ *
+ * Déposé au bot, Telegram le convertit en MP4 muet : c'est une balise vidéo
+ * qu'il faut, et un navigateur ne décode pas un GIF dans une balise vidéo.
+ * Collé par le vendeur sous forme d'adresse, c'est resté un vrai fichier GIF :
+ * là c'est une image, et elle s'anime toute seule sans qu'on s'en mêle.
+ *
+ * Se tromper de balise donne un cadre noir dans un cas et un cadre vide dans
+ * l'autre — deux pannes muettes.
+ */
+function estUnFichierGif(media) {
+  return /\.gif($|[?#])/i.test(String(media?.url ?? ''));
+}
+
 function photoDeVitrine(product) {
   if (isPhoto(product.image)) return product.image;
 
@@ -1477,11 +1532,21 @@ function videoDeVitrine(product) {
   const medias = Array.isArray(product.media) ? product.media : [];
   if (medias.some((m) => m.kind === 'photo')) return null;
 
-  const rang = medias.findIndex((m) => m.kind === 'video');
+  // Un GIF passe devant une vidéo : il boucle de lui-même, sans bouton ni
+  // son, et c'est précisément ce qu'on veut d'une vignette de catalogue qui
+  // bouge. Une vidéo, elle, a toujours l'air d'attendre qu'on la lance.
+  const rangGif = medias.findIndex((m) => m.kind === 'gif');
+  const rang = rangGif === -1 ? medias.findIndex((m) => m.kind === 'video') : rangGif;
   if (rang === -1) return null;
+
+  const media = medias[rang];
   return {
-    url: medias[rang].url ?? `/api/media/${product.id}/${rang}`,
-    poster: posterDe(product, medias[rang], rang),
+    // `image` dit à la carte de poser une balise image plutôt qu'une vidéo :
+    // un vrai fichier GIF ne se décode pas dans un lecteur vidéo, et la
+    // vignette serait restée noire.
+    image: estUnFichierGif(media),
+    url: media.url ?? `/api/media/${product.id}/${rang}`,
+    poster: posterDe(product, media, rang),
   };
 }
 
@@ -1536,12 +1601,14 @@ function productCard(product) {
   // Muette et sans contrôles : la carte entière reste un bouton qui ouvre la
   // fiche, et aucun son ne sort d'une grille de catalogue.
   const photo = video ? null : photoDeVitrine(product);
-  const visuel = video
-    ? `<video class="card__video" src="${escapeHtml(video.url)}" poster="${escapeHtml(video.poster)}"
-             muted loop playsinline
-             preload="metadata" disablepictureinpicture tabindex="-1" aria-hidden="true"></video>
-       <span class="card__film" aria-hidden="true">▶</span>`
-    : `<img src="${escapeHtml(photo ?? product.image)}" alt="" loading="lazy">`;
+  const visuel = video?.image
+    ? `<img class="card__gif" src="${escapeHtml(video.url)}" alt="" loading="lazy">`
+    : video
+      ? `<video class="card__video" src="${escapeHtml(video.url)}" poster="${escapeHtml(video.poster)}"
+               muted loop playsinline
+               preload="metadata" disablepictureinpicture tabindex="-1" aria-hidden="true"></video>
+         <span class="card__film" aria-hidden="true">▶</span>`
+      : `<img src="${escapeHtml(photo ?? product.image)}" alt="" loading="lazy">`;
 
   card.innerHTML = `
     <div class="card__art${video ? ' card__art--video' : photo ? ' card__art--photo' : ''}">
@@ -1824,7 +1891,49 @@ function renderGalerie(product) {
     const case_ = document.createElement('div');
     case_.className = 'galerie__media';
 
-    if (media.kind === 'video') {
+    if (media.kind === 'gif' && estUnFichierGif(media)) {
+      // Un vrai fichier GIF : une image, qui boucle d'elle-même. Rien à
+      // démarrer, rien à mettre en pause — et c'est aussi sa limite, un GIF
+      // en balise image ne sait pas s'arrêter quand la boutique est en mode
+      // sobre. On l'accepte : couper l'animation demanderait de redessiner
+      // chaque image dans un canevas, pour une fonction que personne n'a
+      // demandée.
+      const image = document.createElement('img');
+      image.className = 'galerie__gif';
+      image.src = media.url;
+      image.alt = media.legende || `${product.name} — animation`;
+      image.loading = rang === 0 ? 'eager' : 'lazy';
+      case_.append(image);
+
+      const pastille = document.createElement('span');
+      pastille.className = 'galerie__type';
+      pastille.textContent = 'GIF';
+      case_.append(pastille);
+    } else if (media.kind === 'gif') {
+      // Un GIF passé par Telegram est revenu en MP4 muet : c'est une vidéo,
+      // mais on ne lui donne ni contrôles ni bouton de lecture. Des poignées
+      // sur une boucle de deux secondes n'ouvrent rien.
+      const boucle = document.createElement('video');
+      boucle.className = 'galerie__gif';
+      boucle.src = media.url ?? `/api/media/${product.id}/${rang}`;
+      const apercu = posterDe(product, media, rang);
+      if (apercu) boucle.poster = apercu;
+      boucle.muted = true;
+      boucle.loop = true;
+      boucle.playsInline = true;
+      boucle.preload = 'metadata';
+      boucle.setAttribute('disablepictureinpicture', '');
+      boucle.tabIndex = -1;
+      // Une boutique en mode sobre garde l'image fixe : c'est exactement ce
+      // que demande quelqu'un qui a coupé les animations.
+      if (anime()) boucle.autoplay = true;
+      case_.append(boucle);
+
+      const pastille = document.createElement('span');
+      pastille.className = 'galerie__type';
+      pastille.textContent = 'GIF';
+      case_.append(pastille);
+    } else if (media.kind === 'video') {
       const video = document.createElement('video');
       video.src = media.url ?? `/api/media/${product.id}/${rang}`;
       // La vignette d'abord : la fiche montre quelque chose dès son ouverture,

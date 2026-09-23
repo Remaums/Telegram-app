@@ -613,13 +613,26 @@ function recevoirFichier(req, attendu) {
   if (!octets?.length) throw new HttpError(400, 'Aucun fichier reçu.');
 
   const type = String(req.get('content-type') ?? '').toLowerCase();
-  const kind = type.startsWith('video/') ? 'video' : type.startsWith('image/') ? 'photo' : null;
+  // Le GIF se distingue avant l'image : c'est une image au sens du type MIME,
+  // mais Telegram ne sait le garder animé que par une autre porte.
+  const kind = type.startsWith('image/gif')
+    ? 'gif'
+    : type.startsWith('video/')
+      ? 'video'
+      : type.startsWith('image/')
+        ? 'photo'
+        : null;
 
   if (!kind) {
     throw new HttpError(400, `Ce fichier n'est ni une image ni une vidéo (${type || 'type inconnu'}).`);
   }
   if (attendu === 'photo' && kind !== 'photo') {
-    throw new HttpError(400, "L'image principale doit être une photo : une vidéo ne s'affiche pas dans la grille.");
+    throw new HttpError(
+      400,
+      kind === 'gif'
+        ? "L'image principale doit être fixe : un GIF s'anime, et il a sa place dans la galerie."
+        : "L'image principale doit être une photo : une vidéo ne s'affiche pas dans la grille."
+    );
   }
 
   if (octets.length > POIDS_MAX[kind]) {
@@ -630,10 +643,10 @@ function recevoirFichier(req, attendu) {
     throw new HttpError(
       413,
       `Ce fichier pèse ${mo(octets.length, 1)} Mo, et Telegram n'en accepte pas plus de ` +
-        `${mo(POIDS_MAX[kind])} pour ${kind === 'video' ? 'une vidéo' : 'une photo'}.\n\n` +
-        (kind === 'video'
-          ? 'Raccourcis-la, ou baisse sa qualité avant de la renvoyer.'
-          : "Réduis-la, ou envoie-la depuis l'appareil photo plutôt qu'en pleine résolution.")
+        `${mo(POIDS_MAX[kind])} pour ${{ video: 'une vidéo', gif: 'un GIF' }[kind] ?? 'une photo'}.\n\n` +
+        (kind === 'photo'
+          ? "Réduis-la, ou envoie-la depuis l'appareil photo plutôt qu'en pleine résolution."
+          : 'Raccourcis-la, ou baisse sa qualité avant de la renvoyer.')
     );
   }
 

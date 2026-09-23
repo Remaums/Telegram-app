@@ -343,5 +343,23 @@ check('Sans liste de formats, aucun rattachement ne survit',
 // On rend le produit tel qu'on l'a trouvé.
 for (let i = MEDIA_MAX; i >= 0; i--) await call(`${chemin}/${i}`, { method: 'DELETE' });
 
+/* ── Les trois natures d'un média ────────────────────────── */
+
+// Une galerie porte trois choses : une photo fixe, une vidéo qu'on lance, et
+// un GIF qui boucle tout seul. Le troisième est arrivé après les deux autres,
+// et rien ne garantissait qu'il survive au rangement — un `kind` inconnu
+// retombe sur « photo », ce qui l'aurait figé en silence.
+const natures = normalizeMedia([
+  { kind: 'photo', url: '/a.jpg' },
+  { kind: 'video', url: '/b.mp4' },
+  { kind: 'gif', url: '/c.mp4' },
+  { kind: 'audio', url: '/d.mp3' },
+  { kind: '', url: '/e' },
+]);
+check('Les trois natures traversent le rangement',
+  natures.map((m) => m.kind).join(',') === 'photo,video,gif,photo,photo',
+  natures.map((m) => m.kind).join(','));
+
+
 console.log(`\n${failures ? `${failures} test(s) en échec` : 'Galerie produit : OK'}`);
 process.exit(failures ? 1 : 0);

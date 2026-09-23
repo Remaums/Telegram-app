@@ -1033,6 +1033,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   }
 }
 [data-anim='off'] .card--entre { animation: none; }
+[data-anim='off'] .vue { animation: none; }
+[data-anim='off'] .tabbar__curseur { transition: none; }
 [data-anim='off'] .statut__pastille { animation: none; }
 [data-anim='off'] .squelette::after { animation: none; }
 [data-anim='off'] .jauge__barre { transition: none; }
@@ -1704,3 +1706,67 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .vcharge__arc { animation: none; }
   .vcharge { transition: none; }
 }
+
+/* Un GIF occupe la case comme une photo : il ne porte ni contrôles ni
+   bouton de lecture, donc rien à réserver en bas. */
+.galerie__gif {
+  width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; display: block;
+  background: rgb(var(--ink-rgb) / .5);
+}
+
+/* ══ Ce qui bouge ═══════════════════════════════════════════════
+   Une boutique figée a l'air d'une capture d'écran. Trois mouvements,
+   pas un de plus, et chacun dit quelque chose :
+
+   - l'écran qui arrive monte de huit pixels en apparaissant. C'est ce
+     qui fait comprendre qu'on a changé de page et non rechargé la
+     même ;
+   - le bloc de l'onglet actif glisse d'un onglet à l'autre au lieu de
+     sauter. Le regard suit le bloc et sait d'où il vient ;
+   - une carte qu'on touche s'enfonce. C'est la seule réponse qu'un
+     écran tactile peut donner tout de suite, avant même que la page
+     ait changé.
+
+   Tout est suspendu par [data-anim='off'] et par la préférence système :
+   quelqu'un qui a le mal des transports ne doit pas payer notre décor. */
+
+.vue { animation: vue-entre .24s cubic-bezier(.22, .8, .3, 1) both; }
+@keyframes vue-entre {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Le bloc de l'onglet actif est un seul rectangle qui se déplace, posé
+   sous les quatre boutons. Quatre fonds qu'on allume et qu'on éteint
+   ne peuvent pas glisser — d'où ce calque unique, dont la position
+   vient d'une variable que le script met à jour. */
+.tabbar { position: fixed; }
+.tabbar__curseur {
+  position: absolute; top: 5px; bottom: 5px; left: 0;
+  width: var(--curseur-l, 0px);
+  transform: translateX(var(--curseur-x, 0px));
+  background: var(--neon); border-radius: 15px;
+  transition: transform .28s cubic-bezier(.34, 1.3, .5, 1), width .28s ease;
+  pointer-events: none;
+}
+/* Au premier affichage le curseur se pose sans glisser : le voir traverser
+   l'écran depuis le bord gauche au lancement ferait croire à un défaut. */
+.tabbar__curseur--pose { transition: none; }
+.tabbar__item { position: relative; z-index: 1; }
+.tabbar__item[aria-selected='true'] { background: none; }
+
+/* La carte qu'on touche s'enfonce, et le doigt le sent avant que la fiche
+   s'ouvre. Cinq centièmes de seconde : au-delà, c'est une animation ; en
+   deçà, on ne la voit pas. */
+.card, .suggestion, .variant, .cat, .chiffre { will-change: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vue { animation: none; }
+  .tabbar__curseur { transition: none; }
+}
+
+/* Un vrai fichier GIF est une image : elle remplit sa case comme une photo,
+   et boucle d'elle-même. */
+.card__gif { width: 100%; height: 100%; object-fit: cover; display: block; }
+img.galerie__gif { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+.card--soldout .card__gif { filter: grayscale(1); opacity: .38; }
