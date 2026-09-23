@@ -99,10 +99,6 @@
     <span class="topbar__name goldtext" id="shopName">Napoli Coffee</span>
   </div>
   <div class="topbar__actions">
-  <button class="iconbtn" id="profilBtn" type="button" aria-label="Mon profil">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-    <span class="iconbtn__pastille" id="profilPastille" hidden></span>
-  </button>
   <button class="cartbtn" id="cartBtn" type="button" aria-label="Ouvrir le panier">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h3l2.6 11.2a2 2 0 0 0 2 1.6h7.1a2 2 0 0 0 2-1.5L21.5 8H7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/></svg>
     <span class="cartbtn__count" id="cartCount" hidden>0</span>
@@ -120,6 +116,9 @@
 </div>
 
 <main class="page">
+
+<!-- ══ Vue « Filtres » : la recherche et la grille ══ -->
+<section class="vue" id="vueFiltres" role="tabpanel" aria-label="Boutique">
 
   <!-- ══ Bannière ══ -->
   <section class="hero">
@@ -191,7 +190,115 @@
     <img src="/assets/ui/leaf.svg" alt="" class="foot__leaf">
     <p id="footLegal"></p>
   </footer>
+</section>
+
+<!-- ══ Vue « Catégories » : le catalogue rangé, rayon par rayon ══
+     La grille de l'autre onglet répond à « je cherche ça » ; celle-ci
+     répond à « montre-moi ce que tu as ». Deux questions différentes,
+     deux écrans — les mêmes produits. -->
+<section class="vue" id="vueCategories" role="tabpanel" aria-label="Catégories" hidden>
+  <div class="rayons" id="rayons"></div>
+  <p class="empty" id="rayonsVide" hidden>Le catalogue est vide pour le moment.</p>
+</section>
+
+<!-- ══ Vue « Contact » ══ -->
+<section class="vue" id="vueContact" role="tabpanel" aria-label="Contact" hidden>
+  <div class="contact">
+    <div class="contact__icone" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.5 9.5 0 0 1-2.6-.4L4 21l1.5-4.3A8.2 8.2 0 0 1 3.6 11.5 8.4 8.4 0 0 1 12.3 3 8.4 8.4 0 0 1 21 11.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    </div>
+    <h2 class="contact__titre">Une question ?</h2>
+    <p class="contact__texte">
+      Un doute sur un produit, une commande qui traîne, une demande
+      particulière : écris-nous, on répond dans la conversation.
+    </p>
+
+    <p class="contact__legende"><span>Nous écrire</span></p>
+    <button class="btn btn--tg btn--block" id="contactTelegram" type="button">
+      <svg viewBox="0 0 24 24" class="btn__icone" aria-hidden="true"><path d="M21.8 4.3 18.9 19c-.2 1-.8 1.2-1.6.8l-4.5-3.3-2.2 2.1c-.2.2-.4.4-.9.4l.3-4.6L18.4 6c.4-.3-.1-.5-.6-.2L7.4 12.4l-4.5-1.4c-1-.3-1-1 .2-1.4l17.5-6.7c.8-.3 1.5.2 1.2 1.4Z" fill="currentColor"/></svg>
+      Ouvrir la conversation
+    </button>
+    <p class="contact__fine" id="contactFine"></p>
+
+    <div class="contact__infos" id="contactInfos"></div>
+  </div>
+</section>
+
+<!-- ══ Vue « Profil » ══ -->
+<section class="vue" id="vueProfil" role="tabpanel" aria-label="Mon profil" hidden>
+  <div class="profil">
+    <div class="profil__tete">
+      <div class="profil__vignette" id="profilVignette" aria-hidden="true"></div>
+      <div class="profil__identite">
+        <p class="profil__nom" id="profilNom">Mon profil</p>
+        <p class="profil__qui" id="profilQui"></p>
+      </div>
+    </div>
+
+    <div class="chiffres" id="profilChiffres"></div>
+
+    <div class="profil__onglets" id="profilOnglets" role="tablist">
+      <button class="profil__onglet" type="button" role="tab" data-vue="commandes" aria-selected="true">
+        Commandes
+      </button>
+      <button class="profil__onglet" type="button" role="tab" data-vue="favoris" aria-selected="false">
+        Favoris<span class="profil__compte" id="favorisCompte" hidden></span>
+      </button>
+      <button class="profil__onglet" type="button" role="tab" data-vue="alertes" aria-selected="false">
+        Alertes
+      </button>
+    </div>
+
+    <section class="profil__vue" data-vue="commandes">
+      <div class="orders" id="ordersList"></div>
+      <p class="orders__empty" id="ordersEmpty" hidden></p>
+    </section>
+
+    <section class="profil__vue" data-vue="favoris" hidden>
+      <div class="favoris" id="favorisList"></div>
+      <p class="orders__empty" id="favorisEmpty" hidden></p>
+    </section>
+
+    <section class="profil__vue" data-vue="alertes" hidden>
+      <p class="profil__intro">
+        Ce que la boutique peut t'envoyer dans cette conversation.
+        Tu coupes et rallumes quand tu veux.
+      </p>
+      <div class="alertes" id="alertesList"></div>
+      <p class="profil__stop" id="profilStop" hidden>
+        ⚠️ Tu as envoyé <b>/stop</b> au bot : rien ne t'arrivera tant que tu
+        n'auras pas écrit <b>/annonces</b> pour rouvrir la porte.
+      </p>
+    </section>
+  </div>
+</section>
+
 </main>
+
+<!-- ══ La barre du bas ══ ════════════════════════════════════════
+     Quatre onglets plutôt qu'une page qui défile : la boutique avait
+     tout empilé sur un seul écran, si bien que le profil et le contact
+     n'existaient que pour qui savait où appuyer. Ici chaque chose a sa
+     place, et la place se voit. -->
+<nav class="tabbar" id="tabbar" role="tablist" aria-label="Navigation">
+  <button class="tabbar__item" type="button" role="tab" data-onglet="filtres" aria-selected="true">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18M6 12h12M10 19h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span>Filtres</span>
+  </button>
+  <button class="tabbar__item" type="button" role="tab" data-onglet="categories" aria-selected="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+    <span>Catégories</span>
+  </button>
+  <button class="tabbar__item" type="button" role="tab" data-onglet="contact" aria-selected="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.5 9.5 0 0 1-2.6-.4L4 21l1.5-4.3A8.2 8.2 0 0 1 3.6 11.5 8.4 8.4 0 0 1 12.3 3 8.4 8.4 0 0 1 21 11.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+    <span>Contact</span>
+  </button>
+  <button class="tabbar__item" type="button" role="tab" data-onglet="profil" aria-selected="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span>Profil</span>
+    <span class="tabbar__pastille" id="profilPastille" hidden></span>
+  </button>
+</nav>
 
 <!-- ══ Fiche produit ══ -->
 <div class="sheet" id="productSheet" hidden>
@@ -387,51 +494,6 @@
      qu'il garde de côté, et ce qu'il accepte de recevoir. Un
      onglet par section, parce que dérouler les trois d'un bloc
      ferait défiler trois écrans pour atteindre un interrupteur. -->
-<div class="sheet" id="profilSheet" hidden>
-  <div class="sheet__backdrop" data-close></div>
-  <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="profilTitre">
-    <button class="sheet__close" type="button" data-close aria-label="Fermer">✕</button>
-    <div class="sheet__scroll">
-      <h2 class="cart__title goldtext" id="profilTitre">Mon profil</h2>
-      <p class="profil__qui" id="profilQui"></p>
-
-      <div class="profil__onglets" id="profilOnglets" role="tablist">
-        <button class="profil__onglet" type="button" role="tab" data-vue="commandes" aria-selected="true">
-          Commandes
-        </button>
-        <button class="profil__onglet" type="button" role="tab" data-vue="favoris" aria-selected="false">
-          Favoris<span class="profil__compte" id="favorisCompte" hidden></span>
-        </button>
-        <button class="profil__onglet" type="button" role="tab" data-vue="alertes" aria-selected="false">
-          Alertes
-        </button>
-      </div>
-
-      <section class="profil__vue" data-vue="commandes">
-        <div class="orders" id="ordersList"></div>
-        <p class="orders__empty" id="ordersEmpty" hidden></p>
-      </section>
-
-      <section class="profil__vue" data-vue="favoris" hidden>
-        <div class="favoris" id="favorisList"></div>
-        <p class="orders__empty" id="favorisEmpty" hidden></p>
-      </section>
-
-      <section class="profil__vue" data-vue="alertes" hidden>
-        <p class="profil__intro">
-          Ce que la boutique peut t'envoyer dans cette conversation.
-          Tu coupes et rallumes quand tu veux.
-        </p>
-        <div class="alertes" id="alertesList"></div>
-        <p class="profil__stop" id="profilStop" hidden>
-          ⚠️ Tu as envoyé <b>/stop</b> au bot : rien ne t'arrivera tant que tu
-          n'auras pas écrit <b>/annonces</b> pour rouvrir la porte.
-        </p>
-      </section>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast" hidden></div>
 
 <script src="/js/app.js" type="module"></script>

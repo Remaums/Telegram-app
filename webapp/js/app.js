@@ -36,6 +36,7 @@ const state = {
   prenom: '',         // son prénom Telegram, pour lui montrer ce qu'il signerait
   favoris: new Set(), // les produits qu'il garde de côté
   preferences: {},    // ce qu'il accepte de recevoir
+  onglet: 'filtres',       // l'écran affiché : filtres, categories, contact, profil
   profilVue: 'commandes',  // l'onglet ouvert dans le profil
   avisTousVisibles: false,  // « voir tous les avis » d'une fiche
   blocked: false,     // compte privé de commande par le vendeur
@@ -258,7 +259,14 @@ function bindStaticHandlers() {
   $('ageNo').addEventListener('click', () => (tg ? tg.close() : window.history.back()));
 
   $('cartBtn').addEventListener('click', () => openSheet('cartSheet'));
-  $('profilBtn').addEventListener('click', ouvrirProfil);
+  for (const bouton of $('tabbar').querySelectorAll('.tabbar__item')) {
+    bouton.addEventListener('click', () => {
+      montrerLOnglet(bouton.dataset.onglet);
+      haptic('light');
+    });
+  }
+  $('contactTelegram').addEventListener('click', () =>
+    openSellerChat(`Bonjour ${state.shop.shopName} 👋`));
   $('pCoeur').addEventListener('click', async () => {
     if (!state.current) return;
     await basculerFavori(state.current.id);
@@ -386,10 +394,16 @@ function renderModes() {
 function applyFeatures() {
   // Le profil reste accessible même sans historique : il porte aussi les
   // favoris et les alertes, et chaque section dit elle-même si elle est éteinte.
-  $('profilBtn').hidden =
+  // Un onglet qui n'ouvre que des sections éteintes n'a rien à montrer : on
+  // le retire de la barre, qui passe alors à trois colonnes toute seule.
+  const profilVide =
     state.features.orderHistory === false &&
     state.features.favoris === false &&
     state.features.announcements === false;
+  const ongletProfil = $('tabbar').querySelector('[data-onglet="profil"]');
+  ongletProfil.hidden = profilVide;
+  $('tabbar').style.gridTemplateColumns = `repeat(${profilVide ? 3 : 4}, 1fr)`;
+  if (profilVide && state.onglet === 'profil') montrerLOnglet('filtres');
   $('promoField').hidden = state.features.promos === false;
   $('findBar').hidden = state.features.search === false;
 }
@@ -838,6 +852,137 @@ async function gateVerification() {
   $('verifText').textContent = texts[status] ?? texts.none;
   $('verification').hidden = false;
   return true;
+}
+
+/* ── Les quatre onglets ──────────────────────────────────── */
+
+const ONGLETS = {
+  filtres: 'vueFiltres',
+  categories: 'vueCategories',
+  contact: 'vueContact',
+  profil: 'vueProfil',
+};
+
+/**
+ * Montre un écran, et un seul.
+ *
+ * Les quatre vues sont des sections voisines plutôt que quatre pages : la
+ * grille garde alors sa position de défilement, ses images chargées et la
+ * recherche en cours quand on va voir son profil et qu'on revient. Les
+ * remonter à chaque aller-retour aurait fait clignoter tout l'écran pour
+ * rien.
+ *
+ * Le défilement, lui, repart en haut : arriver au milieu d'un écran qu'on
+ * vient d'ouvrir donne l'impression d'avoir raté le début.
+ */
+function montrerLOnglet(nom) {
+  if (!ONGLETS[nom]) nom = 'filtres';
+  const change = state.onglet !== nom;
+  state.onglet = nom;
+
+  for (const [clef, id] of Object.entries(ONGLETS)) $(id).hidden = clef !== nom;
+  for (const bouton of $('tabbar').querySelectorAll('.tabbar__item')) {
+    bouton.setAttribute('aria-selected', String(bouton.dataset.onglet === nom));
+  }
+
+  // Chaque écran se remplit au moment où on le demande, pas au lancement :
+  // le profil est un appel réseau, et les rayons un catalogue entier à
+  // disposer. Les construire d'avance ralentirait l'ouverture de la boutique
+  // pour deux écrans sur trois que le client n'ouvrira pas.
+  if (nom === 'categories') renderRayons();
+  if (nom === 'contact') renderContact();
+  if (nom === 'profil') ouvrirProfil();
+
+  if (change) window.scrollTo({ top: 0, behavior: 'auto' });
+}
+
+/* ── Les rayons ──────────────────────────────────────────── */
+
+/**
+ * Le catalogue rangé par catégorie, chacune sous son intitulé.
+ *
+ * L'autre onglet répond à « je cherche ça » ; celui-ci répond à « montre-moi
+ * ce que tu as ». Les produits sont les mêmes, et les cartes aussi — une
+ * deuxième sorte de carte aurait voulu dire deux endroits à corriger le jour
+ * où le prix s'affiche autrement.
+ *
+ * Une catégorie vide n'est pas montrée : un rayon avec zéro article dit au
+ * client qu'on n'a rien, alors qu'on n'a simplement rien ici.
+ */
+function renderRayons() {
+  const hote = $('rayons');
+  const rayons = state.categories
+    .filter((cat) => cat.id !== 'all')
+    .map((cat) => ({ cat, produits: trier(state.products.filter((p) => p.category === cat.id)) }))
+    .filter(({ produits }) => produits.length > 0);
+
+  $('rayonsVide').hidden = rayons.length > 0;
+
+  hote.replaceChildren(
+    ...rayons.map(({ cat, produits }) => {
+      const bloc = document.createElement('section');
+      bloc.className = 'rayon';
+
+      const tete = document.createElement('div');
+      tete.className = 'rayon__tete';
+      const nom = document.createElement('h2');
+      nom.className = 'rayon__nom';
+      nom.textContent = `${cat.emoji ?? ''} ${cat.label}`.trim();
+      const compte = document.createElement('span');
+      compte.className = 'rayon__compte';
+      compte.textContent = `${produits.length} produit${produits.length > 1 ? 's' : ''}`;
+      tete.append(nom, compte);
+
+      const grille = document.createElement('div');
+      grille.className = 'rayon__grille';
+      grille.append(...produits.map(productCard));
+
+      bloc.append(tete, grille);
+      return bloc;
+    })
+  );
+}
+
+/* ── Contact ─────────────────────────────────────────────── */
+
+/**
+ * L'écran « écris-nous ».
+ *
+ * Il ne fait qu'une chose, et c'est voulu : ouvrir la conversation. Le reste
+ * — horaires, mode de retrait — est rappelé dessous parce que c'est
+ * précisément ce qu'on vient demander quand on ne trouve pas la réponse, et
+ * qu'une réponse affichée coûte moins cher qu'une réponse à écrire.
+ */
+function renderContact() {
+  const sans = !state.shop.sellerUsername;
+  $('contactTelegram').disabled = sans;
+  $('contactFine').textContent = sans
+    ? "Le compte vendeur n'est pas encore renseigné : reviens un peu plus tard."
+    : `Tu écris à @${state.shop.sellerUsername}. Réponse dès qu'on est dispo.`;
+
+  const lignes = [];
+  const ouvert = state.opening?.open !== false;
+  lignes.push([ouvert ? '🟢' : '🔴', ouvert ? 'Boutique ouverte' : 'Boutique fermée',
+    ouvert ? 'On prend les commandes.' : (state.opening?.message ?? 'On rouvre bientôt.')]);
+  if (state.fulfillment?.pickup) lignes.push(['🤝', 'Retrait sur place', 'Rendez-vous convenu dans la conversation.']);
+  if (state.fulfillment?.delivery) lignes.push(['🛵', 'Livraison', 'Adresse demandée au moment de la commande.']);
+  lignes.push(['💶', 'Paiement en espèces', 'À la remise, rien à avancer.']);
+
+  $('contactInfos').replaceChildren(
+    ...lignes.map(([emoji, titre, detail]) => {
+      const ligne = document.createElement('div');
+      ligne.className = 'contact__info';
+      const icone = document.createElement('span');
+      icone.setAttribute('aria-hidden', 'true');
+      icone.textContent = emoji;
+      const texte = document.createElement('span');
+      const fort = document.createElement('b');
+      fort.textContent = titre;
+      texte.append(fort, document.createTextNode(` — ${detail}`));
+      ligne.append(icone, texte);
+      return ligne;
+    })
+  );
 }
 
 /* ── La porte du bot ─────────────────────────────────────── */
@@ -1974,6 +2119,9 @@ function renderCart() {
   const badge = $('cartCount');
   badge.textContent = count;
   badge.hidden = count === 0;
+  // Le profil affiche le même nombre : sans ça, il restait sur la valeur
+  // qu'il avait à l'ouverture pendant qu'on remplissait le panier derrière.
+  if (state.onglet === 'profil') renderChiffres();
 
   const subtotal = cartTotal();
   const fee = deliveryFeeFor(subtotal);
@@ -2894,11 +3042,16 @@ function dateCourte(iso) {
  * moitié rempli sur un réseau de téléphone.
  */
 async function ouvrirProfil() {
-  openSheet('profilSheet');
-  haptic('light');
+  // La vue est déjà à l'écran quand on arrive par la barre du bas ; l'appel
+  // reste pour les autres chemins — le cœur d'un favori qu'on retire, par
+  // exemple, qui recharge la liste en repassant par ici.
+  if (state.onglet !== 'profil') return montrerLOnglet('profil');
   montrerLaVue(state.profilVue);
 
-  $('profilQui').textContent = state.prenom ? `Salut ${state.prenom}` : '';
+  $('profilNom').textContent = state.prenom ? state.prenom : 'Mon profil';
+  $('profilVignette').textContent = (state.prenom || '?').trim().charAt(0).toUpperCase();
+  $('profilQui').textContent = state.prenom ? 'Client Napoli Coffee' : '';
+  renderChiffres();
   $('ordersEmpty').hidden = false;
   $('ordersEmpty').textContent = 'Chargement…';
 
@@ -2919,6 +3072,7 @@ async function ouvrirProfil() {
     renderFavoris(profil.favoris);
     renderAlertes(profil);
     renderPastilleProfil();
+    renderChiffres(profil.commandes?.length);
     // La grille porte les mêmes cœurs : les repeindre ici évite qu'un favori
     // retiré depuis le profil reste allumé derrière la feuille.
     renderGrid();
@@ -3123,6 +3277,53 @@ async function basculerFavori(productId) {
 
   renderPastilleProfil();
   return estFavori(productId);
+}
+
+/**
+ * Les quatre compteurs en haut du profil.
+ *
+ * Aucun n'est un chiffre qu'il faudrait aller chercher : le panier et les
+ * favoris sont déjà en mémoire, le catalogue aussi, et le nombre de commandes
+ * arrive avec le profil. Un compteur qui coûterait un appel réseau de plus
+ * n'aurait pas sa place ici — on ouvre cet écran pour ses commandes, pas pour
+ * son nombre de commandes.
+ *
+ * @param {number} [commandes] le compte venu du serveur ; sinon on garde
+ *   celui qu'on affichait déjà, plutôt que de repasser à zéro le temps du
+ *   chargement.
+ */
+let commandesConnues = null;
+function renderChiffres(commandes) {
+  if (Number.isFinite(commandes)) commandesConnues = commandes;
+
+  const lignes = [
+    ['panier', '🛒', state.cart.reduce((somme, l) => somme + l.quantity, 0), 'Panier'],
+    ['commandes', '📦', commandesConnues ?? '—', 'Commandes'],
+    ['favoris', '♥', state.favoris?.size ?? 0, 'Favoris'],
+    ['produits', '🌿', state.products.length, 'Produits'],
+  ];
+
+  $('profilChiffres').replaceChildren(
+    ...lignes.map(([clef, emoji, valeur, label]) => {
+      const carte = document.createElement('div');
+      carte.className = `chiffre chiffre--${clef}`;
+      const tuile = document.createElement('span');
+      tuile.className = 'chiffre__tuile';
+      tuile.setAttribute('aria-hidden', 'true');
+      tuile.textContent = emoji;
+      const corps = document.createElement('span');
+      corps.className = 'chiffre__corps';
+      const nombre = document.createElement('b');
+      nombre.className = 'chiffre__valeur';
+      nombre.textContent = String(valeur);
+      const nom = document.createElement('span');
+      nom.className = 'chiffre__label';
+      nom.textContent = label;
+      corps.append(nombre, nom);
+      carte.append(tuile, corps);
+      return carte;
+    })
+  );
 }
 
 /** Le compteur sur l'icône du profil : il dit qu'il y a quelque chose à y voir. */

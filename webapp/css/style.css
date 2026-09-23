@@ -1,9 +1,15 @@
 /* ══════════════════════════════════════════════════════════════
    Napoli Coffee — feuille de style
-   Direction artistique « Néon nuit » : fond vert forêt très sombre noyé
-   de fumée émeraude, accents vert citron, typo d'affiche dorée avec
-   contour noir et relief. Tout ce qui compte brille ; le reste reste
-   sombre pour que le néon garde son effet.
+   Direction artistique « Ardoise » : gris très sombre et neutre, un seul
+   vert pour ce qui compte, et rien d'autre qui brille. Le contraire du
+   néon : ici la couleur sert à désigner (un prix, un onglet actif, une
+   pastille), pas à décorer. Une boutique qui clignote de partout ne
+   désigne plus rien — c'est exactement ce qu'on a corrigé.
+
+   Trois règles qui tiennent tout le reste :
+   - le fond est plat. Pas de dégradé vert, pas de fumée qui dérive ;
+   - le vert n'apparaît que sur une action ou une information ;
+   - les titres sont écrits, pas dessinés : une graisse, pas un relief.
    ══════════════════════════════════════════════════════════════ */
 
 /* ── Palette ─────────────────────────────────────────────────
@@ -12,35 +18,38 @@
    données en composantes brutes pour pouvoir moduler l'opacité avec
    la syntaxe rgb(var(--x) / .5). */
 :root {
-  --void-rgb:    3 14 9;      /* fonds d'écran modaux */
-  --night-rgb:   4 22 15;     /* fond de page */
-  --night2-rgb:  6 36 24;     /* haut du dégradé de fond */
-  --panel-rgb:  12 62 41;     /* surface haute (cartes, panneaux) */
-  --panel2-rgb:  5 28 19;     /* surface basse */
-  --ink-rgb:     3 12 8;      /* contours et texte sur néon */
-  --cream-rgb: 234 255 242;   /* texte */
-  --line-rgb:   90 220 160;   /* filets et bordures */
+  --void-rgb:     8 10 12;    /* fonds d'écran modaux */
+  --night-rgb:   15 17 19;    /* fond de page */
+  --night2-rgb:  20 23 26;    /* barres hautes et basses */
+  --panel-rgb:   30 34 38;    /* surface haute (cartes, panneaux) */
+  --panel2-rgb:  23 26 29;    /* surface basse */
+  --ink-rgb:      9 11 12;    /* contours et texte posé sur le vert */
+  --cream-rgb: 232 236 239;   /* texte */
+  --line-rgb:   116 126 134;  /* filets et bordures — gris, pas vert */
 
-  --neon-rgb:  198 255 61;    /* accent principal : boutons, sélection */
-  --halo-rgb:   15 157 99;    /* halo dominant du fond */
-  --halo2-rgb:  29 224 138;   /* halo secondaire + pastilles */
-  --halo3-rgb:  10 120 90;    /* halo d'appoint */
+  --neon-rgb:   34 197 94;    /* le vert, et il n'y en a qu'un */
+  --halo-rgb:   34 197 94;    /* les halos ne servent plus qu'aux lueurs ponctuelles */
+  --halo2-rgb: 236  72 153;   /* rose : favoris, et rien d'autre */
+  --halo3-rgb:  20 184 166;   /* turquoise : compteurs du profil */
 
-  --gold-rgb:    255 210 63;  /* lettrage d'affiche */
-  --gold-lo-rgb: 247 149 18;
-  --red-rgb:     255 92 92;   /* alertes */
+  --gold-rgb:   245 158  11;  /* ambre : commandes en cours, avertissements */
+  --gold-lo-rgb: 217 119   6;
+  --red-rgb:    239  68  68;  /* alertes, ruptures */
+  --tg-rgb:      42 171 238;  /* le bleu de Telegram, pour ce qui y renvoie */
 
-  --neon-hi: #e4ff96;         /* haut du dégradé des boutons néon */
-  --neon-deep: #8fd91a;       /* bas du dégradé */
-  --gold-hi: #fff3a8;
+  --neon-hi: #34d97a;         /* survol du vert */
+  --neon-deep: #16a34a;       /* appui */
+  --gold-hi: #fbbf24;
 }
 
 :root {
-  /* Fonds */
+  /* Fonds — opaques : la transparence laissait passer le dégradé du
+     corps, qui n'existe plus. Une carte se lit à sa surface, pas au
+     travers. */
   --night: rgb(var(--night-rgb));
   --night-2: rgb(var(--night2-rgb));
-  --panel: rgb(var(--panel-rgb) / .72);
-  --panel-2: rgb(var(--panel2-rgb) / .82);
+  --panel: rgb(var(--panel-rgb));
+  --panel-2: rgb(var(--panel2-rgb));
 
   /* Néons */
   --neon: rgb(var(--neon-rgb));
@@ -55,7 +64,8 @@
   --ink: rgb(var(--ink-rgb));
   --cream: rgb(var(--cream-rgb));
   --muted: rgb(var(--cream-rgb) / .68);
-  --line-soft: rgb(var(--line-rgb) / .42);
+  --line-soft: rgb(var(--line-rgb) / .24);
+  --tg: rgb(var(--tg-rgb));
 
   /* Alias hérités (admin.css et états produits) */
   --green: var(--neon-deep);
@@ -64,15 +74,21 @@
   --red: rgb(var(--red-rgb));
   --paper: var(--night);
 
-  --display: 'Luckiest Guy', 'Baloo 2', system-ui, sans-serif;
+  /* Les titres sont écrits dans la même famille que le texte, en plus
+     gras. La police d'affiche donnait un air de fête foraine à un écran
+     qui vend des grammes : le contraire de ce qu'on veut inspirer. */
+  --display: 'Baloo 2', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  --line: 2px;
-  --radius: 20px;
-  --shadow: 0 12px 28px rgba(0, 0, 0, .55);
-  --shadow-sm: 0 6px 16px rgba(0, 0, 0, .45);
-  --shadow-lg: 0 22px 50px rgba(0, 0, 0, .6);
-  --glow-neon: 0 0 20px rgb(var(--neon-rgb) / .45);
-  --glow-halo: 0 0 26px rgb(var(--halo-rgb) / .5);
+  --line: 1px;
+  --radius: 16px;
+  --shadow: 0 8px 24px rgba(0, 0, 0, .45);
+  --shadow-sm: 0 3px 10px rgba(0, 0, 0, .35);
+  --shadow-lg: 0 18px 44px rgba(0, 0, 0, .55);
+  /* Gardés pour les règles qui les nomment encore, mais réduits à presque
+     rien : supprimer les deux variables aurait cassé trente déclarations
+     pour le même résultat. */
+  --glow-neon: 0 0 0 1px rgb(var(--neon-rgb) / .28);
+  --glow-halo: none;
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -93,20 +109,17 @@ body {
   font-weight: 600;
   color: var(--cream);
   background-color: var(--night);
-  /* Les halos font le « mur de fumée » de l'affiche. Fixés pour ne pas
-     défiler avec la page. */
+  /* Une seule lueur, très faible, en haut : assez pour que la barre de
+     titre ne flotte pas sur du noir mort, trop peu pour qu'on la
+     remarque. Fixée, pour ne pas défiler avec la page. */
   background-image:
-    radial-gradient(90% 55% at 50% -8%, rgb(var(--halo-rgb) / .55), transparent 70%),
-    radial-gradient(70% 45% at 8% 30%, rgb(var(--halo2-rgb) / .28), transparent 72%),
-    radial-gradient(75% 50% at 96% 62%, rgb(var(--halo3-rgb) / .38), transparent 70%),
-    radial-gradient(85% 45% at 50% 108%, rgb(var(--neon-rgb) / .22), transparent 72%),
-    linear-gradient(180deg, var(--night-2), var(--night) 60%);
+    radial-gradient(120% 40% at 50% -10%, rgb(var(--neon-rgb) / .05), transparent 70%);
   background-attachment: fixed;
   background-repeat: no-repeat;
   overscroll-behavior-y: none;
 }
 
-::selection { background: var(--neon); color: var(--ink); }
+::selection { background: rgb(var(--neon-rgb) / .3); color: var(--cream); }
 
 /* ── Recherche et tri ────────────────────────────────────── */
 .find { display: flex; gap: 8px; padding: 0 14px 4px; }
@@ -140,21 +153,17 @@ body {
 /* ── Décor de fond ───────────────────────────────────────── */
 /* Feuilles « sprayées » et voile de fumée, purement décoratifs. */
 .fx { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-.fx__leaf {
-  position: absolute; width: 130px; opacity: .16;
-  filter: drop-shadow(0 0 14px rgb(var(--neon-rgb) / .5));
-}
+/* Les feuilles restent, à peine : elles donnent de la profondeur au fond
+   sans se disputer l'attention avec les photos de produits, qui sont ce
+   qu'on est venu regarder. */
+.fx__leaf { position: absolute; width: 130px; opacity: .045; }
 .fx__leaf--a { top: 8%;  left: -34px; transform: rotate(-24deg); }
 .fx__leaf--b { top: 34%; right: -40px; width: 160px; transform: rotate(28deg); }
 .fx__leaf--c { bottom: 6%; left: -28px; width: 110px; transform: rotate(14deg); }
-.fx__smoke {
-  position: absolute; inset: -20% -10%;
-  background:
-    radial-gradient(40% 30% at 20% 70%, rgb(var(--halo-rgb) / .3), transparent 70%),
-    radial-gradient(35% 26% at 82% 26%, rgb(var(--halo2-rgb) / .22), transparent 70%);
-  filter: blur(18px);
-  animation: drift 22s ease-in-out infinite alternate;
-}
+/* La fumée qui dérivait est éteinte : un fond qui bouge derrière une
+   liste qu'on fait défiler donne le tournis, et c'était le plus flagrant
+   des effets « néon » qu'on abandonne ici. */
+.fx__smoke { display: none; }
 @keyframes drift {
   from { transform: translate3d(-3%, 2%, 0) scale(1); }
   to   { transform: translate3d(4%, -3%, 0) scale(1.08); }
@@ -177,51 +186,59 @@ h1, h2, h3, .display,
    obtenu par ombres portées enchaînées (chaque drop-shadow reprend le
    résultat de la précédente : l'ensemble dilate la lettre sans recouvrir le
    dégradé, ce que feraient text-stroke ou text-shadow), puis relief + halo. */
+/* Le lettrage d'affiche — or, contour noir, relief — est devenu du texte.
+   La classe reste : elle est posée sur une trentaine de titres, et un
+   renommage n'aurait rien changé à l'écran. Un dégradé très court garde
+   un peu de matière dans les grands titres, sans se voir dans les petits. */
 .goldtext {
-  color: var(--gold);
-  filter:
-    drop-shadow(1.5px 0 0 var(--ink)) drop-shadow(-1.5px 0 0 var(--ink))
-    drop-shadow(0 1.5px 0 var(--ink)) drop-shadow(0 -1.5px 0 var(--ink))
-    drop-shadow(0 3px 0 rgb(var(--ink-rgb) / .9))
-    drop-shadow(0 6px 16px rgb(var(--gold-lo-rgb) / .5));
+  color: var(--cream);
+  letter-spacing: -.01em;
 }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .goldtext {
-    background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold) 42%, var(--gold-lo) 72%, #ffcb52 100%);
+    background: linear-gradient(180deg, #ffffff 0%, var(--cream) 58%, rgb(var(--cream-rgb) / .78) 100%);
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent; color: transparent;
   }
 }
 
-.neontext {
-  color: var(--neon);
-  text-shadow: 0 0 8px rgb(var(--neon-rgb) / .8), 0 0 22px rgb(var(--neon-rgb) / .45), 0 2px 0 var(--ink);
-}
+.neontext { color: var(--neon); }
 
 img { max-width: 100%; display: block; }
 button { font: inherit; color: inherit; cursor: pointer; }
 
 /* ── Boutons ─────────────────────────────────────────────── */
 .btn {
-  border: var(--line) solid rgba(255, 255, 255, .12);
-  border-radius: 999px;
+  border: var(--line) solid rgba(255, 255, 255, .1);
+  border-radius: 14px;
   padding: 13px 20px;
-  font-weight: 800;
-  font-size: 16px;
+  font-weight: 700;
+  font-size: 15.5px;
   color: var(--cream);
-  background: rgba(255, 255, 255, .07);
-  box-shadow: var(--shadow-sm);
+  background: rgba(255, 255, 255, .06);
+  box-shadow: none;
   transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
 }
 .btn:active { transform: translateY(2px) scale(.985); filter: brightness(1.05); }
+/* Un aplat, pas un dégradé à trois arrêts avec reflet intérieur et halo.
+   Le bouton principal se distingue d'être le seul vert de l'écran ; il
+   n'a pas besoin de briller en plus. */
 .btn--primary {
-  color: var(--ink);
-  background: linear-gradient(180deg, var(--neon-hi) 0%, var(--neon) 45%, var(--neon-deep) 100%);
-  border-color: rgb(var(--ink-rgb) / .55);
-  box-shadow: var(--glow-neon), 0 10px 24px rgb(var(--neon-rgb) / .25), inset 0 2px 0 rgba(255, 255, 255, .5);
+  color: #ffffff;
+  background: var(--neon);
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgb(var(--neon-rgb) / .22);
   text-shadow: none;
 }
-.btn--ghost { background: rgba(255, 255, 255, .07); }
+.btn--primary:active { background: var(--neon-deep); }
+.btn--ghost { background: rgba(255, 255, 255, .06); }
+
+/* Ce qui renvoie vers Telegram porte le bleu de Telegram : c'est la seule
+   couleur que le client reconnaît sans lire le bouton. */
+.btn--tg {
+  color: #ffffff; background: var(--tg); border-color: transparent;
+  box-shadow: 0 4px 14px rgb(var(--tg-rgb) / .22);
+}
 .btn--grow { flex: 1; }
 .btn[disabled] { opacity: .45; pointer-events: none; box-shadow: none; }
 
@@ -234,7 +251,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .agegate__card {
   position: relative;
-  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  background: var(--panel);
   border: var(--line) solid var(--line-soft);
   border-radius: 26px;
   box-shadow: var(--shadow-lg), var(--glow-halo), inset 0 1px 0 rgba(255, 255, 255, .1);
@@ -246,10 +263,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: grid; place-items: center;
   width: 84px; height: 84px; margin: -62px auto 6px;
   font-family: var(--display); font-weight: 700; font-synthesis-weight: none;
-  font-size: 30px; line-height: 1; color: var(--ink);
-  background: linear-gradient(180deg, var(--neon-hi), var(--neon));
-  border: 4px solid var(--ink); border-radius: 50%;
-  box-shadow: var(--glow-neon), 0 10px 24px rgba(0, 0, 0, .5);
+  font-size: 27px; line-height: 1; color: #fff;
+  background: var(--neon);
+  border: 4px solid var(--night-2); border-radius: 50%;
+  box-shadow: none;
 }
 .agegate__title { font-size: 44px; }
 .agegate__text { font-size: 15px; line-height: 1.45; margin: 6px 0 16px; color: var(--muted); }
@@ -267,7 +284,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .gate__card {
   width: 100%; max-width: 360px; text-align: center;
-  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  background: var(--panel);
   border: var(--line) solid var(--line-soft);
   border-radius: 26px; padding: 24px 20px 20px;
   box-shadow: var(--shadow-lg), var(--glow-halo);
@@ -306,15 +323,20 @@ button { font: inherit; color: inherit; cursor: pointer; }
   position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: calc(10px + var(--safe-top)) 14px 10px;
-  background: linear-gradient(180deg, rgb(var(--night2-rgb) / .92), rgb(var(--night-rgb) / .78));
-  backdrop-filter: blur(12px);
+  background: rgb(var(--night2-rgb) / .88);
+  backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--line-soft);
-  box-shadow: 0 1px 0 rgb(var(--neon-rgb) / .35), 0 10px 30px rgba(0, 0, 0, .45);
 }
 .topbar__brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.topbar__leaf { width: 30px; flex: none; filter: drop-shadow(0 0 10px rgb(var(--neon-rgb) / .65)); }
+/* Le logo dans un anneau vert, comme la vignette d'un compte : ça lui
+   donne une place au lieu de le laisser flotter contre le titre. */
+.topbar__leaf {
+  width: 34px; height: 34px; flex: none; padding: 6px;
+  border: 1.5px solid rgb(var(--neon-rgb) / .5); border-radius: 50%;
+  background: rgb(var(--neon-rgb) / .08);
+}
 .topbar__name {
-  font-size: 25px;
+  font-size: 20px; font-weight: 800; letter-spacing: -.01em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   padding: 2px 0;
 }
@@ -322,11 +344,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* Bouton discret de la barre : l'accent néon reste au panier. */
 .iconbtn {
-  flex: none; width: 44px; height: 44px; display: grid; place-items: center;
+  flex: none; width: 40px; height: 40px; display: grid; place-items: center;
   color: var(--cream);
-  background: rgba(255, 255, 255, .07);
+  background: rgba(255, 255, 255, .06);
   border: var(--line) solid var(--line-soft);
-  border-radius: 14px;
+  border-radius: 12px;
   transition: transform .12s ease, border-color .16s ease;
 }
 .iconbtn svg { width: 22px; height: 22px; }
@@ -346,9 +368,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cartbtn__count {
   position: absolute; top: -8px; right: -8px; min-width: 24px; height: 24px;
   display: grid; place-items: center; padding: 0 5px;
-  background: var(--pink); color: #fff; font-size: 13px; font-weight: 800;
-  border: 2px solid var(--ink); border-radius: 999px;
-  box-shadow: 0 0 14px rgb(var(--halo2-rgb) / .8);
+  background: rgb(var(--halo2-rgb)); color: #fff; font-size: 12px; font-weight: 800;
+  border: 2px solid var(--night-2); border-radius: 999px;
+  box-shadow: none;
 }
 .cartbtn__count.pop { animation: pop .35s ease; }
 @keyframes pop { 0%{transform:scale(1)} 40%{transform:scale(1.45)} 100%{transform:scale(1)} }
@@ -370,29 +392,32 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .hero {
   position: relative; overflow: hidden;
   padding: 22px 18px 24px;
-  background: linear-gradient(165deg, rgb(var(--halo3-rgb) / .55), rgb(var(--panel2-rgb) / .9));
+  background: var(--panel);
   border: var(--line) solid var(--line-soft);
-  border-radius: 26px;
-  box-shadow: var(--shadow), var(--glow-halo), inset 0 1px 0 rgba(255, 255, 255, .12);
+  border-radius: 18px;
+  box-shadow: none;
 }
+/* Le halo vert qui noyait la bannière ne reste qu'en trace, dans un coin :
+   assez pour que la surface ne soit pas un rectangle gris, pas assez pour
+   qu'on le voie avant le titre. */
 .hero__halo {
-  position: absolute; inset: -40% -20% auto; height: 150%;
-  background: radial-gradient(50% 50% at 50% 40%, rgb(var(--neon-rgb) / .35), transparent 70%);
+  position: absolute; inset: -60% -30% auto; height: 170%;
+  background: radial-gradient(45% 45% at 78% 45%, rgb(var(--neon-rgb) / .1), transparent 70%);
   pointer-events: none;
 }
 .hero__body { position: relative; z-index: 1; }
 .hero__eyebrow {
   display: inline-block; margin: 0 0 8px;
-  font-size: 11.5px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase;
-  color: var(--neon); text-shadow: 0 0 12px rgb(var(--neon-rgb) / .6);
+  font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--neon);
 }
-.hero__title { font-size: clamp(34px, 11vw, 46px); line-height: .96; }
+.hero__title { font-size: clamp(30px, 9.5vw, 40px); line-height: 1.02; font-weight: 800; }
 .hero__sub { margin: 10px 0 0; font-size: 13.5px; line-height: 1.4; color: var(--muted); max-width: 24ch; }
 /* Feuille filigrane dans le coin : le décor de la bannière depuis que
    la mascotte a disparu. */
 .hero::after {
   content: ''; position: absolute; right: -26px; bottom: -30px;
-  width: 150px; height: 150px; opacity: .22;
+  width: 150px; height: 150px; opacity: .07;
   background: url('/assets/ui/leaf.svg') no-repeat center / contain;
   transform: rotate(18deg); pointer-events: none;
 }
@@ -401,12 +426,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .badges { display: flex; gap: 8px; overflow-x: auto; margin: 14px -14px 0; padding: 2px 14px 4px; scrollbar-width: none; }
 .badges::-webkit-scrollbar { display: none; }
 .badge-chip {
-  flex: none; font-size: 12.5px; font-weight: 800; white-space: nowrap;
-  color: var(--cream);
-  background: linear-gradient(180deg, rgb(var(--panel-rgb) / .9), rgb(var(--panel2-rgb) / .9));
-  border: var(--line) solid rgb(var(--neon-rgb) / .45);
+  flex: none; font-size: 12px; font-weight: 700; white-space: nowrap;
+  color: var(--muted);
+  background: var(--panel);
+  border: var(--line) solid var(--line-soft);
   border-radius: 999px; padding: 7px 14px;
-  box-shadow: 0 0 14px rgb(var(--neon-rgb) / .22), inset 0 1px 0 rgba(255, 255, 255, .08);
 }
 
 /* ── Catégories ──────────────────────────────────────────── */
@@ -417,15 +441,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
   color: var(--cream);
   background: rgba(255, 255, 255, .06);
   border: var(--line) solid var(--line-soft);
-  border-radius: 999px; padding: 9px 16px; font-weight: 800; font-size: 14.5px;
+  border-radius: 999px; padding: 8px 15px; font-weight: 700; font-size: 13.5px;
   white-space: nowrap;
   transition: transform .12s ease, box-shadow .12s ease, background .16s ease, color .16s ease;
 }
 .cat[aria-pressed="true"] {
-  color: var(--ink);
-  background: linear-gradient(180deg, var(--neon-hi), var(--neon));
-  border-color: rgb(var(--ink-rgb) / .5);
-  box-shadow: var(--glow-neon);
+  color: #fff;
+  background: var(--neon);
+  border-color: transparent;
+  box-shadow: none;
 }
 .cat:active { transform: scale(.95); }
 
@@ -436,27 +460,24 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .card {
   position: relative; display: flex; flex-direction: column;
   color: var(--cream);
-  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  background: var(--panel);
   border: var(--line) solid var(--line-soft);
   border-radius: var(--radius);
-  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .1);
+  box-shadow: none;
   overflow: hidden; text-align: left; padding: 0;
-  transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+  transition: transform .14s ease, border-color .14s ease;
 }
-.card:active {
-  transform: scale(.97);
-  border-color: rgb(var(--neon-rgb) / .6);
-  box-shadow: var(--shadow), var(--glow-neon);
-}
+.card:active { transform: scale(.975); border-color: rgb(var(--neon-rgb) / .45); }
 
+/* La vignette d'un produit sans photo. Le halo vert derrière la feuille a
+   sauté : il donnait à chaque case l'air d'être en promotion, y compris
+   celles qui n'ont pas encore d'image. */
 .card__art {
   position: relative; aspect-ratio: 1; display: grid; place-items: center;
-  background:
-    radial-gradient(58% 52% at 50% 62%, rgb(var(--neon-rgb) / .3), transparent 72%),
-    linear-gradient(180deg, rgb(var(--ink-rgb) / .35), rgb(var(--ink-rgb) / .7));
+  background: rgb(var(--ink-rgb) / .45);
   border-bottom: 1px solid var(--line-soft);
 }
-.card__art img { width: 82%; filter: drop-shadow(0 10px 16px rgba(0, 0, 0, .6)); }
+.card__art img { width: 74%; opacity: .5; }
 
 .card__badge {
   position: absolute; top: 9px; left: 9px;
@@ -464,26 +485,33 @@ button { font: inherit; color: inherit; cursor: pointer; }
      à la largeur disponible et on coupe proprement. */
   max-width: calc(100% - 18px); overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap;
-  background: linear-gradient(180deg, var(--pink), rgb(var(--halo-rgb)));
-  color: #fff; font-size: 10.5px; font-weight: 800;
-  letter-spacing: .05em; padding: 4px 9px; border: 1px solid rgb(var(--ink-rgb) / .6);
-  border-radius: 999px; box-shadow: 0 0 14px rgb(var(--halo2-rgb) / .7);
+  /* Vert plein : c'est la couleur de ce qui est bon à savoir dans toute la
+     boutique. Le dégradé rose vers vert disait surtout « regarde comme je
+     brille », sur une vignette qui n'a que 170 px de large. */
+  background: var(--neon);
+  color: #fff; font-size: 10px; font-weight: 800;
+  letter-spacing: .04em; padding: 4px 8px; border: 0;
+  border-radius: 6px; box-shadow: none;
 }
 
 .card__body { padding: 11px 12px 13px; display: flex; flex-direction: column; gap: 3px; flex: 1; }
 .card__name { font-size: 18px; line-height: 1.12; letter-spacing: .01em; }
 .card__short { font-size: 12px; line-height: 1.3; color: var(--muted); font-weight: 600; flex: 1; }
 .card__foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 8px; }
-.card__price { font-size: 21px; }
+/* Le prix est vert : dans toute la boutique, le vert veut dire « voilà
+   l'information ». C'est la seule chose qu'on lit sur une carte avant de
+   l'ouvrir. */
+.card__price { font-size: 19px; color: var(--neon); }
 .card__price small { font-family: 'Baloo 2', sans-serif; font-size: 10.5px; font-weight: 700; text-shadow: none;
   -webkit-text-fill-color: rgb(var(--cream-rgb) / .7); color: rgb(var(--cream-rgb) / .7); background: none; }
 .card__add {
-  width: 34px; height: 34px; flex: none; display: grid; place-items: center;
-  color: var(--ink);
-  background: linear-gradient(180deg, var(--neon-hi), var(--neon));
-  border: 1px solid rgb(var(--ink-rgb) / .5); border-radius: 12px;
-  font-size: 21px; line-height: 1; font-weight: 800; box-shadow: var(--glow-neon);
+  width: 32px; height: 32px; flex: none; display: grid; place-items: center;
+  color: #fff;
+  background: var(--neon);
+  border: 0; border-radius: 10px;
+  font-size: 20px; line-height: 1; font-weight: 800; box-shadow: none;
 }
+.card__add:active { background: var(--neon-deep); }
 
 .empty { text-align: center; padding: 30px 0; color: var(--muted); }
 /* Quand la zone annonce une panne plutôt qu'une catégorie vide, elle porte
@@ -514,12 +542,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .sheet__panel {
   position: relative; width: 100%; max-width: 640px; margin: 0 auto;
   max-height: 92vh; display: flex; flex-direction: column;
-  background:
-    radial-gradient(80% 40% at 50% 0%, rgb(var(--halo-rgb) / .35), transparent 70%),
-    linear-gradient(180deg, var(--night-2), var(--night));
+  background: var(--night-2);
   border: var(--line) solid var(--line-soft); border-bottom: 0;
-  border-radius: 26px 26px 0 0;
-  box-shadow: 0 -8px 40px rgba(0, 0, 0, .6), 0 -1px 0 rgb(var(--neon-rgb) / .4);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 36px rgba(0, 0, 0, .5);
   animation: rise .26s cubic-bezier(.2,.9,.3,1.1);
 }
 @keyframes rise { from { transform: translateY(100%) } }
@@ -574,10 +600,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .variant small { font-size: 11.5px; font-weight: 700; color: var(--muted); }
 .variant[aria-pressed="true"] {
-  color: var(--ink);
-  background: linear-gradient(180deg, var(--neon-hi), var(--neon));
-  border-color: rgb(var(--ink-rgb) / .5);
-  box-shadow: var(--glow-neon);
+  color: #fff;
+  background: var(--neon);
+  border-color: transparent;
+  box-shadow: none;
 }
 .variant[aria-pressed="true"] small { color: rgb(var(--ink-rgb) / .75); }
 
@@ -605,13 +631,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 .cart-item {
   display: flex; align-items: center; gap: 11px;
-  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  background: var(--panel);
   border: var(--line) solid var(--line-soft);
   border-radius: 16px; padding: 10px 12px; box-shadow: var(--shadow-sm);
 }
 .cart-item__art {
   width: 52px; height: 52px; flex: none; display: grid; place-items: center;
-  background: radial-gradient(60% 60% at 50% 60%, rgb(var(--neon-rgb) / .3), transparent 72%), rgb(var(--ink-rgb) / .5);
+  background: rgb(var(--ink-rgb) / .45);
   border: 1px solid var(--line-soft); border-radius: 12px;
 }
 .cart-item__art img { width: 80%; }
@@ -693,7 +719,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .mode small { font-size: 11.5px; font-weight: 700; color: var(--muted); }
 .mode[aria-pressed="true"] {
-  color: var(--ink); background: linear-gradient(180deg, var(--neon-hi), var(--neon));
+  color: #fff; background: var(--neon);
   border-color: rgb(var(--ink-rgb) / .5); box-shadow: var(--glow-neon);
 }
 .mode[aria-pressed="true"] small { color: rgb(var(--ink-rgb) / .75); }
@@ -727,9 +753,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .done { text-align: center; padding: 28px 20px 8px; }
 .done__seal {
   display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 14px;
-  font-size: 30px; font-weight: 800; color: var(--ink);
-  background: linear-gradient(180deg, var(--neon-hi), var(--neon));
-  border-radius: 50%; box-shadow: var(--glow-neon);
+  font-size: 28px; font-weight: 800; color: #fff;
+  background: var(--neon);
+  border-radius: 50%; box-shadow: none;
 }
 /* Un peu d'air : serré, l'accent des capitales se fait rogner. */
 .done__title { font-size: 28px; line-height: 1.18; margin: 0 0 6px; }
@@ -754,7 +780,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .orders__empty { text-align: center; padding: 30px 24px; color: var(--muted); font-weight: 700; }
 
 .order {
-  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  background: var(--panel);
   border: var(--line) solid var(--line-soft);
   border-radius: 18px; padding: 13px 14px; box-shadow: var(--shadow-sm);
 }
@@ -802,6 +828,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .card--soldout .card__art { background: linear-gradient(180deg, rgb(var(--ink-rgb) / .5), rgb(var(--ink-rgb) / .8)); }
 .card--soldout .card__art img { filter: grayscale(1); opacity: .38; }
 .card--soldout .card__price { -webkit-text-fill-color: rgb(var(--cream-rgb) / .4); color: rgb(var(--cream-rgb) / .4); background: none; text-shadow: none; }
+/* La famille d'affiche s'applique au prix, mais pas son remplissage : sans
+   cette ligne, le dégradé de .goldtext repeindrait le prix en blanc. */
+.card__price { -webkit-text-fill-color: var(--neon); }
 .card--soldout .card__add { background: rgba(255, 255, 255, .1); color: var(--muted); box-shadow: none; }
 .card__badge--out { background: rgb(var(--ink-rgb) / .85); border-color: var(--line-soft); box-shadow: none; color: var(--muted); }
 
@@ -1166,7 +1195,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   color: var(--muted); background: transparent;
 }
 .profil__onglet[aria-selected="true"] {
-  color: var(--ink); background: linear-gradient(180deg, var(--neon-hi), var(--neon));
+  color: #fff; background: var(--neon);
 }
 .profil__compte {
   display: inline-block; margin-left: 5px; padding: 0 6px; border-radius: 999px;
@@ -1224,8 +1253,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   transition: transform .16s ease, background .16s ease;
 }
 .alerte[aria-checked="true"] { border-color: rgb(var(--neon-rgb) / .5); }
-.alerte[aria-checked="true"] .alerte__bouton { background: rgb(var(--neon-rgb) / .55); }
-.alerte[aria-checked="true"] .alerte__bouton::after { transform: translateX(19px); background: var(--ink); }
+.alerte[aria-checked="true"] .alerte__bouton { background: var(--neon); }
+.alerte[aria-checked="true"] .alerte__bouton::after { transform: translateX(19px); background: #fff; }
 @media (prefers-reduced-motion: reduce) {
   .alerte__bouton, .alerte__bouton::after { transition: none; }
 }
@@ -1237,7 +1266,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   padding: 0 4px; border-radius: 999px;
   display: grid; place-items: center;
   font-size: 10.5px; font-weight: 800; line-height: 1;
-  color: var(--ink); background: var(--neon);
+  color: #fff; background: var(--neon);
 }
 
 /* Le format auquel un média est rattaché. En bas à gauche, en face de la
@@ -1246,7 +1275,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .galerie__format {
   position: absolute; bottom: 8px; left: 8px; z-index: 2;
   padding: 3px 9px; border-radius: 999px;
-  background: rgb(var(--neon-rgb) / .9); color: var(--ink);
+  background: var(--neon); color: #fff;
   font-size: 11.5px; font-weight: 800; letter-spacing: .03em;
 }
 
@@ -1307,3 +1336,161 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .charge__arc, .charge__feuille { animation: none; }
   .charge { transition: none; }
 }
+
+/* ══ La barre du bas et ses quatre vues ═══════════════════════
+   Une seule page qui défilait est devenue quatre écrans. Ce qui
+   change vraiment : le profil et le contact existaient déjà, mais
+   derrière une icône de 40 px que personne ne touchait. Une place
+   nommée dans une barre se voit ; une icône se devine. */
+
+.vue { display: block; }
+
+/* La page laisse la hauteur de la barre sous elle, sinon la dernière
+   carte finit dessous et personne ne peut l'ouvrir. */
+.page { padding-bottom: calc(96px + var(--safe-bottom)); }
+
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  padding: 6px 6px calc(6px + var(--safe-bottom));
+  background: rgb(var(--night2-rgb) / .94);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid var(--line-soft);
+}
+.tabbar__item {
+  position: relative;
+  display: grid; justify-items: center; gap: 3px;
+  padding: 8px 2px 7px;
+  border: 0; border-radius: 12px;
+  background: none; color: rgb(var(--cream-rgb) / .5);
+  font-size: 10.5px; font-weight: 700; letter-spacing: .01em;
+  transition: color .16s ease, background-color .16s ease;
+}
+.tabbar__item svg { width: 21px; height: 21px; }
+.tabbar__item span { line-height: 1; }
+
+/* L'onglet actif : une pastille verte et un trait sous le pied, comme
+   sur la référence. Le trait seul se perdait sur un écran de téléphone
+   tenu en main ; la pastille seule ressemblait à un bouton pressé. */
+.tabbar__item[aria-selected='true'] {
+  color: var(--neon);
+  background: rgb(var(--neon-rgb) / .12);
+}
+.tabbar__item[aria-selected='true']::after {
+  content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 20px; height: 2px; border-radius: 2px; background: var(--neon);
+}
+.tabbar__item:active { background: rgb(var(--cream-rgb) / .06); }
+
+.tabbar__pastille {
+  position: absolute; top: 4px; right: calc(50% - 22px);
+  min-width: 16px; height: 16px; padding: 0 4px;
+  display: grid; place-items: center;
+  font-size: 10px; font-weight: 800; line-height: 1;
+  color: #fff; background: rgb(var(--halo2-rgb));
+  border-radius: 999px;
+}
+
+/* ── Les rayons : le catalogue rangé ─────────────────────── */
+.rayons { display: grid; gap: 22px; padding: 4px 0 0; }
+.rayon__tete {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 10px; padding-left: 10px;
+  border-left: 3px solid var(--neon);
+}
+.rayon__nom {
+  margin: 0; font-size: 14px; font-weight: 800;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--cream);
+}
+.rayon__compte {
+  font-size: 12px; font-weight: 700; color: var(--muted);
+}
+.rayon__grille { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+/* ── Contact ─────────────────────────────────────────────── */
+.contact { padding: 14px 2px 0; text-align: center; }
+.contact__icone {
+  width: 74px; height: 74px; margin: 6px auto 16px;
+  display: grid; place-items: center;
+  color: var(--neon);
+  background: rgb(var(--neon-rgb) / .12);
+  border: 1px solid rgb(var(--neon-rgb) / .3);
+  border-radius: 22px;
+}
+.contact__icone svg { width: 36px; height: 36px; }
+.contact__titre {
+  margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -.01em; color: var(--cream);
+}
+.contact__texte {
+  margin: 10px auto 0; max-width: 300px;
+  font-size: 14px; line-height: 1.5; color: var(--muted);
+}
+/* Une légende entre deux filets : elle sépare le discours du bouton,
+   là où un simple blanc laissait les deux se regarder. */
+.contact__legende {
+  display: flex; align-items: center; gap: 12px;
+  margin: 26px 0 14px;
+  font-size: 11px; font-weight: 800; letter-spacing: .18em;
+  text-transform: uppercase; color: rgb(var(--cream-rgb) / .45);
+}
+.contact__legende::before, .contact__legende::after {
+  content: ''; flex: 1; height: 1px; background: var(--line-soft);
+}
+.contact__fine { margin: 12px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
+.contact__infos { display: grid; gap: 8px; margin-top: 22px; }
+.contact__info {
+  display: flex; align-items: center; gap: 10px; text-align: left;
+  padding: 12px 14px;
+  background: var(--panel); border: 1px solid var(--line-soft); border-radius: 14px;
+  font-size: 13.5px; font-weight: 600; color: var(--muted);
+}
+.contact__info b { color: var(--cream); font-weight: 800; }
+
+.btn--block { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; }
+.btn__icone { width: 19px; height: 19px; flex: none; }
+
+/* ── Le profil en pleine page ────────────────────────────── */
+.profil { padding: 6px 0 0; }
+.profil__tete { display: flex; align-items: center; gap: 13px; margin-bottom: 18px; }
+.profil__vignette {
+  width: 58px; height: 58px; flex: none; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 23px; font-weight: 800; color: var(--neon);
+  background: rgb(var(--neon-rgb) / .12);
+  border: 1.5px solid rgb(var(--neon-rgb) / .4);
+}
+.profil__identite { min-width: 0; }
+.profil__nom {
+  margin: 0; font-size: 19px; font-weight: 800; color: var(--cream);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Les quatre compteurs. Chacun porte un filet de couleur à gauche : c'est
+   ce qui les distingue au premier regard, sans qu'il faille lire quatre
+   libellés pour retrouver celui qu'on cherchait. */
+.chiffres { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
+.chiffre {
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 13px 13px 15px;
+  background: var(--panel); border: 1px solid var(--line-soft); border-radius: 14px;
+}
+.chiffre::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--teinte);
+}
+.chiffre__tuile {
+  width: 34px; height: 34px; flex: none; display: grid; place-items: center;
+  border-radius: 10px; font-size: 16px;
+  background: rgb(var(--teinte-rgb) / .14); color: var(--teinte);
+}
+.chiffre__corps { min-width: 0; }
+.chiffre__valeur { display: block; font-size: 19px; font-weight: 800; line-height: 1.1; color: var(--cream); }
+.chiffre__label {
+  display: block; font-size: 10px; font-weight: 800; letter-spacing: .12em;
+  text-transform: uppercase; color: rgb(var(--cream-rgb) / .5);
+}
+.chiffre--panier    { --teinte-rgb: var(--tg-rgb);   --teinte: rgb(var(--tg-rgb)); }
+.chiffre--commandes { --teinte-rgb: var(--gold-rgb); --teinte: rgb(var(--gold-rgb)); }
+.chiffre--favoris   { --teinte-rgb: var(--halo2-rgb); --teinte: rgb(var(--halo2-rgb)); }
+.chiffre--produits  { --teinte-rgb: var(--halo3-rgb); --teinte: rgb(var(--halo3-rgb)); }
