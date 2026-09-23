@@ -8,7 +8,7 @@
  * Usage :  BOT_TOKEN=… node test/creneaux.test.mjs
  */
 import 'dotenv/config';
-import { signInitData, getShopPass, resetShop } from './helpers.mjs';
+import { signInitData, getShopPass, resetShop, franchirLaPorte } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -26,6 +26,11 @@ await resetShop(BASE, admin, { features: { slots: true, zones: true } });
 // Un identifiant neuf à chaque passage : un client fixe finirait par buter
 // sur le plafond horaire qu'une exécution précédente a déjà consommé.
 const client = signInitData(TOKEN, { id: 880000 + (Date.now() % 100000), first_name: 'Client' });
+// L'épreuve du chat garde aussi la Mini App : un client inventé ici n'a
+// jamais écrit au bot, donc jamais calculé. On le fait entrer par la route
+// du vendeur — ce que cette suite teste est ailleurs.
+await franchirLaPorte(BASE, admin, client);
+
 
 let failures = 0;
 const check = (label, ok, detail = '') => {

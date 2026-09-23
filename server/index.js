@@ -33,7 +33,8 @@ import {
   avisDuProduit, notesDuCatalogue, avisDeLaCommande, deposerAvis, refusDAvis, nomPublic,
 } from './avis.js';
 import { storageKind, claimDataDir } from './store.js';
-import { listerAdmins } from './admins.js';
+import { listerAdmins, estAdmin } from './admins.js';
+import { estPasse, ouvrirLaPorte } from './bot-captcha.js';
 import { noterPassage } from './presence.js';
 import { CANAUX, preferencesDe, enregistrerPreferences } from './preferences.js';
 import { favorisDe, basculerFavori, MAX as FAVORIS_MAX } from './favoris.js';
@@ -177,6 +178,9 @@ app.get('/api/catalog', async (req, res, next) => {
         age: settings.features.ageGate,
         captcha: settings.captcha.enabled,
         verification: settings.verification.enabled,
+        // L'épreuve du chat : la Mini App doit savoir qu'elle peut être
+        // refusée avant d'afficher quoi que ce soit.
+        porte: settings.features.botCaptcha,
       },
       // La Mini App masque ce qui est éteint ; le serveur, lui, refuse.
       features: settings.features,
@@ -205,7 +209,7 @@ app.get('/api/catalog', async (req, res, next) => {
 });
 
 /** Chaque appel authentifié doit porter l'en-tête signé par Telegram. */
-function authenticate(req, res, next) {
+function verifierLIdentite(req, res, next) {
   const result = verifyInitData(req.get('X-Telegram-Init-Data'), config.botToken);
   if (!result.ok) {
     return res.status(401).json({ error: `Authentification refusée : ${result.reason}` });
@@ -217,6 +221,73 @@ function authenticate(req, res, next) {
   noterPassage(result.user.id, 'boutique');
   next();
 }
+
+/**
+ * L'épreuve du chat vaut aussi pour la Mini App.
+ *
+ * Le bouton de menu, en bas à gauche du chat, est posé pour tout le monde d'un
+ * seul geste : Telegram ne sait pas le montrer aux uns et le cacher aux
+ * autres. Quelqu'un qui n'a jamais écrit au bot pouvait donc l'ouvrir et
+ * commander sans avoir rien prouvé — le calcul gardait la conversation, pas la
+ * boutique. Il la garde maintenant des deux côtés, et c'est le serveur qui
+ * refuse : cacher l'écran sans fermer l'API n'aurait retenu personne.
+ *
+ * Trois passe-droits, les mêmes que dans le bot, pour la même raison : un
+ * vendeur, quelqu'un qui a déjà commandé, et une boutique dont le propriétaire
+ * a éteint l'épreuve.
+ */
+async function exigerLaPorte(req, res, next) {
+  try {
+    const id = req.telegramUser?.id;
+    if (!(await getSettings()).features.botCaptcha) return next();
+    if (await estAdmin(id)) return next();
+    if (await estPasse(id)) return next();
+
+    // Un client d'avant l'épreuve ne repasse pas devant la porte : elle a été
+    // posée après lui, et il a déjà payé de sa personne.
+    if ((await listOrders({ userId: id, limit: 1 })).length) {
+      await ouvrirLaPorte(id);
+      return next();
+    }
+
+    return res.status(403).json({
+      error: 'Réponds au petit calcul dans la conversation du bot pour entrer.',
+      porte: 'fermee',
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * Le contrôle d'entrée complet : l'identité signée, puis la porte.
+ *
+ * Un tableau plutôt qu'une fonction, pour que les routes écrites avant ce
+ * garde-fou en héritent sans changer d'une ligne.
+ */
+const authenticate = [verifierLIdentite, exigerLaPorte];
+
+/**
+ * L'état de la porte, lisible même quand elle est fermée.
+ *
+ * C'est la seule route qui s'arrête à l'identité : la Mini App a besoin de
+ * savoir qu'on lui demande un calcul, et de voir l'instant où il est fait pour
+ * lever le voile toute seule. Elle ne dit rien d'autre que ouvert ou fermé.
+ */
+app.get('/api/porte', verifierLIdentite, async (req, res, next) => {
+  try {
+    const id = req.telegramUser?.id;
+    const requise = (await getSettings()).features.botCaptcha;
+    if (!requise) return res.json({ requise: false, ouverte: true });
+    const ouverte =
+      (await estAdmin(id)) ||
+      (await estPasse(id)) ||
+      (await listOrders({ userId: id, limit: 1 })).length > 0;
+    return res.json({ requise: true, ouverte: Boolean(ouverte) });
+  } catch (err) {
+    return next(err);
+  }
+});
 
 /**
  * Traduit un panier client en lignes de commande sûres.

@@ -23,7 +23,7 @@ import {
   CANAUX, parDefaut, preferencesDe, enregistrerPreferences, destinatairesDuCanal,
 } from '../server/preferences.js';
 import { MAX as FAVORIS_MAX } from '../server/favoris.js';
-import { signInitData, getShopPass } from './helpers.mjs';
+import { signInitData, getShopPass, franchirLaPorte } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -40,8 +40,12 @@ const check = (label, ok, detail = '') => {
 
 const ADMIN = signInitData(TOKEN, { id: 424242, first_name: 'Patron' });
 const h = (qui) => ({ 'Content-Type': 'application/json', 'X-Telegram-Init-Data': qui });
-const unClient = () => {
+// L'épreuve du chat garde aussi la Mini App : un client inventé ici n'a
+// jamais écrit au bot, donc jamais calculé. On le fait entrer par la route
+// du vendeur — ce que cette suite teste est ailleurs.
+const unClient = async () => {
   const id = 995000 + Math.floor(Math.random() * 100000);
+  await franchirLaPorte(BASE, ADMIN, id);
   return { id, initData: signInitData(TOKEN, { id, first_name: 'Profil' }) };
 };
 
@@ -53,7 +57,7 @@ check('Chacun porte un libellé et une explication',
 check('Tout est ouvert par défaut', Object.values(parDefaut()).every(Boolean));
 
 {
-  const { id } = unClient();
+  const { id } = await unClient();
   // Un écran qui envoie autre chose ne doit pas pouvoir inventer un canal, ni
   // écrire la chaîne « false » là où un booléen est attendu.
   const apres = await enregistrerPreferences(id, {
@@ -76,8 +80,8 @@ check('Tout est ouvert par défaut', Object.values(parDefaut()).every(Boolean));
 
 {
   // Le filtre travaille sur la liste entière, pas client par client.
-  const a = unClient();
-  const b = unClient();
+  const a = await unClient();
+  const b = await unClient();
   await enregistrerPreferences(a.id, { promos: false });
   const liste = [{ id: String(a.id) }, { id: String(b.id) }];
 
@@ -92,7 +96,7 @@ check('Tout est ouvert par défaut', Object.values(parDefaut()).every(Boolean));
 
 console.log('\n── Le profil, bout en bout ─────────────────────────');
 
-const client = unClient();
+const client = await unClient();
 let r = await fetch(`${BASE}/api/profil`, { headers: h(client.initData) });
 const profil = await r.json();
 check('Le profil arrive en un seul appel', r.status === 200, `HTTP ${r.status}`);
@@ -135,7 +139,7 @@ r = await basculer(client.initData, 'produit-fantome');
 check('Un produit qui n existe pas est refusé', r.status === 400, `HTTP ${r.status}`);
 
 // Le point qui compte : les favoris de quelqu'un ne regardent que lui.
-const voisin = unClient();
+const voisin = await unClient();
 const sesFavoris = await (await fetch(`${BASE}/api/favoris`, { headers: h(voisin.initData) })).json();
 check('Les favoris d un autre ne fuient pas', sesFavoris.favoris.length === 0, JSON.stringify(sesFavoris.favoris));
 

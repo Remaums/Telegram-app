@@ -11,7 +11,7 @@
  * Usage :  BOT_TOKEN=… node test/courses.test.mjs
  */
 import 'dotenv/config';
-import { signInitData } from './helpers.mjs';
+import { signInitData, franchirLaPorte } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -26,6 +26,11 @@ const admin = signInitData(TOKEN, { id: 424242, first_name: 'Patron' });
 // ferait passer le test pour vert sans rien avoir vérifié.
 const souche = 100000 + (Date.now() % 800000);
 const clients = Array.from({ length: 8 }, (_, i) => signInitData(TOKEN, { id: souche + i, first_name: `R${i}` }));
+// L'épreuve du chat garde aussi la Mini App : un client inventé ici n'a
+// jamais écrit au bot, donc jamais calculé. On le fait entrer par la route
+// du vendeur — ce que cette suite teste est ailleurs.
+await franchirLaPorte(BASE, admin, ...clients, souche + 50);
+
 
 let failures = 0;
 const check = (label, ok, detail = '') => {

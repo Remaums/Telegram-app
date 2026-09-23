@@ -25,7 +25,7 @@ import {
   noterPassage, estActif, actifs, visites, clientsActifs, visitesDesClients,
   oublierTout, taille, FENETRE_MS, MEMOIRE_MS,
 } from '../server/presence.js';
-import { signInitData } from './helpers.mjs';
+import { signInitData, franchirLaPorte } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -206,6 +206,10 @@ console.log('\n── Ce que voit le vendeur ───────────�
 
 const ADMIN = signInitData(TOKEN, { id: 424242, first_name: 'Patron' });
 const CLIENT = signInitData(TOKEN, { id: 999501, first_name: 'Passant' });
+// L'épreuve du chat garde aussi la Mini App : un client inventé ici n'a
+// jamais écrit au bot, donc jamais calculé. On le fait entrer par la route
+// du vendeur — ce que cette suite teste est ailleurs.
+await franchirLaPorte(BASE, ADMIN, CLIENT);
 const h = (qui) => ({ 'Content-Type': 'application/json', 'X-Telegram-Init-Data': qui });
 
 // Un appel signé suffit : c'est la porte d'entrée qui note le passage, pas

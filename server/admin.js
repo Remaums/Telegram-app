@@ -33,6 +33,7 @@ import {
 } from './bot.js';
 import { refusDeTelegram, texteValide } from './messagerie.js';
 import { estAdmin, listerAdmins } from './admins.js';
+import { estPasse, ouvrirLaPorte, oublier as refermerLaPorte } from './bot-captcha.js';
 import {
   tousLesAvis, resumeParProduit, changerStatut, repondreALAvis, supprimerAvis, oublierProduit,
 } from './avis.js';
@@ -901,6 +902,40 @@ adminRouter.post(
 adminRouter.post(
   '/clients/:id/unblock',
   route(async (req, res) => res.json(await unblockClient(req.params.id)))
+);
+
+/* ── La porte d'entrée ───────────────────────────────────── */
+
+/**
+ * Faire entrer quelqu'un sans qu'il calcule, ou le remettre devant la porte.
+ *
+ * Le calcul du premier contact bloque parfois quelqu'un de bien réel : un
+ * client au téléphone avec le vendeur, une personne qui lit mal les chiffres,
+ * un compte qui a épuisé ses trois essais et attend dix minutes. Le vendeur
+ * peut alors l'ouvrir lui-même — c'est plus court que d'expliquer.
+ *
+ * Et l'inverse : refermer la porte pour quelqu'un, ce qui sert quand un compte
+ * devient douteux, et aux tests, qui doivent pouvoir rejouer l'épreuve.
+ */
+adminRouter.get(
+  '/porte/:id',
+  route(async (req, res) => res.json({ ouverte: await estPasse(req.params.id) }))
+);
+
+adminRouter.post(
+  '/porte/:id',
+  route(async (req, res) => {
+    await ouvrirLaPorte(req.params.id);
+    res.json({ ouverte: true });
+  })
+);
+
+adminRouter.delete(
+  '/porte/:id',
+  route(async (req, res) => {
+    await refermerLaPorte(req.params.id);
+    res.json({ ouverte: false });
+  })
 );
 
 /* ── Codes promo ─────────────────────────────────────────── */

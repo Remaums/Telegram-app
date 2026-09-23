@@ -96,3 +96,43 @@ export async function resetShop(base, initData, patch = {}) {
   if (!res.ok) throw new Error(`Réglages de départ refusés : HTTP ${res.status}`);
   return res.json();
 }
+
+/**
+ * Fait entrer quelqu'un par la porte du bot.
+ *
+ * Depuis que l'épreuve du chat garde aussi la Mini App, un client fraîchement
+ * inventé par une suite se fait refuser tous les appels signés : il n'a jamais
+ * écrit au bot, donc jamais calculé. Les suites qui ne testent pas la porte la
+ * franchissent donc par la route du vendeur — la même qui sert à débloquer un
+ * vrai client au téléphone.
+ *
+ * Accepte aussi bien un identifiant qu'un `initData` signé : les suites
+ * gardent rarement le nombre sous la main, mais toujours la chaîne.
+ *
+ * @param {string} base            URL du serveur
+ * @param {string} admin           `initData` d'un administrateur
+ * @param {...(number|string)} qui identifiants ou `initData` à laisser entrer
+ */
+export async function franchirLaPorte(base, admin, ...qui) {
+  for (const un of qui.flat()) {
+    const id = identifiantDe(un);
+    if (!id) throw new Error(`Identifiant illisible : ${un}`);
+    const res = await fetch(`${base}/api/admin/porte/${id}`, {
+      method: 'POST',
+      headers: { 'X-Telegram-Init-Data': admin },
+    });
+    if (!res.ok) throw new Error(`Porte non ouverte pour ${id} : HTTP ${res.status}`);
+  }
+}
+
+/** L'identifiant Telegram, qu'on nous donne le nombre ou l'`initData` signé. */
+function identifiantDe(un) {
+  if (typeof un === 'number') return String(un);
+  const brut = String(un ?? '');
+  if (/^\d+$/.test(brut)) return brut;
+  try {
+    return String(JSON.parse(new URLSearchParams(brut).get('user') ?? '{}').id ?? '') || null;
+  } catch {
+    return null;
+  }
+}

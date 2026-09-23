@@ -11,7 +11,7 @@
  */
 import crypto from 'node:crypto';
 import 'dotenv/config';
-import { getShopPass, resetShop } from './helpers.mjs';
+import { getShopPass, resetShop, franchirLaPorte } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -44,6 +44,11 @@ await resetShop(BASE, admin, { features: { limits: true, captcha: false }, limit
 // injouable deux fois de suite — la deuxième fois, le quota était déjà consommé.
 const souche = 700000 + (Date.now() % 200000);
 const CLIENT = { gros: souche + 1, robot: souche + 2, banni: souche + 3, curieux: souche + 4 };
+// L'épreuve du chat garde aussi la Mini App : un client inventé ici n'a
+// jamais écrit au bot, donc jamais calculé. On le fait entrer par la route
+// du vendeur — ce que cette suite teste est ailleurs.
+await franchirLaPorte(BASE, admin, ...Object.values(CLIENT));
+
 
 let failures = 0;
 function check(label, ok, detail = '') {

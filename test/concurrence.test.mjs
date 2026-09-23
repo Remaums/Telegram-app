@@ -10,7 +10,7 @@
  */
 import crypto from 'node:crypto';
 import 'dotenv/config';
-import { getShopPass } from './helpers.mjs';
+import { getShopPass, franchirLaPorte } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -36,6 +36,11 @@ function sign(user) {
 }
 
 const admin = sign({ id: ADMIN_ID, first_name: 'Patron' });
+// L'épreuve du chat garde aussi la Mini App : un client inventé ici n'a
+// jamais écrit au bot, donc jamais calculé. On le fait entrer par la route
+// du vendeur — ce que cette suite teste est ailleurs.
+await franchirLaPorte(BASE, admin, ...Array.from({ length: CLIENTS }, (_, i) => 900000 + i + 1));
+
 
 let failures = 0;
 function check(label, ok, detail = '') {

@@ -20,6 +20,34 @@
   <img src="/assets/ui/leaf-spray.svg" alt="" class="fx__leaf fx__leaf--c">
 </div>
 
+<!-- ══ Ouverture : le temps que le catalogue arrive ══ -->
+<div class="charge" id="charge">
+  <div class="charge__anneau" aria-hidden="true">
+    <span class="charge__arc"></span>
+    <img src="/assets/ui/leaf.svg" alt="" class="charge__feuille">
+  </div>
+  <p class="charge__nom goldtext">Napoli Coffee</p>
+  <p class="charge__texte" id="chargeTexte">Ouverture de la boutique…</p>
+</div>
+
+<!-- ══ La porte du bot : le calcul se fait dans la conversation ══ -->
+<div class="gate" id="porte" hidden>
+  <div class="gate__card">
+    <p class="gate__eyebrow">Entrée</p>
+    <h2 class="gate__title goldtext">Un calcul, et c'est ouvert</h2>
+    <p class="gate__text">
+      Retourne dans la conversation du bot : il t'y pose une petite addition.
+      Réponds-y, puis reviens — la boutique s'ouvre toute seule.
+    </p>
+    <p class="gate__fine">
+      C'est demandé une seule fois, pour éviter les faux comptes. Aucune
+      information supplémentaire ne t'est demandée.
+    </p>
+    <button class="btn btn--primary btn--grow" id="porteAction" type="button">Ouvrir la conversation</button>
+    <button class="gate__link" id="porteRetry" type="button">J'ai répondu — réessayer</button>
+  </div>
+</div>
+
 <!-- ══ Contrôle d'âge ══ -->
 <div class="agegate" id="agegate" hidden>
   <div class="agegate__card">

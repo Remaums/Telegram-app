@@ -107,6 +107,7 @@ async function init() {
     // simplement injoignable. Pour un client c'est une boutique abandonnée ;
     // pour le vendeur qui installe, c'est une fausse piste. On le dit donc en
     // clair, et on laisse de quoi réessayer.
+    retirerLeVoile();
     montrerPanne(err);
     return;
   }
@@ -125,12 +126,48 @@ async function init() {
   renderCategories();
   renderGrid();
   renderCart();
+  retirerLeVoile();
+  runGates();
+}
+
+/**
+ * Tout ce qui demande d'être reconnu : commandes, avis, favoris, créneaux.
+ *
+ * Séparé de l'ouverture parce que ça se rejoue. La porte du bot peut s'ouvrir
+ * pendant qu'on regarde l'écran — le client vient de calculer dans le chat et
+ * revient — et il faut bien que la boutique se remplisse sans qu'il la
+ * relance. Une fois suffit : le garde-fou évite que chaque voile refermé
+ * redemande les mêmes quatre listes.
+ */
+let signeCharge = false;
+function chargerLaBoutiqueSignee() {
+  if (signeCharge) return;
+  signeCharge = true;
   loadSlots();
   chargerLaDerniereCommande();
   chargerLesAvisADonner();
   chargerLesFavoris();
   battreLePouls();
-  runGates();
+}
+
+/* ── Le voile de chargement ──────────────────────────────── */
+
+/**
+ * Retire le voile d'ouverture.
+ *
+ * `hidden` plutôt qu'un retrait du DOM : la feuille de style le fait
+ * disparaître en fondu, et un élément arraché ne peut pas fondre. Il ne gêne
+ * plus personne une fois transparent (`pointer-events: none`).
+ */
+function retirerLeVoile() {
+  const voile = document.getElementById('charge');
+  if (voile) voile.hidden = true;
+}
+
+/** Change le mot sous l'anneau, quand l'attente a une raison qu'on sait dire. */
+function direPendantLeChargement(texte) {
+  const ligne = document.getElementById('chargeTexte');
+  if (ligne) ligne.textContent = texte;
 }
 
 /**
@@ -240,6 +277,8 @@ function bindStaticHandlers() {
   // Fermer la Mini App ramène le client dans la conversation du bot, là où il
   // envoie sa pièce : pas besoin de connaître le nom du bot.
   $('verifAction').addEventListener('click', () => (tg ? tg.close() : window.history.back()));
+  $('porteAction').addEventListener('click', () => (tg ? tg.close() : window.history.back()));
+  $('porteRetry').addEventListener('click', () => reprendreSiLaPorteEstOuverte({ dire: true }));
   $('checkout').addEventListener('click', checkout);
   // Facultatif, et c'est tout l'enjeu : la commande est déjà partie, ce bouton
   // ne sert qu'à ceux qui veulent ajouter un mot.
@@ -801,6 +840,104 @@ async function gateVerification() {
   return true;
 }
 
+/* ── La porte du bot ─────────────────────────────────────── */
+
+/**
+ * L'épreuve se passe dans la conversation, pas ici.
+ *
+ * Le bouton « Boutique » en bas à gauche du chat est posé pour tout le monde
+ * d'un seul geste — Telegram ne sait pas le montrer aux uns et le cacher aux
+ * autres. Quelqu'un qui n'a jamais écrit au bot pouvait donc entrer ici sans
+ * avoir répondu au calcul. Le serveur refuse maintenant ses appels ; cet écran
+ * lui dit pourquoi, et où aller.
+ *
+ * On ne rejoue pas le calcul dans la Mini App : deux épreuves pour une seule
+ * porte, c'est une de trop, et celle du chat a l'avantage d'exister avant que
+ * la boutique s'ouvre — c'est exactement ce qu'on veut garder.
+ */
+let sondeDeLaPorte = null;
+
+/** @returns {boolean} vrai si le voile reste affiché. */
+async function gatePorte() {
+  if (!state.gates.porte || !tg?.initData) return false;
+  if (await porteOuverte()) return false;
+
+  $('porte').hidden = false;
+  lancerLaSonde();
+  return true;
+}
+
+/**
+ * Demande au serveur si la porte est ouverte.
+ *
+ * Une panne ne vaut pas une ouverture : si la réponse ne vient pas, tout le
+ * reste de l'API est injoignable de la même façon, et lever le voile ne
+ * donnerait qu'une boutique où rien ne marche. On garde l'écran, avec de quoi
+ * réessayer.
+ */
+async function porteOuverte() {
+  try {
+    const res = await fetch('/api/porte', {
+      headers: { 'X-Telegram-Init-Data': tg?.initData ?? '' },
+    });
+    if (!res.ok) return false;
+    const etat = await res.json();
+    return etat.requise === false || etat.ouverte === true;
+  } catch (err) {
+    console.error(err);
+    return false;
+  }
+}
+
+/**
+ * Guette l'instant où le calcul est fait.
+ *
+ * Le client répond dans le chat puis revient : s'il fallait qu'il ferme et
+ * rouvre la boutique pour que l'écran change, la moitié l'abandonnerait là.
+ * On regarde donc au retour d'onglet — le moment exact où ça vient d'arriver —
+ * et toutes les cinq secondes tant que la page est visible, jamais quand elle
+ * ne l'est pas : personne ne lit un écran caché, et la batterie non plus.
+ */
+function lancerLaSonde() {
+  if (sondeDeLaPorte) return;
+  sondeDeLaPorte = setInterval(() => {
+    if (document.visibilityState === 'visible') reprendreSiLaPorteEstOuverte();
+  }, 5000);
+  document.addEventListener('visibilitychange', auRetourDeLaConversation);
+}
+
+function arreterLaSonde() {
+  if (sondeDeLaPorte) clearInterval(sondeDeLaPorte);
+  sondeDeLaPorte = null;
+  document.removeEventListener('visibilitychange', auRetourDeLaConversation);
+}
+
+function auRetourDeLaConversation() {
+  if (document.visibilityState === 'visible') reprendreSiLaPorteEstOuverte();
+}
+
+/**
+ * Lève le voile si le calcul vient d'être fait, et remplit la boutique.
+ *
+ * @param {{dire?: boolean}} [options] `dire` fait répondre à un appui sur
+ *   « J'ai répondu » même quand la porte est encore fermée : un bouton qui ne
+ *   fait rien passe pour cassé.
+ */
+async function reprendreSiLaPorteEstOuverte({ dire = false } = {}) {
+  if ($('porte').hidden) return true;
+  if (!(await porteOuverte())) {
+    if (dire) toast('Pas encore — réponds au calcul dans la conversation.');
+    return false;
+  }
+  arreterLaSonde();
+  $('porte').hidden = true;
+  haptic('success');
+  // Le séquenceur reprend où il s'était arrêté : l'épreuve de tuiles et la
+  // vérification d'identité attendent derrière, et lui seul connaît l'ordre.
+  runGates();
+  return true;
+}
+
 /* ── Épreuve d'entrée ────────────────────────────────────── */
 
 /** Rien à demander si l'épreuve est désactivée ou déjà passée aujourd'hui. */
@@ -929,6 +1066,13 @@ function writePass(pass) {
  */
 async function runGates() {
   if (gateAge()) return;
+  if (await gatePorte()) return;
+
+  // Passé la porte, les appels signés ont un sens, et c'est le bon moment :
+  // les deux voiles qui restent empêchent de commander, pas de lire ses
+  // commandes — le bouton « Regarder la boutique en attendant » le dit assez.
+  chargerLaBoutiqueSignee();
+
   if (await gateCaptcha()) return;
   if (await gateVerification()) return;
   ouvrirProduitDemande();
