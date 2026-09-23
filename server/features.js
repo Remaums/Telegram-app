@@ -16,8 +16,11 @@ export const FEATURES = [
   {
     key: 'ageGate',
     label: "Porte d'âge",
-    hint: "L'écran « as-tu 18 ans ? » à l'ouverture de la boutique.",
-    default: true,
+    hint:
+      "L'écran « as-tu 18 ans ? » à l'ouverture de la boutique. " +
+      "Éteint par défaut : il ne vérifie rien — n'importe qui appuie sur « oui » — " +
+      "et ajoute un geste avant le catalogue. La mention légale reste en bas de la boutique.",
+    default: false,
   },
   {
     key: 'captcha',

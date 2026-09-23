@@ -1439,6 +1439,32 @@ function trier(produits) {
  * vidéo — mais seulement faute de photo. Une photo posée par le vendeur est une
  * décision ; un dessin n'est qu'un pis-aller.
  */
+/**
+ * La photo à montrer pour un produit, quand il en a une.
+ *
+ * Deux endroits portent une image : le champ « photo » de la fiche, que le
+ * vendeur choisit dans une liste, et la galerie, où il dépose ce qu'il
+ * photographie lui-même. Seul le premier alimentait la vignette du
+ * catalogue — si bien qu'un produit dont le vendeur avait importé trois
+ * belles photos continuait de s'afficher avec le dessin par défaut, et il
+ * fallait ouvrir la fiche pour voir la marchandise.
+ *
+ * L'ordre est celui de l'intention : une photo choisie dans le champ est une
+ * décision, la première de la galerie en est une aussi, le dessin n'est qu'un
+ * pis-aller.
+ *
+ * @returns {string|null} l'adresse d'une vraie photo, ou `null` s'il n'y en a
+ *   aucune — auquel cas le dessin par défaut reprend sa place.
+ */
+function photoDeVitrine(product) {
+  if (isPhoto(product.image)) return product.image;
+
+  const medias = Array.isArray(product.media) ? product.media : [];
+  const rang = medias.findIndex((m) => m.kind === 'photo');
+  if (rang === -1) return null;
+  return medias[rang].url ?? `/api/media/${product.id}/${rang}`;
+}
+
 function videoDeVitrine(product) {
   if (isPhoto(product.image)) return null;
 
@@ -1503,15 +1529,16 @@ function productCard(product) {
   const note = noteDe(product);
   // Muette et sans contrôles : la carte entière reste un bouton qui ouvre la
   // fiche, et aucun son ne sort d'une grille de catalogue.
+  const photo = video ? null : photoDeVitrine(product);
   const visuel = video
     ? `<video class="card__video" src="${escapeHtml(video.url)}" poster="${escapeHtml(video.poster)}"
              muted loop playsinline
              preload="metadata" disablepictureinpicture tabindex="-1" aria-hidden="true"></video>
        <span class="card__film" aria-hidden="true">▶</span>`
-    : `<img src="${product.image}" alt="" loading="lazy">`;
+    : `<img src="${escapeHtml(photo ?? product.image)}" alt="" loading="lazy">`;
 
   card.innerHTML = `
-    <div class="card__art${video ? ' card__art--video' : isPhoto(product.image) ? ' card__art--photo' : ''}">
+    <div class="card__art${video ? ' card__art--video' : photo ? ' card__art--photo' : ''}">
       ${badge ? `<span class="card__badge ${soldOut ? 'card__badge--out' : ''}">${escapeHtml(badge)}</span>` : ''}
       ${visuel}
     </div>
@@ -1732,10 +1759,9 @@ function carteSuggeree(produit) {
   const vignette = document.createElement('span');
   vignette.className = 'suggestion__art';
   const image = document.createElement('img');
-  // La vignette d'une suggestion, photo ou dessin : `product.image` porte
-  // déjà l'une ou l'autre, et une vidéo n'a pas sa place dans une piste qu'on
-  // fait glisser du pouce.
-  image.src = produit.image || '';
+  // Photo importée d'abord, dessin ensuite : une piste de suggestions faite
+  // de dessins par défaut ne donne envie d'ouvrir aucune des fiches.
+  image.src = photoDeVitrine(produit) ?? produit.image ?? '';
   image.alt = '';
   image.loading = 'lazy';
   vignette.append(image);
@@ -1778,9 +1804,10 @@ function renderGalerie(product) {
   if (!medias.length) {
     // Pas de galerie : l'illustration d'origine reprend sa place.
     galerie.hidden = true;
-    $('pImage').src = product.image;
+    const photo = photoDeVitrine(product);
+    $('pImage').src = photo ?? product.image;
     $('pImage').alt = product.name;
-    art.classList.toggle('pdetail__art--photo', isPhoto(product.image));
+    art.classList.toggle('pdetail__art--photo', Boolean(photo));
     return;
   }
 
@@ -2461,7 +2488,7 @@ function cartRow(line) {
   const li = document.createElement('li');
   li.className = line.short ? 'cart-item cart-item--short' : 'cart-item';
   li.innerHTML = `
-    <span class="cart-item__art${isPhoto(line.product.image) ? ' cart-item__art--photo' : ''}"><img src="${line.product.image}" alt=""></span>
+    <span class="cart-item__art${photoDeVitrine(line.product) ? ' cart-item__art--photo' : ''}"><img src="${escapeHtml(photoDeVitrine(line.product) ?? line.product.image)}" alt=""></span>
     <span class="cart-item__info">
       <span class="cart-item__name">${escapeHtml(line.product.name)}</span>
       <span class="cart-item__meta">${line.variant ? escapeHtml(line.variant.label) + ' · ' : ''}${formatPrice(line.lineTotal)}</span>
@@ -3413,7 +3440,7 @@ function renderFavoris(favoris) {
       const epuise = isSoldOut(produit);
 
       carte.innerHTML =
-        `<img class="favori__image" src="${escapeHtml(produit.image)}" alt="" loading="lazy">` +
+        `<img class="favori__image" src="${escapeHtml(photoDeVitrine(produit) ?? produit.image)}" alt="" loading="lazy">` +
         '<div class="favori__corps">' +
         `<span class="favori__nom">${escapeHtml(produit.name)}</span>` +
         `<span class="favori__prix goldtext">${produit.variants ? '<small>dès</small> ' : ''}${formatPrice(produit.price)}</span>` +

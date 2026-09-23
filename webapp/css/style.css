@@ -569,13 +569,21 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 
 /* ── Fiche produit ───────────────────────────────────────── */
+/* Le cadre de la fiche. Deux contenus très différents s'y posent : une photo
+   du vendeur, qui doit le remplir, et le dessin par défaut, qui doit flotter
+   au milieu d'une surface sombre. D'où les deux jeux de règles. */
 .pdetail__art {
   display: grid; place-items: center; padding: 26px 0 20px;
   background: rgb(var(--ink-rgb) / .45);
   border: 1px solid var(--line-soft);
-  border-radius: 16px;
+  border-radius: 16px; overflow: hidden;
 }
-.pdetail__art img { width: 48%; max-width: 200px; opacity: .55; }
+/* Le dessin par défaut, et lui seul : `>` est ce qui l'empêche d'atteindre
+   les images de la galerie, qui vivent plus bas dans le même cadre. Sans ce
+   chevron, une photo importée héritait d'un plafond de 200 px et d'une
+   opacité de 55 % — elle s'affichait donc petite et délavée, soit le
+   contraire d'une vitrine. */
+.pdetail__art > img { width: 48%; max-width: 200px; opacity: .55; }
 .pdetail__body { padding: 16px 0 10px; }
 .pdetail__tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .tag {
@@ -1028,8 +1036,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
   flex: 0 0 100%; scroll-snap-align: center;
   display: grid; place-items: center; background: rgb(var(--ink-rgb) / .55);
 }
+/* Une proportion plutôt qu'une hauteur fixe : 250 px donnaient une bande
+   étroite sur un grand téléphone et une image plus haute que large sur un
+   petit. Le 4/3 tient sur les deux, et c'est aussi celui du cadre d'une
+   fiche sans galerie — passer d'un produit à l'autre ne fait plus sauter
+   la page. */
 .galerie__media img, .galerie__media video {
-  width: 100%; height: 250px; object-fit: cover; display: block;
+  width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; display: block;
 }
 /* La vidéo garde ses contrôles : on ne réinvente pas un lecteur. */
 .galerie__media video { background: #000; }
@@ -1067,9 +1080,19 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .pdetail__art:has(.galerie:not([hidden])) { padding: 0; overflow: hidden; }
 .pdetail__art:has(.galerie:not([hidden])) > #pImage { display: none; }
 
-.pdetail__art--photo { padding: 0; overflow: hidden; }
-.pdetail__art--photo img {
-  width: 100%; max-width: none; height: 250px; object-fit: cover; filter: none;
+/* Une photo importée remplit le cadre, sans marge et à pleine opacité.
+   L'opacité n'est pas un détail : le dessin par défaut est volontairement
+   effacé pour ne pas se disputer l'attention avec les vraies photos, et une
+   photo qui héritait de cette règle s'affichait délavée — exactement le
+   contraire de ce qu'on veut d'une vitrine.
+
+   Le rapport 4/3 plutôt qu'une hauteur fixe : sur un grand téléphone,
+   250 px donnaient une bande étroite, et sur un petit, une photo plus haute
+   que large. La proportion, elle, tient sur les deux. */
+.pdetail__art--photo { padding: 0; }
+.pdetail__art--photo > img {
+  width: 100%; max-width: none; height: auto; aspect-ratio: 4 / 3;
+  object-fit: cover; opacity: 1; filter: none;
 }
 
 .cart-item__art--photo { overflow: hidden; background: rgb(var(--ink-rgb) / .5); }
