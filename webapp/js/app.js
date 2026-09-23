@@ -36,7 +36,8 @@ const state = {
   prenom: '',         // son prénom Telegram, pour lui montrer ce qu'il signerait
   favoris: new Set(), // les produits qu'il garde de côté
   preferences: {},    // ce qu'il accepte de recevoir
-  onglet: 'filtres',       // l'écran affiché : filtres, categories, contact, profil
+  onglet: 'filtres',       // l'écran affiché : filtres, categories, contact, profil, produit
+  retour: 'filtres',       // l'onglet où la flèche de la fiche ramène
   profilVue: 'commandes',  // l'onglet ouvert dans le profil
   avisTousVisibles: false,  // « voir tous les avis » d'une fiche
   blocked: false,     // compte privé de commande par le vendeur
@@ -62,11 +63,11 @@ async function init() {
   if (tg) {
     tg.ready();
     tg.expand();
-    const night = themeHex('--night-rgb', '#04160f');
+    const night = themeHex('--night-rgb', '#0f1113');
     tg.setHeaderColor?.(night);
     tg.setBackgroundColor?.(night);
     tg.enableClosingConfirmation?.();
-    tg.BackButton?.onClick(closeSheets);
+    tg.BackButton?.onClick(revenirEnArriere);
     tg.MainButton?.onClick(() => openSheet('cartSheet'));
   }
 
@@ -128,6 +129,10 @@ async function init() {
   renderGrid();
   renderCart();
   retirerLeVoile();
+  mesurerLaBarre();
+  // La barre bouge avec la rotation de l'écran et avec le clavier : une
+  // mesure prise une fois au lancement se périme au premier quart de tour.
+  window.addEventListener('resize', mesurerLaBarre);
   runGates();
 }
 
@@ -281,6 +286,7 @@ function bindStaticHandlers() {
       haptic('light');
     });
   }
+  $('pRetour').addEventListener('click', () => { montrerLOnglet(state.retour); haptic('light'); });
   $('captchaSubmit').addEventListener('click', submitCaptcha);
   // Fermer la Mini App ramène le client dans la conversation du bot, là où il
   // envoie sa pièce : pas besoin de connaître le nom du bot.
@@ -353,7 +359,7 @@ function bindStaticHandlers() {
   for (const el of document.querySelectorAll('[data-close]')) {
     el.addEventListener('click', closeSheets);
   }
-  document.addEventListener('keydown', (e) => e.key === 'Escape' && closeSheets());
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && revenirEnArriere());
 }
 
 /* ── Retrait ou livraison ────────────────────────────────── */
@@ -856,12 +862,33 @@ async function gateVerification() {
 
 /* ── Les quatre onglets ──────────────────────────────────── */
 
+/**
+ * Mesure la barre du bas, et le dit à la feuille de style.
+ *
+ * Deux choses se posent dessus : le corps de la page, qui doit s'arrêter
+ * au-dessus, et la barre d'achat de la fiche produit. Une valeur écrite en
+ * dur dans le CSS se trompe dès que le téléphone grossit le texte du système
+ * ou que l'encoche change la marge basse — et la dernière carte du catalogue
+ * finit sous les onglets, hors de portée.
+ */
+function mesurerLaBarre() {
+  const barre = $('tabbar');
+  const haut = barre?.offsetHeight;
+  if (haut) document.documentElement.style.setProperty('--tabbar-h', `${haut}px`);
+}
+
+
+
 const ONGLETS = {
   filtres: 'vueFiltres',
   categories: 'vueCategories',
   contact: 'vueContact',
   profil: 'vueProfil',
 };
+
+/* La fiche produit est une vue de plus, mais pas un onglet : on y entre
+   depuis une carte, jamais depuis la barre du bas. */
+const VUES = { ...ONGLETS, produit: 'vueProduit' };
 
 /**
  * Montre un écran, et un seul.
@@ -876,14 +903,25 @@ const ONGLETS = {
  * vient d'ouvrir donne l'impression d'avoir raté le début.
  */
 function montrerLOnglet(nom) {
-  if (!ONGLETS[nom]) nom = 'filtres';
+  if (!VUES[nom]) nom = 'filtres';
   const change = state.onglet !== nom;
+
+  // D'où l'on vient, pour savoir où la flèche de la fiche doit ramener. On
+  // ne retient qu'un onglet : revenir d'une fiche ouverte depuis une autre
+  // fiche (par les suggestions du bas) doit rendre le catalogue, pas
+  // remonter une pile de fiches que personne ne se rappelle avoir empilée.
+  if (nom === 'produit' && state.onglet !== 'produit') state.retour = state.onglet;
+  // Quitter la fiche coupe ses vidéos : une bande-son qui continue par-dessus
+  // le catalogue laisse chercher d'où vient le bruit.
+  if (change && state.onglet === 'produit') arreterLesVideos();
+
   state.onglet = nom;
 
-  for (const [clef, id] of Object.entries(ONGLETS)) $(id).hidden = clef !== nom;
+  for (const [clef, id] of Object.entries(VUES)) $(id).hidden = clef !== nom;
   for (const bouton of $('tabbar').querySelectorAll('.tabbar__item')) {
     bouton.setAttribute('aria-selected', String(bouton.dataset.onglet === nom));
   }
+  syncBackButton();
 
   // Chaque écran se remplit au moment où on le demande, pas au lancement :
   // le profil est un appel réseau, et les rayons un catalogue entier à
@@ -1548,10 +1586,17 @@ function openProduct(product) {
   // décider de l'affichage du suivant.
   state.avisTousVisibles = false;
   chargerLesAvis(product);
-  openSheet('productSheet');
-  // La galerie se monte après l'ouverture, et non avant : `openSheet` referme
-  // les autres feuilles, et cette fermeture détache les vidéos — elle vidait
-  // donc la galerie qu'on venait tout juste de construire.
+  renderSuggestions(product);
+
+  // Les feuilles ouvertes se referment : arriver sur une fiche avec le panier
+  // encore déployé par-dessus n'aurait aucun sens.
+  closeSheets();
+  montrerLOnglet('produit');
+  $('pRetourTexte').textContent = libelleDuRetour();
+
+  // La galerie se monte après l'affichage, et non avant : la fermeture des
+  // feuilles détache les vidéos — elle vidait donc la galerie qu'on venait
+  // tout juste de construire.
   renderGalerie(product);
   // Et elle s'ouvre sur la photo du format présélectionné, quand il en a une.
   // Le report d'un tour de boucle laisse la feuille prendre sa largeur : un
@@ -1560,6 +1605,90 @@ function openProduct(product) {
     requestAnimationFrame(() => montrerLeMediaDuFormat(state.currentVariant));
   }
   haptic('light');
+}
+
+/**
+ * Les deux carrousels du bas de fiche : « même catégorie » et « tu vas aimer ».
+ *
+ * Tous les deux sortent du catalogue déjà en mémoire. Une suggestion ne vaut
+ * pas un aller-retour réseau : si elle arrive après que le client a fait
+ * défiler jusqu'en bas, elle arrive trop tard, et si elle le fait attendre,
+ * elle lui a coûté plus qu'elle ne lui rapporte.
+ *
+ * « Tu vas aimer » n'est pas un moteur de recommandation : c'est ce qui
+ * partage une étiquette avec la fiche ouverte, puis, à défaut, les mieux
+ * notés du reste. Le dire autrement serait mentir sur ce que la boutique
+ * sait de ses clients — c'est-à-dire rien.
+ */
+const SUGGESTIONS_MAX = 10;
+
+function renderSuggestions(produit) {
+  const autres = state.products.filter((p) => p.id !== produit.id && !isSoldOut(p));
+
+  const memeRayon = autres.filter((p) => p.category === produit.category).slice(0, SUGGESTIONS_MAX);
+  const categorie = state.categories.find((c) => c.id === produit.category);
+  $('pMemeCategorieTitre').textContent = categorie
+    ? `Même catégorie · ${categorie.label}`
+    : 'Même catégorie';
+  remplirLaPiste('pMemeCategorie', 'pMemeCategoriePiste', memeRayon);
+
+  const etiquettes = new Set((produit.tags ?? []).map((t) => String(t).toLowerCase()));
+  const parEtiquette = autres.filter(
+    (p) => p.category !== produit.category &&
+      (p.tags ?? []).some((t) => etiquettes.has(String(t).toLowerCase()))
+  );
+  const complement = autres
+    .filter((p) => p.category !== produit.category && !parEtiquette.includes(p))
+    .sort((a, b) => (state.notes[b.id]?.moyenne ?? 0) - (state.notes[a.id]?.moyenne ?? 0));
+  remplirLaPiste('pAimerAussi', 'pAimerAussiPiste', [...parEtiquette, ...complement].slice(0, SUGGESTIONS_MAX));
+}
+
+/** Une piste, ou rien du tout : un carrousel vide est un titre qui ment. */
+function remplirLaPiste(sectionId, pisteId, produits) {
+  $(sectionId).hidden = produits.length === 0;
+  if (!produits.length) return $(pisteId).replaceChildren();
+  $(pisteId).replaceChildren(...produits.map(carteSuggeree));
+}
+
+/**
+ * La vignette d'une suggestion : plus petite qu'une carte de la grille.
+ *
+ * Elle ne reprend pas `productCard` : une carte de grille porte un cœur, une
+ * pastille, une accroche sur deux lignes et un bouton « + ». Posée dans un
+ * carrousel de 120 px, elle devient illisible, et le « + » se touche par
+ * accident quand on fait glisser la piste.
+ */
+function carteSuggeree(produit) {
+  const carte = document.createElement('button');
+  carte.type = 'button';
+  carte.className = 'suggestion';
+  carte.setAttribute('aria-label', `${produit.name}, ${formatPrice(produit.price)}`);
+
+  const vignette = document.createElement('span');
+  vignette.className = 'suggestion__art';
+  const image = document.createElement('img');
+  // La vignette d'une suggestion, photo ou dessin : `product.image` porte
+  // déjà l'une ou l'autre, et une vidéo n'a pas sa place dans une piste qu'on
+  // fait glisser du pouce.
+  image.src = produit.image || '';
+  image.alt = '';
+  image.loading = 'lazy';
+  vignette.append(image);
+
+  const nom = document.createElement('span');
+  nom.className = 'suggestion__nom';
+  nom.textContent = produit.name;
+
+  const prix = document.createElement('span');
+  prix.className = 'suggestion__prix';
+  prix.textContent = formatPrice(produit.price);
+
+  carte.append(vignette, nom, prix);
+  carte.addEventListener('click', () => {
+    openProduct(produit);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  });
+  return carte;
 }
 
 /**
@@ -2013,7 +2142,7 @@ function addCurrentToCart() {
   // d'elle qu'on relève la position de départ, et une feuille refermée n'a
   // plus de position.
   const decollage = volVersLePanier();
-  closeSheets();
+  montrerLOnglet(state.retour);
   haptic('success');
   toast(`${product.name} ajouté au panier 🛒`);
 
@@ -2600,11 +2729,44 @@ function orderCard(order) {
 
 /* ── Panneaux ────────────────────────────────────────────── */
 
+/**
+ * Montre ou cache la flèche de Telegram selon ce qui est ouvert.
+ *
+ * Deux choses la méritent maintenant — une feuille, et la fiche produit — et
+ * elles s'ouvrent et se ferment par des chemins différents. Chacune la
+ * réglant de son côté, elle restait affichée sur le catalogue après qu'on
+ * avait refermé une feuille depuis une fiche : un bouton retour qui ne
+ * revient nulle part.
+ */
+function syncBackButton() {
+  const feuille = [...document.querySelectorAll('.sheet')].some((f) => !f.hidden);
+  const fiche = state.onglet === 'produit';
+  if (feuille || fiche) tg?.BackButton?.show();
+  else tg?.BackButton?.hide();
+}
+
+/** « Retour au catalogue », « Retour aux catégories »… — dire où l'on retombe. */
+function libelleDuRetour() {
+  return {
+    filtres: 'Retour au catalogue',
+    categories: 'Retour aux catégories',
+    contact: 'Retour',
+    profil: 'Retour au profil',
+  }[state.retour] ?? 'Retour';
+}
+
+/** La flèche de Telegram, et celle de la fiche, font la même chose. */
+function revenirEnArriere() {
+  const feuille = [...document.querySelectorAll('.sheet')].some((f) => !f.hidden);
+  if (feuille) return closeSheets();
+  if (state.onglet === 'produit') return montrerLOnglet(state.retour);
+}
+
 function openSheet(id) {
   closeSheets();
   $(id).hidden = false;
   document.body.style.overflow = 'hidden';
-  tg?.BackButton?.show();
+  syncBackButton();
   syncMainButton();
   // Les places partent pendant qu'on remplit son panier : on rafraîchit à
   // l'ouverture plutôt que de servir la liste chargée au démarrage.
@@ -2614,10 +2776,12 @@ function openSheet(id) {
 function closeSheets() {
   // Une vidéo laissée en lecture continuerait de parler par-dessus le
   // catalogue, sans que le client sache d'où vient le son.
-  arreterLesVideos();
+  // Les vidéos ne sont plus ici : la galerie vit dans la page de la fiche,
+  // et c'est en la quittant qu'on les arrête. Fermer le panier par-dessus une
+  // fiche ne doit pas couper la vidéo qu'on regardait derrière.
   for (const sheet of document.querySelectorAll('.sheet')) sheet.hidden = true;
   document.body.style.overflow = '';
-  tg?.BackButton?.hide();
+  syncBackButton();
   syncMainButton();
 }
 

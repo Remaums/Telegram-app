@@ -570,23 +570,21 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* ── Fiche produit ───────────────────────────────────────── */
 .pdetail__art {
-  display: grid; place-items: center; padding: 30px 0 22px;
-  background:
-    radial-gradient(46% 46% at 50% 55%, rgb(var(--neon-rgb) / .32), transparent 70%),
-    linear-gradient(180deg, rgb(var(--ink-rgb) / .2), rgb(var(--ink-rgb) / .55));
-  border-bottom: 1px solid var(--line-soft);
-  border-radius: 24px 24px 0 0;
+  display: grid; place-items: center; padding: 26px 0 20px;
+  background: rgb(var(--ink-rgb) / .45);
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
 }
-.pdetail__art img { width: 52%; max-width: 220px; filter: drop-shadow(0 14px 22px rgba(0, 0, 0, .6)); }
-.pdetail__body { padding: 16px 16px 10px; }
+.pdetail__art img { width: 48%; max-width: 200px; opacity: .55; }
+.pdetail__body { padding: 16px 0 10px; }
 .pdetail__tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .tag {
   font-size: 11px; font-weight: 800; letter-spacing: .04em;
   color: var(--neon); background: rgb(var(--neon-rgb) / .12);
-  border: 1px solid rgb(var(--neon-rgb) / .5); border-radius: 999px; padding: 4px 10px;
-  box-shadow: 0 0 12px rgb(var(--neon-rgb) / .25);
+  border: 1px solid rgb(var(--neon-rgb) / .3); border-radius: 999px; padding: 4px 10px;
+  box-shadow: none;
 }
-.pdetail__name { font-size: 34px; line-height: 1.02; }
+.pdetail__name { font-size: 27px; line-height: 1.1; font-weight: 800; }
 .pdetail__desc { font-size: 14.5px; line-height: 1.55; margin: 10px 0 0; font-weight: 600; color: var(--muted); }
 
 .variants { display: flex; gap: 9px; flex-wrap: wrap; margin: 18px 0 6px; }
@@ -1347,7 +1345,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* La page laisse la hauteur de la barre sous elle, sinon la dernière
    carte finit dessous et personne ne peut l'ouvrir. */
-.page { padding-bottom: calc(96px + var(--safe-bottom)); }
+.page { padding-bottom: calc(var(--tabbar-h, calc(59px + var(--safe-bottom))) + 28px); }
 
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
@@ -1494,3 +1492,79 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .chiffre--commandes { --teinte-rgb: var(--gold-rgb); --teinte: rgb(var(--gold-rgb)); }
 .chiffre--favoris   { --teinte-rgb: var(--halo2-rgb); --teinte: rgb(var(--halo2-rgb)); }
 .chiffre--produits  { --teinte-rgb: var(--halo3-rgb); --teinte: rgb(var(--halo3-rgb)); }
+
+/* ══ La fiche produit, en page ════════════════════════════════
+   Elle occupait une feuille qui remontait du bas, en laissant voir le
+   catalogue derrière : une galerie, une description, des formats, des
+   avis et deux carrousels se lisaient alors par un hublot. Ici elle
+   prend l'écran, et la barre d'achat se pose au-dessus des onglets. */
+
+.vue--produit {
+  /* De quoi ne pas finir sous la barre d'achat, elle-même posée sur celle
+     des onglets : sans cette réserve, le dernier carrousel était intouchable. */
+  padding-bottom: 86px;
+}
+
+/* La flèche du retour, en tête de page. Elle double celle de Telegram : la
+   sienne est en haut de l'écran, hors de portée du pouce sur un grand
+   téléphone, et tout le monde ne sait pas qu'elle existe. */
+.pretour {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin: 0 0 12px; padding: 8px 14px 8px 10px;
+  border: 1px solid var(--line-soft); border-radius: 999px;
+  background: var(--panel); color: var(--muted);
+  font-size: 13px; font-weight: 700;
+}
+.pretour__fleche { font-size: 19px; line-height: 1; margin-top: -2px; }
+.pretour:active { background: rgb(var(--cream-rgb) / .09); }
+
+/* La barre d'achat : fixée au-dessus des onglets, jamais dessous. */
+.pbar {
+  position: fixed; left: 0; right: 0; z-index: 35;
+  bottom: var(--tabbar-h, calc(59px + var(--safe-bottom)));
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px;
+  background: rgb(var(--night2-rgb) / .96);
+  backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line-soft);
+}
+
+/* ── Les carrousels du bas de fiche ──────────────────────── */
+.suite { margin-top: 26px; }
+.suite__titre {
+  margin: 0 0 11px; font-size: 15px; font-weight: 800; color: var(--cream);
+}
+/* Une piste qu'on fait glisser du pouce, aimantée : s'arrêter entre deux
+   vignettes donne l'impression d'un écran mal fini.
+
+   `scroll-padding` n'est pas un détail : un aimantage obligatoire aligne la
+   vignette sur le bord du cadre, marge intérieure comprise. Sans lui, la
+   piste s'ouvrait déjà décalée de quatorze pixels et la première vignette
+   collait au bord de l'écran, alors que tout le reste de la page commence
+   à la même gouttière. */
+.suite__piste {
+  display: flex; gap: 10px; overflow-x: auto;
+  margin: 0 -14px; padding: 2px 14px 6px;
+  scroll-snap-type: x mandatory; scroll-padding-left: 14px;
+  scrollbar-width: none;
+}
+.suite__piste::-webkit-scrollbar { display: none; }
+
+.suggestion {
+  flex: none; width: 124px; scroll-snap-align: start;
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 0; text-align: left;
+  background: none; border: 0; color: var(--cream);
+}
+.suggestion__art {
+  display: block; aspect-ratio: 1; overflow: hidden;
+  background: rgb(var(--ink-rgb) / .45);
+  border: 1px solid var(--line-soft); border-radius: 13px;
+}
+.suggestion__art img { width: 100%; height: 100%; object-fit: cover; }
+.suggestion__nom {
+  font-size: 12.5px; font-weight: 700; line-height: 1.25;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.suggestion__prix { font-size: 13px; font-weight: 800; color: var(--neon); }
+.suggestion:active .suggestion__art { border-color: rgb(var(--neon-rgb) / .45); }

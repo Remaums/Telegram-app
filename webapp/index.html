@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<meta name="theme-color" content="#04160f">
+<meta name="theme-color" content="#0f1113">
 <title>Napoli Coffee — Boutique</title>
 <link rel="icon" href="/assets/ui/leaf.svg">
 <link rel="stylesheet" href="/css/fonts.css">
@@ -192,6 +192,81 @@
   </footer>
 </section>
 
+<!-- ══ Page « Fiche produit » ══ ════════════════════════════════
+     Une page, pas un panneau qui remonte du bas. Une fiche porte une
+     galerie, une description, des formats, des avis et deux carrousels :
+     tout ça dans une feuille qui laisse voir le catalogue derrière se
+     lisait à travers un hublot. Elle prend l'écran, et on en revient par
+     la flèche — ou par le bouton retour de Telegram, qui fait la même
+     chose sans qu'on ait à viser. -->
+<section class="vue vue--produit" id="vueProduit" role="tabpanel" aria-label="Fiche produit" hidden>
+  <button class="pretour" id="pRetour" type="button">
+    <span class="pretour__fleche" aria-hidden="true">‹</span>
+    <span id="pRetourTexte">Retour</span>
+  </button>
+
+  <div class="pdetail__art">
+    <img id="pImage" src="" alt="">
+    <!-- La galerie prend la place de l'image dès qu'un produit en a une. -->
+    <div class="galerie" id="pGallery" hidden>
+      <div class="galerie__piste" id="pGalleryTrack"></div>
+      <button class="galerie__fleche galerie__fleche--gauche" id="pGalleryPrev"
+              type="button" aria-label="Média précédent" hidden>‹</button>
+      <button class="galerie__fleche galerie__fleche--droite" id="pGalleryNext"
+              type="button" aria-label="Média suivant" hidden>›</button>
+      <div class="galerie__points" id="pGalleryDots" role="tablist" aria-label="Médias"></div>
+    </div>
+  </div>
+
+  <div class="pdetail__body">
+    <div class="pdetail__tags" id="pTags"></div>
+    <button class="pdetail__coeur" id="pCoeur" type="button" aria-pressed="false" hidden>♥</button>
+    <h2 class="pdetail__name goldtext" id="pName"></h2>
+    <!-- La note, juste sous le nom : c'est là qu'on la cherche. -->
+    <button class="note note--lien" id="pNote" type="button" hidden></button>
+    <p class="pdetail__desc" id="pDesc"></p>
+    <div class="variants" id="pVariants"></div>
+
+    <!-- Ce que les autres en ont dit. -->
+    <section class="avis" id="pAvis" hidden>
+      <h3 class="avis__titre" id="pAvisTitre">Avis</h3>
+      <div class="avis__barres" id="pAvisBarres"></div>
+      <ul class="avis__liste" id="pAvisListe"></ul>
+      <button class="btn btn--ghost btn--block" id="pAvisPlus" type="button" hidden>
+        Voir tous les avis
+      </button>
+    </section>
+
+    <!-- Les deux carrousels : ce qui se vend à côté, et ce qui plaît à ceux
+         qui aiment celui-ci. Chargés depuis le catalogue déjà en mémoire —
+         une suggestion ne vaut pas un aller-retour de plus. -->
+    <section class="suite" id="pMemeCategorie" hidden>
+      <h3 class="suite__titre" id="pMemeCategorieTitre">Même catégorie</h3>
+      <div class="suite__piste" id="pMemeCategoriePiste"></div>
+    </section>
+
+    <section class="suite" id="pAimerAussi" hidden>
+      <h3 class="suite__titre">Tu vas aimer aussi</h3>
+      <div class="suite__piste" id="pAimerAussiPiste"></div>
+    </section>
+  </div>
+
+  <!-- La barre d'achat, posée au-dessus de celle des onglets. -->
+  <div class="pbar">
+    <div class="qty" role="group" aria-label="Quantité">
+      <button type="button" id="qtyMinus" aria-label="Retirer un">−</button>
+      <span id="qtyValue">1</span>
+      <button type="button" id="qtyPlus" aria-label="Ajouter un">+</button>
+    </div>
+    <button class="btn btn--primary btn--grow" id="addToCart" type="button">
+      Ajouter · <span id="pPrice"></span>
+    </button>
+    <button class="btn btn--ghost btn--grow" id="notifyMe" type="button" hidden>
+      🔔 Préviens-moi du retour
+    </button>
+  </div>
+</section>
+
 <!-- ══ Vue « Catégories » : le catalogue rangé, rayon par rayon ══
      La grille de l'autre onglet répond à « je cherche ça » ; celle-ci
      répond à « montre-moi ce que tu as ». Deux questions différentes,
@@ -299,60 +374,6 @@
     <span class="tabbar__pastille" id="profilPastille" hidden></span>
   </button>
 </nav>
-
-<!-- ══ Fiche produit ══ -->
-<div class="sheet" id="productSheet" hidden>
-  <div class="sheet__backdrop" data-close></div>
-  <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="pName">
-    <button class="sheet__close" type="button" data-close aria-label="Fermer">✕</button>
-    <div class="sheet__scroll">
-      <div class="pdetail__art">
-        <img id="pImage" src="" alt="">
-        <!-- La galerie prend la place de l'image dès qu'un produit en a une. -->
-        <div class="galerie" id="pGallery" hidden>
-          <div class="galerie__piste" id="pGalleryTrack"></div>
-          <button class="galerie__fleche galerie__fleche--gauche" id="pGalleryPrev"
-                  type="button" aria-label="Média précédent" hidden>‹</button>
-          <button class="galerie__fleche galerie__fleche--droite" id="pGalleryNext"
-                  type="button" aria-label="Média suivant" hidden>›</button>
-          <div class="galerie__points" id="pGalleryDots" role="tablist" aria-label="Médias"></div>
-        </div>
-      </div>
-      <div class="pdetail__body">
-        <div class="pdetail__tags" id="pTags"></div>
-        <button class="pdetail__coeur" id="pCoeur" type="button" aria-pressed="false" hidden>♥</button>
-        <h2 class="pdetail__name goldtext" id="pName"></h2>
-        <!-- La note, juste sous le nom : c'est là qu'on la cherche. -->
-        <button class="note note--lien" id="pNote" type="button" hidden></button>
-        <p class="pdetail__desc" id="pDesc"></p>
-        <div class="variants" id="pVariants"></div>
-
-        <!-- Ce que les autres en ont dit. -->
-        <section class="avis" id="pAvis" hidden>
-          <h3 class="avis__titre" id="pAvisTitre">Avis</h3>
-          <div class="avis__barres" id="pAvisBarres"></div>
-          <ul class="avis__liste" id="pAvisListe"></ul>
-          <button class="btn btn--ghost btn--block" id="pAvisPlus" type="button" hidden>
-            Voir tous les avis
-          </button>
-        </section>
-      </div>
-    </div>
-    <div class="sheet__bar">
-      <div class="qty" role="group" aria-label="Quantité">
-        <button type="button" id="qtyMinus" aria-label="Retirer un">−</button>
-        <span id="qtyValue">1</span>
-        <button type="button" id="qtyPlus" aria-label="Ajouter un">+</button>
-      </div>
-      <button class="btn btn--primary btn--grow" id="addToCart" type="button">
-        Ajouter · <span id="pPrice"></span>
-      </button>
-      <button class="btn btn--ghost btn--grow" id="notifyMe" type="button" hidden>
-        🔔 Préviens-moi du retour
-      </button>
-    </div>
-  </div>
-</div>
 
 <!-- ══ Panier ══ -->
 <div class="sheet" id="cartSheet" hidden>
