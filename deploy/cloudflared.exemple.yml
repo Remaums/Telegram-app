@@ -1,0 +1,48 @@
+# Configuration d'un tunnel Cloudflare nommé pour la boutique.
+#
+# Pourquoi un tunnel « nommé » plutôt que le tunnel rapide de
+# `cloudflared tunnel --url` : celui-ci tire une adresse au hasard en
+# *.trycloudflare.com, ne la réutilise jamais, et la perd dès que le
+# processus s'arrête. Chaque coupure oblige alors à remettre WEBAPP_URL à
+# jour et à redémarrer la boutique — et entre-temps les clients voient une
+# page blanche. Un tunnel nommé garde la même adresse, et se relance avec
+# la machine une fois installé en service.
+#
+# Ce qu'il faut avoir avant : un nom de domaine à soi, ajouté à un compte
+# Cloudflare (l'offre gratuite suffit). Il n'existe aucun moyen d'obtenir
+# une adresse *.trycloudflare.com fixe.
+#
+# Mise en place, sur la machine qui héberge la boutique :
+#
+#   cloudflared tunnel login                  # ouvre le navigateur, autorise le domaine
+#   cloudflared tunnel create napoli          # affiche l'identifiant et écrit les clefs
+#   cp deploy/cloudflared.exemple.yml ~/.cloudflared/config.yml
+#   # … remplir les trois « À REMPLIR » ci-dessous …
+#   cloudflared tunnel route dns napoli boutique.ton-domaine.fr
+#   cloudflared tunnel run napoli             # essai, au premier plan
+#   sudo cloudflared service install          # une fois l'essai concluant
+#
+# Puis, dans le .env de la boutique :
+#   WEBAPP_URL=https://boutique.ton-domaine.fr
+# et redémarrer la boutique — le bot repose alors le bouton de menu tout seul.
+
+# L'identifiant que `cloudflared tunnel create` a affiché à la création.
+# C'est une longue suite du genre 6f0a...-....-....-....-............
+tunnel: À-REMPLIR-IDENTIFIANT-DU-TUNNEL
+
+# Le fichier de clefs écrit au même moment, dans ~/.cloudflared/.
+# Il porte le nom de l'identifiant, suivi de .json.
+credentials-file: /home/À-REMPLIR-TON-UTILISATEUR/.cloudflared/À-REMPLIR-IDENTIFIANT-DU-TUNNEL.json
+
+# Ce que le tunnel dessert. L'ordre compte : la première règle qui
+# correspond gagne, et la dernière doit toujours être le filet de sécurité.
+ingress:
+  # Ton sous-domaine, celui que `cloudflared tunnel route dns` a créé.
+  - hostname: À-REMPLIR-boutique.ton-domaine.fr
+    # La boutique écoute en clair sur le port 3000 de cette machine ;
+    # c'est Cloudflare qui met le HTTPS devant. Rien à chiffrer ici.
+    service: http://localhost:3000
+
+  # Le filet : tout ce qui ne correspond à rien au-dessus reçoit un 404.
+  # Sans cette ligne, cloudflared refuse de démarrer.
+  - service: http_status:404
