@@ -16,7 +16,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { PassThrough } from 'node:stream';
 import 'dotenv/config';
-import { getShopPass } from './helpers.mjs';
+import { getShopPass, signInitData, franchirLaPorte } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 if (!TOKEN) {
@@ -94,6 +94,8 @@ const product = catalog.products.find((p) => p.variants?.some((v) => v.stock > 0
 const variant = product.variants.find((v) => v.stock > 0);
 
 const vercelInit = sign({ id: 987654, first_name: 'Vercel' });
+// Même raison : `/api/captcha` est derrière la porte du chat.
+await franchirLaPorte(BASE, signInitData(TOKEN, { id: 424242, first_name: 'Patron' }), 987654);
 const vercelPass = await getShopPass(BASE, vercelInit);
 
 const res = await fetch(`${BASE}/api/orders`, {

@@ -24,6 +24,7 @@ const { config } = await import('../server/config.js');
 const { createOrder, getOrder } = await import('../server/orders.js');
 const { getCatalog, removeProductMedia } = await import('../server/catalog.js');
 const { getSettings, saveSettings } = await import('../server/settings.js');
+const { ouvrirLaPorte } = await import('../server/bot-captcha.js');
 
 let failures = 0;
 const check = (label, ok, detail = '') => {
@@ -79,6 +80,13 @@ const callback = (from, data) => ({
 
 const ADMIN = { id: ADMIN_ID, is_bot: false, first_name: 'Patron' };
 const CLIENT = { id: 777001, is_bot: false, first_name: 'Client' };
+
+// Le bot pose un petit calcul au premier contact, et il répond avant tout le
+// reste. Cette suite teste ce que le bot dit à un client — pas la porte : sans
+// ce passage, chaque commande reçoit l'épreuve au lieu de la réponse attendue.
+// Le magasin est le même processus qu'ici, donc l'ouverture est vue tout de
+// suite, sans aller-retour par le serveur.
+await ouvrirLaPorte(CLIENT.id);
 
 const jouer = async (update) => {
   envois = [];

@@ -8,7 +8,7 @@
  * Usage :  BOT_TOKEN=… node test/livraison.test.mjs
  */
 import 'dotenv/config';
-import { signInitData, getShopPass, resetShop } from './helpers.mjs';
+import { signInitData, getShopPass, resetShop, franchirLaPorte } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -24,6 +24,13 @@ const admin = signInitData(TOKEN, { id: 424242, first_name: 'Patron' });
 // précédente : sans ça, l'ordre du package.json devient un piège.
 await resetShop(BASE, admin, { features: { zones: false, slots: false } });
 const client = signInitData(TOKEN, { id: 850001, first_name: 'Client' });
+
+// L'épreuve du chat garde aussi la Mini App. Cette suite teste autre chose :
+// sans ce passage, c'est la porte qui refuse en premier et les assertions
+// portent sur le mauvais refus. Le défaut ne se voit pas ici, où ces clients
+// ont des commandes anciennes qui les exemptent — il est apparu sur une
+// installation neuve, et c'est là qu'une suite doit dire ce qu'elle teste.
+await franchirLaPorte(BASE, admin, 850001);
 
 let failures = 0;
 const check = (label, ok, detail = '') => {

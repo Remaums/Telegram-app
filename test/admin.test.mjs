@@ -6,7 +6,7 @@
  */
 import crypto from 'node:crypto';
 import 'dotenv/config';
-import { getShopPass, resetShop } from './helpers.mjs';
+import { getShopPass, resetShop, franchirLaPorte } from './helpers.mjs';
 
 const TOKEN = process.env.BOT_TOKEN;
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -151,6 +151,9 @@ const kush = r.data;
 check('Stock de variante modifié', kush?.variants.find((v) => v.id === '5g').stock === 2);
 
 /* ── Rupture de stock à la commande ──────────────────────── */
+// `/api/captcha` est derrière la porte du chat : sans ce passage, le
+// laissez-passer revient vide et les commandes de ce test se font refuser.
+await franchirLaPorte(BASE, admin, client);
 const clientPass = await getShopPass(BASE, client);
 
 const order = (items) =>

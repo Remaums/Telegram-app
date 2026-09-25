@@ -26,7 +26,7 @@ import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { creerCadence, attenteEnClair } from '../server/cadence.js';
-import { signInitData, getShopPass } from './helpers.mjs';
+import { signInitData, getShopPass, franchirLaPorte } from './helpers.mjs';
 
 const MOI = fileURLToPath(import.meta.url);
 const RACINE = path.join(path.dirname(MOI), '..');
@@ -116,6 +116,12 @@ console.log('\n── La signature ne se contourne pas ────────�
 
 const ADMIN = signInitData(TOKEN, { id: 424242, first_name: 'Patron' });
 const CLIENT = signInitData(TOKEN, { id: 993101, first_name: 'Client' });
+// L'épreuve du chat garde aussi la Mini App. Cette suite teste autre chose :
+// sans ce passage, c'est la porte qui refuse en premier et les assertions
+// portent sur le mauvais refus. Le défaut ne se voit pas ici, où ces clients
+// ont des commandes anciennes qui les exemptent — il est apparu sur une
+// installation neuve, et c'est là qu'une suite doit dire ce qu'elle teste.
+await franchirLaPorte(BASE, ADMIN, 993001, 993101, 993200, 993301);
 
 let r = await fetch(`${BASE}/api/admin/stats`, {
   headers: { 'X-Telegram-Init-Data': new URLSearchParams({
