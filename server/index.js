@@ -28,7 +28,9 @@ import {
 import { adminRouter, requireAdmin } from './admin.js';
 import {
   bot, notifyAdmin, notifyOrderPlaced, notifyLowStock, notifyNouvelAvis, configurerMenu,
+  sendFileToAdmin,
 } from './bot.js';
+import { demarrerLEntretien } from './entretien.js';
 import {
   avisDuProduit, notesDuCatalogue, avisDeLaCommande, deposerAvis, refusDAvis, nomPublic,
 } from './avis.js';
@@ -1140,6 +1142,18 @@ if (standalone) {
     console.log(`  Stockage : ${storageKind}`);
     // Les deux sources, distinguées : voir « 3 admins » au démarrage quand le
     // .env n'en déclare qu'un, c'est précisément ce qu'on veut remarquer.
+    // L'entretien quotidien : sauvegarde, puis oubli des vieilles adresses.
+    // Seulement ici, dans le mode où un processus vit en permanence. En
+    // serverless il n'y a personne entre deux requêtes pour tenir une
+    // minuterie — elle s'y tairait sans rien dire, ce qui est pire que de ne
+    // pas exister.
+    const entretien = await getSettings().then((s) => s.entretien ?? {}).catch(() => ({}));
+    demarrerLEntretien({ envoyer: sendFileToAdmin });
+    console.log(
+      `  Entretien quotidien : sauvegarde ${entretien.sauvegardeAuto === false ? 'éteinte' : 'allumée'}` +
+        `, oubli ${entretien.oubliAuto === true ? `après ${entretien.oubliJours ?? 30} jours` : 'éteint'}`
+    );
+
     const ajoutes = (await listerAdmins().catch(() => [])).filter((a) => a.source === 'bot');
     console.log(
       `  Admins autorisés : ${config.adminIds.join(', ') || 'aucun'}` +

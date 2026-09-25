@@ -174,7 +174,7 @@ export async function slotCounts() {
  * La date se compare en date civile : une commande du jour même de la limite
  * est conservée, la limite est le premier jour qu'on garde.
  */
-export function trierPourPurge(orders, { mode, avant } = {}) {
+export function trierPourPurge(orders, { mode, avant, seulementFinies = false } = {}) {
   const liste = Array.isArray(orders) ? orders : [];
   if (mode === 'tout') return { gardees: [], effacees: liste.length, anonymisees: 0 };
 
@@ -189,9 +189,16 @@ export function trierPourPurge(orders, { mode, avant } = {}) {
   }
 
   if (mode === 'anonymiser') {
+    // `seulementFinies` n'est demandé que par l'entretien automatique, jamais
+    // par le bouton du panel. La différence tient à qui décide : le vendeur
+    // qui clique sait ce qu'il efface, la minuterie non. Une commande encore
+    // en cours qui perdrait son adresse serait une livraison impossible à
+    // faire, et personne pour s'apercevoir de la cause.
+    const finie = (o) => STATUSES[o?.status]?.final === true;
     let anonymisees = 0;
     const gardees = liste.map((o) => {
       if (!vieille(o) || o.anonymise) return o;
+      if (seulementFinies && !finie(o)) return o;
       anonymisees++;
       return {
         ...o,
@@ -213,9 +220,11 @@ export function trierPourPurge(orders, { mode, avant } = {}) {
 }
 
 /** Applique l'effacement. Rien n'est récupérable ensuite, d'où la sauvegarde. */
-export async function purgerCommandes({ mode, avant } = {}) {
+export async function purgerCommandes({ mode, avant, seulementFinies = false } = {}) {
   return store.update((orders) => {
-    const { gardees, effacees, anonymisees } = trierPourPurge(orders, { mode, avant });
+    const { gardees, effacees, anonymisees } = trierPourPurge(orders, {
+      mode, avant, seulementFinies,
+    });
     orders.length = 0;
     orders.push(...gardees);
     return { effacees, anonymisees, restantes: gardees.length };

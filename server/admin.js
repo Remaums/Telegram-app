@@ -34,6 +34,7 @@ import {
 import { refusDeTelegram, texteValide } from './messagerie.js';
 import { estAdmin, listerAdmins } from './admins.js';
 import { estPasse, ouvrirLaPorte, oublier as refermerLaPorte } from './bot-captcha.js';
+import { journal } from './entretien.js';
 import {
   tousLesAvis, resumeParProduit, changerStatut, repondreALAvis, supprimerAvis, oublierProduit,
 } from './avis.js';
@@ -915,6 +916,20 @@ adminRouter.post(
 adminRouter.post(
   '/clients/:id/unblock',
   route(async (req, res) => res.json(await unblockClient(req.params.id)))
+);
+
+/* ── L'entretien quotidien ───────────────────────────────── */
+
+/**
+ * Ce que l'entretien a fait, et quand.
+ *
+ * Une besogne qui se fait toute seule est une besogne dont on ne sait rien :
+ * sans cette ligne, le vendeur découvrirait que la minuterie ne tourne plus
+ * le jour où il a besoin d'une sauvegarde, c'est-à-dire trop tard.
+ */
+adminRouter.get(
+  '/entretien',
+  route(async (req, res) => res.json(await journal()))
 );
 
 /* ── La porte d'entrée ───────────────────────────────────── */

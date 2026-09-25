@@ -153,6 +153,12 @@ function bindHandlers() {
   $('mediaFile').addEventListener('change', envoyerDepuisLaGalerie);
   $('pickImage').addEventListener('click', () => $('imageFile').click());
   $('imageFile').addEventListener('change', envoyerLaVignette);
+  for (const id of ['fSauvegardeAuto', 'fOubliAuto', 'fOubliJours']) {
+    // `change` et non `input` : sur un champ nombre, `input` enverrait une
+    // requête à chaque chiffre tapé — « 3 » puis « 30 » — et le « 3 » serait
+    // remonté au plancher de sept avant qu'on ait fini d'écrire.
+    $(id).addEventListener('change', enregistrerLEntretien);
+  }
   $('addVariant').addEventListener('click', () => addVariantRow());
   $('saveProduct').addEventListener('click', saveProduct);
   $('deleteProduct').addEventListener('click', removeProduct);
@@ -174,6 +180,9 @@ async function refreshAll() {
     api(`/bilan?jours=${state.periode}`),
   ]);
   const fiches = await api('/clients').catch(() => ({ total: 0, clients: [] }));
+  // Ce que l'entretien a fait. Toléré absent : une boutique en serverless n'a
+  // pas de minuterie, et le panel ne doit pas se bloquer pour autant.
+  state.entretien = await api('/entretien').catch(() => null);
   state.settings = settings;
   state.verifications = verifications;
   state.promos = promos;
@@ -1721,6 +1730,61 @@ const DAYS = [
   ['ven', 'Vendredi'], ['sam', 'Samedi'], ['dim', 'Dimanche'],
 ];
 
+/**
+ * L'entretien automatique : ses deux interrupteurs, et ce qu'il a fait.
+ *
+ * Le journal en bas n'est pas décoratif. Une besogne qui se fait toute seule
+ * est une besogne dont on ne sait rien : sans une ligne qui dit « dernière
+ * sauvegarde le 25 septembre », le vendeur découvre que la minuterie ne
+ * tournait plus le jour où il en a besoin, c'est-à-dire trop tard.
+ */
+/** Enregistre les trois réglages d'entretien, et redit ce que le serveur a retenu. */
+async function enregistrerLEntretien() {
+  try {
+    state.settings = await api('/settings', {
+      method: 'PUT',
+      body: {
+        entretien: {
+          sauvegardeAuto: $('fSauvegardeAuto').checked,
+          oubliAuto: $('fOubliAuto').checked,
+          oubliJours: Number($('fOubliJours').value),
+        },
+      },
+    });
+    // On réaffiche ce que le serveur a gardé, et non ce qui a été tapé : le
+    // plancher de sept jours se voit ainsi tout de suite, au lieu de laisser
+    // croire que « 2 » a été accepté.
+    renderEntretien(state.settings.entretien ?? {}, state.entretien);
+    toast('Entretien mis à jour');
+  } catch (err) {
+    toast(err.message);
+    renderEntretien(state.settings?.entretien ?? {}, state.entretien);
+  }
+}
+
+function renderEntretien(reglages, journal) {
+  $('fSauvegardeAuto').checked = reglages.sauvegardeAuto !== false;
+  $('fOubliAuto').checked = reglages.oubliAuto === true;
+  $('fOubliJours').value = reglages.oubliJours ?? 30;
+  // Le délai ne se règle que si l'oubli est allumé : un champ actif sous une
+  // case décochée laisse croire qu'il s'applique.
+  $('fOubliJours').disabled = reglages.oubliAuto !== true;
+
+  const ligne = $('entretienJournal');
+  if (!ligne) return;
+  if (!journal) {
+    ligne.textContent = '';
+    return;
+  }
+  const dire = (jour) => (jour ? `le ${jour}` : 'jamais encore');
+  ligne.innerHTML =
+    `Dernière sauvegarde : <b>${escapeHtml(dire(journal.sauvegarde))}</b>. ` +
+    `Dernier oubli : <b>${escapeHtml(dire(journal.oubli))}</b>.` +
+    (journal.derniereErreur
+      ? ` <b class="a-rouge">Dernier échec : ${escapeHtml(journal.derniereErreur)}</b>`
+      : '');
+}
+
 function renderSettings() {
   const settings = state.settings;
   if (!settings) return;
@@ -1756,6 +1820,7 @@ function renderSettings() {
   renderVerifications();
   $('fOrdersPerHour').value = settings.limits.ordersPerHour;
   $('fLowStock').value = settings.alerts?.lowStock ?? 3;
+  renderEntretien(settings.entretien ?? {}, state.entretien);
   if (!$('fPurgeDate').value) {
     const troisMois = new Date(Date.now() - 90 * 86400000);
     $('fPurgeDate').value = troisMois.toISOString().slice(0, 10);

@@ -30,6 +30,21 @@ const DEFAULTS = {
   slots: defaultSlots(),
   // Seuil d'alerte : en dessous, le vendeur reçoit un message.
   alerts: { lowStock: 3 },
+  // L'entretien qui se fait tout seul, tous les jours.
+  //
+  // La sauvegarde est allumée d'office : elle ne détruit rien, elle ne coûte
+  // qu'un fichier dans une conversation, et le jour où le disque lâche c'est
+  // la seule chose qui compte.
+  //
+  // L'oubli, lui, est éteint : il efface pour de bon, et ce n'est pas à un
+  // réglage par défaut de décider qu'on jette les adresses de ses clients.
+  // Trente jours quand on l'allume — le temps qu'une commande soit livrée,
+  // contestée et réglée.
+  entretien: {
+    sauvegardeAuto: true,
+    oubliAuto: false,
+    oubliJours: 30,
+  },
   // Remises automatiques par palier de panier. Les codes promo, eux, vivent
   // dans leur propre fichier : ils se créent et s'épuisent tout seuls.
   discounts: { tiers: [] },
@@ -103,6 +118,21 @@ export async function saveSettings(patch) {
       data.limits = {
         ordersPerHour: bounded(patch.limits.ordersPerHour, 1, 100, DEFAULTS.limits.ordersPerHour),
         unitsPerOrder: bounded(patch.limits.unitsPerOrder, 1, 999, DEFAULTS.limits.unitsPerOrder),
+      };
+    }
+
+    if (patch.entretien) {
+      const avant = data.entretien ?? DEFAULTS.entretien;
+      data.entretien = {
+        // Un interrupteur absent du patch garde sa valeur : le panel envoie
+        // parfois le seul réglage que le vendeur vient de toucher.
+        sauvegardeAuto: patch.entretien.sauvegardeAuto ?? avant.sauvegardeAuto,
+        oubliAuto: patch.entretien.oubliAuto ?? avant.oubliAuto,
+        // Le plancher de sept jours est aussi posé à la lecture, dans
+        // `entretien.js` : un réglage peut arriver d'une vieille sauvegarde
+        // sans repasser par ici, et l'oubli ne doit jamais mordre sur une
+        // commande de la semaine.
+        oubliJours: bounded(patch.entretien.oubliJours, 7, 3650, avant.oubliJours ?? 30),
       };
     }
     // Les anciennes formes restent acceptées — un script ou un test qui

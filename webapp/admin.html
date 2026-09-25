@@ -367,6 +367,43 @@
       <button class="a-btn a-btn--danger a-btn--block" id="doRestore" type="button">Remplacer la boutique par ce fichier</button>
     </div>
 
+    <h2 class="a-h2">Entretien automatique</h2>
+    <p class="a-hint">
+      Les deux besognes ci-dessous existaient déjà en boutons, plus haut. Le
+      défaut n'était pas qu'elles manquent, c'est qu'il fallait y penser — et
+      un vendeur qui tient une boutique ne clique pas sur « oublier les
+      adresses » tous les trente jours. Elles se font maintenant toutes
+      seules, une fois par jour.
+    </p>
+
+    <label><input type="checkbox" id="fSauvegardeAuto" checked>
+      M'envoyer une sauvegarde chaque jour</label>
+    <p class="a-hint">
+      Un fichier déposé dans ta conversation avec le bot. Il ne détruit rien,
+      il ne coûte qu'un message, et le jour où le disque lâche c'est la seule
+      chose qui compte. Un fichier dans une conversation Telegram se retrouve
+      des mois plus tard, se transfère, et survit au téléphone qu'on change.
+    </p>
+
+    <label><input type="checkbox" id="fOubliAuto">
+      Oublier les vieilles adresses automatiquement</label>
+    <div class="a-row">
+      <label class="a-field"><span>Au bout de combien de jours</span>
+        <input id="fOubliJours" type="number" min="7" max="3650" step="1" value="30">
+      </label>
+    </div>
+    <p class="a-hint">
+      Éteint par défaut, parce qu'il efface pour de bon. Ce qui part : le nom,
+      l'identifiant, l'adresse, le téléphone et la note. Ce qui reste : les
+      montants, les articles et le secteur — ton bilan ne bouge pas.
+      <b>Une commande encore en cours n'est jamais touchée</b>, si vieille
+      soit-elle : une livraison sans adresse serait impossible à faire.
+      Minimum sept jours, le temps qu'une commande soit livrée, contestée et
+      réglée. Et l'oubli passe toujours après la sauvegarde du jour : si elle
+      échoue, rien n'est détruit.
+    </p>
+    <p class="a-hint" id="entretienJournal"></p>
+
     <h2 class="a-h2">Effacer des commandes</h2>
     <p class="a-hint">
       Trois façons de repartir, et elles ne se valent pas. <b>Oublier qui a
