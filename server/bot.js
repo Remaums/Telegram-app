@@ -61,6 +61,28 @@ const adminKeyboard = () =>
     : undefined;
 
 /**
+ * Le clavier de l'aperçu : une seconde Mini App, réservée aux admins.
+ *
+ * Même exigence que les autres — Telegram refuse le message entier si
+ * l'URL n'est pas en HTTPS — mais sur DEV_WEBAPP_URL, pas sur WEBAPP_URL :
+ * l'intérêt de la commande est justement que les deux soient différentes.
+ */
+const apercuUtilisable = () => /^https:\/\/[^\s]+$/.test(config.devWebappUrl);
+
+export const apercuKeyboard = () =>
+  apercuUtilisable()
+    ? new InlineKeyboard().webApp(`👁 Ouvrir ${config.devWebappName}`, config.devWebappUrl)
+    : undefined;
+
+/** Ce qu'il faut dire quand l'aperçu n'est pas configuré. */
+export const PAS_D_APERCU =
+  "⚠️ DEV_WEBAPP_URL n'est pas renseignée (ou n'est pas en HTTPS).\n\n" +
+  'Mets dans le fichier .env l\'adresse de la boutique à regarder, ' +
+  'puis redémarre :\n\n' +
+  'DEV_WEBAPP_URL=https://exemple.trycloudflare.com\n' +
+  'DEV_WEBAPP_NAME=Tanja HH 67';
+
+/**
  * Le bouton du menu, en bas à gauche du chat, qui ouvre la boutique.
  *
  * Par défaut Telegram met là un bouton « Menu » qui déroule la liste des
@@ -217,6 +239,33 @@ bot.command('start', accueillir);
 bot.command('boutique', (ctx) =>
   ctx.reply('Voilà le catalogue 👇', { reply_markup: shopKeyboard() })
 );
+
+/**
+ * /dev — regarder une boutique en chantier depuis ce bot.
+ *
+ * Réservé aux administrateurs, et pas par excès de prudence : la Mini App
+ * ouverte ici n'est pas celle que les clients doivent voir. Un catalogue de
+ * démonstration, des prix qui ne sont pas les bons, une boutique à moitié
+ * faite — tout ce qu'on ne veut pas montrer, c'est précisément ce qu'on
+ * vient regarder.
+ *
+ * Le message dit quelle adresse est ouverte : quand on jongle entre deux
+ * tunnels, savoir laquelle des deux on regarde évite de chercher pendant
+ * dix minutes pourquoi une correction « ne passe pas ».
+ */
+bot.command('dev', async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) return;
+
+  const clavier = apercuKeyboard();
+  if (!clavier) return ctx.reply(PAS_D_APERCU);
+
+  return ctx.reply(
+    `👁 Aperçu — ${config.devWebappName}\n\n` +
+      'Boutique en cours de fabrication, visible par toi seul.\n' +
+      `Adresse ouverte : ${config.devWebappUrl}`,
+    { reply_markup: clavier, link_preview_options: { is_disabled: true } }
+  );
+});
 
 bot.command('commandes', async (ctx) => {
   // Le même interrupteur que l'écran « Mes commandes » de la Mini App : une
@@ -633,6 +682,7 @@ bot.command('aide', async (ctx) =>
           '\n/enligne — les visites de la dernière demi-heure' +
           '\n/annonce <texte> — écrire à tous ceux qui ont ouvert le bot' +
           '\n/admins — qui a les clés' +
+          '\n/dev — ouvrir la boutique en chantier (aperçu)' +
           '\n/addadmin, /deladmin — donner ou reprendre les clés' +
           '\n📸 envoie une photo avec le nom du produit en légende pour changer son image'
         : '')

@@ -16,7 +16,14 @@ if (!process.env.BOT_TOKEN) {
   process.exit(1);
 }
 
-const { orderMessage, statusKeyboard } = await import('../server/bot.js');
+// L'adresse de l'aperçu est lue au chargement de config.js : on la pose
+// avant l'import, sinon la commande /dev se verrait toujours non configurée
+// et le test passerait sans rien vérifier.
+process.env.DEV_WEBAPP_URL = 'https://apercu-de-test.trycloudflare.com/';
+process.env.DEV_WEBAPP_NAME = 'Tanja HH 67';
+
+const { orderMessage, statusKeyboard, apercuKeyboard, PAS_D_APERCU } =
+  await import('../server/bot.js');
 const { STATUSES } = await import('../server/orders.js');
 
 let failures = 0;
@@ -119,6 +126,34 @@ check('Et son contact reste lisible dans le message',
 // Telegram limite la donnée de rappel à 64 octets.
 const longest = Math.max(...nouvelle.map((b) => Buffer.byteLength(b.callback_data)));
 check('Donnée de rappel sous la limite Telegram', longest <= 64, `${longest} octets`);
+
+/* ── L'aperçu d'une boutique en chantier (/dev) ────────────── */
+console.log('\n── /dev : l\'aperçu ────────────────────────────────');
+
+const apercu = apercuKeyboard()?.inline_keyboard?.[0] ?? [];
+check("L'aperçu propose un bouton", apercu.length === 1);
+check('Et c\'est bien un bouton Mini App', Boolean(apercu[0]?.web_app), JSON.stringify(Object.keys(apercu[0] ?? {})));
+check("Il vise l'adresse de l'aperçu, pas la boutique",
+  apercu[0]?.web_app?.url === 'https://apercu-de-test.trycloudflare.com',
+  apercu[0]?.web_app?.url);
+// La barre finale est retirée au passage : deux adresses qui ne diffèrent
+// que par elle sont la même, et Telegram les traite comme telles.
+check('La barre de fin est retirée', !apercu[0]?.web_app?.url.endsWith('/'));
+check('Le bouton porte le nom donné', apercu[0]?.text.includes('Tanja HH 67'), apercu[0]?.text);
+
+// Sans adresse, aucun bouton : Telegram refuse le message entier quand un
+// bouton Mini App porte une URL qu'il n'accepte pas, et la commande
+// échouerait alors sans rien afficher.
+const { config } = await import('../server/config.js');
+const vraieUrl = config.devWebappUrl;
+for (const mauvaise of ['', 'http://pas-de-tls.example', 'pas-une-url']) {
+  config.devWebappUrl = mauvaise;
+  check(`Aucun bouton pour « ${mauvaise || '(vide)'} »`, apercuKeyboard() === undefined);
+}
+config.devWebappUrl = vraieUrl;
+check("Et le bouton revient dès que l'adresse est bonne", apercuKeyboard() !== undefined);
+check('Le message de secours dit quoi écrire et où',
+  PAS_D_APERCU.includes('DEV_WEBAPP_URL') && PAS_D_APERCU.includes('.env'));
 
 console.log(`\n${failures ? `${failures} test(s) en échec` : 'Traitement Telegram : OK'}`);
 process.exit(failures ? 1 : 0);

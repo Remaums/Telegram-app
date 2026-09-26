@@ -44,6 +44,15 @@ const adminIds = [
 export const config = {
   botToken: process.env.BOT_TOKEN ?? '',
   webappUrl: (process.env.WEBAPP_URL ?? '').replace(/\/$/, ''),
+
+  // Une seconde Mini App, ouverte par /dev, et réservée aux administrateurs.
+  //
+  // Elle sert à regarder une boutique en cours de fabrication depuis le bot
+  // qui tourne déjà, sans lui créer son propre bot ni toucher à WEBAPP_URL —
+  // donc sans risquer d'envoyer les clients sur un chantier. Vide, la
+  // commande le dit et n'affiche aucun bouton.
+  devWebappUrl: (process.env.DEV_WEBAPP_URL ?? '').replace(/\/$/, ''),
+  devWebappName: process.env.DEV_WEBAPP_NAME ?? 'Aperçu',
   // Où le bot dépose les commandes, les alertes de stock et les messages des
   // clients.
   //
