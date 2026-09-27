@@ -1787,6 +1787,14 @@ function voileDeChargement(video) {
   duree.hidden = true;
   voile.append(anneau, duree);
 
+  // Ce qu'on dit quand la vidéo ne viendra pas. Un cadre noir et muet laisse
+  // le client appuyer trois fois sur un bouton qui ne fera jamais rien, et ne
+  // dit rien au vendeur non plus : il découvre la panne par un message de
+  // quelqu'un qui n'a pas commandé.
+  const panne = document.createElement('span');
+  panne.className = 'vcharge__panne';
+  panne.hidden = true;
+
   const montrer = () => voile.classList.remove('vcharge--fini');
   const cacher = () => voile.classList.add('vcharge--fini');
 
@@ -1795,10 +1803,23 @@ function voileDeChargement(video) {
   video.addEventListener('waiting', montrer);
   // Une vidéo injoignable ne doit pas laisser tourner l'anneau indéfiniment :
   // le client attendrait quelque chose qui n'arrive pas.
-  video.addEventListener('error', cacher);
+  video.addEventListener('error', () => {
+    cacher();
+    anneau.hidden = true;
+    duree.hidden = true;
+    panne.hidden = false;
+    // Le motif est allé chercher la raison auprès de la boutique : c'est elle
+    // qui parle à Telegram, et c'est la seule à savoir pourquoi.
+    panne.textContent = 'Vidéo indisponible';
+    voile.classList.remove('vcharge--fini');
+    voile.classList.add('vcharge--panne');
+    console.warn('Média injoignable :', video.currentSrc || video.src, video.error?.message);
+  });
   // Tous les conteneurs ne portent pas leur durée : un WebM produit à la
   // volée annonce volontiers `Infinity`. Dans ce cas on ne montre rien —
   // « 0:00 » sur une vidéo d'une minute est pire que pas de durée du tout.
+  voile.append(panne);
+
   video.addEventListener('loadedmetadata', () => {
     const lisible = enMinutes(video.duration);
     duree.hidden = lisible === null;

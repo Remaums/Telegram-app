@@ -1021,6 +1021,12 @@ app.get('/api/media/:id/:index/apercu', async (req, res, next) => {
 });
 
 app.get('/api/media/:id/:index', async (req, res, next) => {
+  // Déclarés hors du `try` : le `catch` les lit pour nommer ce qui a échoué,
+  // et un `const` posé à l'intérieur n'y existe pas. Écrits dedans, ils
+  // faisaient tomber le serveur sur une ReferenceError — au moment précis
+  // où il essayait d'expliquer une panne.
+  let nom = req.params.id;
+  let genre = 'média';
   try {
     const settings = await getSettings();
     if (!settings.features.photos) return res.status(404).json({ error: 'Médias désactivés.' });
@@ -1028,6 +1034,8 @@ app.get('/api/media/:id/:index', async (req, res, next) => {
     const product = await getProduct(req.params.id);
     const media = product?.media?.[Number(req.params.index)];
     if (!media) return res.status(404).json({ error: 'Média introuvable.' });
+    nom = product.name ?? nom;
+    genre = media.kind ?? genre;
 
     // Un média hébergé ailleurs n'a pas à passer par nous.
     if (!media.fileId) return res.redirect(302, media.url);
@@ -1037,9 +1045,19 @@ app.get('/api/media/:id/:index', async (req, res, next) => {
     // Une coupure du client en pleine vidéo est normale : ce n'est pas un
     // incident à consigner, et la réponse est déjà partie.
     if (err?.code === 'ERR_STREAM_PREMATURE_CLOSE' || res.writableEnded) return;
-    console.error('Média produit indisponible :', err.message);
-    if (!res.headersSent) res.status(502).json({ error: 'Média indisponible.' });
-    else next(err);
+    // La raison de Telegram, et de quoi retrouver le produit. Elle était
+    // écrite sans contexte : le vendeur lisait « fichier trop gros » sans
+    // savoir lequel, sur un catalogue de trente articles. La cause de loin
+    // la plus fréquente est la borne des 20 Mo — un bot ne peut pas
+    // retélécharger plus, alors que le téléphone du vendeur envoie sans
+    // peine dix fois ça. `tools/medias.mjs` passe tout le catalogue en revue.
+    console.error(
+      `Média indisponible — produit « ${nom} », média ${req.params.index} ` +
+        `(${genre}) : ${err.message}`
+    );
+    if (!res.headersSent) {
+      res.status(502).json({ error: 'Média indisponible.', raison: err.message });
+    } else next(err);
   }
 });
 

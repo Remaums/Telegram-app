@@ -1849,6 +1849,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 img.galerie__gif { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
 .card--soldout .card__gif { filter: grayscale(1); opacity: .38; }
 
+/* Ce que porte une vidéo qui ne viendra pas. Le voile reste, mais il cesse
+   de tourner : un anneau qui tourne promet une arrivée. */
+.vcharge--panne { background: rgb(var(--ink-rgb) / .72); }
+.vcharge__panne {
+  font-size: 12px; font-weight: 700; letter-spacing: .04em;
+  color: rgb(var(--cream-rgb) / .8); text-align: center; padding: 0 14px;
+}
+
 /* ══ Le lecteur de musique ══════════════════════════════════
    Repris de la boutique sœur, à la couleur près : le jaune d'enseigne
    de là-bas devient le laiton d'ici. Les hauteurs de barres, elles,
