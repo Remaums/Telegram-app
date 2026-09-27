@@ -120,11 +120,12 @@ async function init() {
 
   $('shopName').textContent = state.shop.shopName;
   document.title = `${state.shop.shopName} — Boutique`;
-  const legal =
+  // La mention ne vit plus que sur l'écran d'âge, où on la lit avant
+  // d'entrer. Elle était répétée en pied de catalogue ; là, elle arrivait
+  // après quatorze produits.
+  $('legalNotice').textContent =
     "Produits réservés aux personnes majeures. Vérifie la législation en vigueur " +
     'chez toi avant toute commande : la disponibilité de ces produits dépend de ta juridiction.';
-  $('legalNotice').textContent = legal;
-  $('footLegal').textContent = legal;
 
   renderClosedBanner();
   renderSousTitre();

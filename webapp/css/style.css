@@ -561,7 +561,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 
 /* ── Pied de page ────────────────────────────────────────── */
-.foot { margin-top: 28px; text-align: center; font-size: 11.5px; line-height: 1.5; color: var(--muted); font-weight: 600; }
+/* Plus de texte au pied : il ne reste que la feuille, et rien à habiller. */
+.foot { margin-top: 28px; text-align: center; }
 .foot__leaf { width: 36px; margin: 0 auto 8px; opacity: .6; filter: drop-shadow(0 0 10px rgb(var(--neon-rgb) / .55)); }
 
 /* ── Panneaux coulissants ────────────────────────────────── */
