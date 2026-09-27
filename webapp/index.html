@@ -234,7 +234,10 @@
     <button class="note note--lien" id="pNote" type="button" hidden></button>
     <!-- Les caractéristiques : ce qu'on lit en diagonale avant la description. -->
     <ul class="points" id="pPoints" hidden></ul>
-    <p class="pdetail__desc" id="pDesc"></p>
+    <!-- Une <div> et non un <p> : la description peut désormais contenir
+         une liste, et un <p> ne peut pas en contenir — le navigateur la
+         refermerait tout seul avant, en sortant la liste du bloc. -->
+    <div class="pdetail__desc" id="pDesc"></div>
     <p class="variants__titre" id="pVariantsTitre" hidden>Choisis ton format</p>
     <div class="variants" id="pVariants"></div>
 

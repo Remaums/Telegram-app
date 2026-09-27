@@ -623,7 +623,36 @@ button { font: inherit; color: inherit; cursor: pointer; }
   box-shadow: none;
 }
 .pdetail__name { font-size: 27px; line-height: 1.1; font-weight: 800; }
-.pdetail__desc { font-size: 14.5px; line-height: 1.55; margin: 10px 0 0; font-weight: 600; color: var(--muted); }
+/* La description. Le poids 600 sur une couleur atténuée donnait un pavé
+   uniforme où l'œil n'avait aucune prise : à cette taille, 500 se lit aussi
+   bien et respire. Le reste de la mise en forme vient de ce que le vendeur a
+   tapé — voir `peindreLaDescription`. */
+.pdetail__desc {
+  font-size: 14.5px; line-height: 1.55; margin: 10px 0 0;
+  font-weight: 500; color: var(--muted);
+}
+/* Une ligne libre. Les lignes qui se suivent se serrent, mais pas au point
+   de se confondre : c'est tout le sujet. */
+.pdetail__ligne { margin: 0 0 4px; }
+.pdetail__ligne:last-child { margin-bottom: 0; }
+
+/* Les points, avec leur puce.
+   `list-style: none` et une puce dessinée en `::before` plutôt que la puce
+   du navigateur : celle-ci ne se colore pas séparément du texte, et on la
+   veut plus discrète que ce qu'elle annonce. Le retrait est suspendu — une
+   ligne qui passe à la ligne s'aligne sous le texte, pas sous la puce. */
+.pdetail__points {
+  list-style: none; margin: 7px 0 0; padding: 0;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.pdetail__points li {
+  position: relative; padding-left: 15px;
+}
+.pdetail__points li::before {
+  content: '•'; position: absolute; left: 2px; top: -1px;
+  color: var(--gold); font-weight: 700;
+}
+.pdetail__points + .pdetail__ligne { margin-top: 9px; }
 
 /* ── Les formats, en grille ──────────────────────────────────
    Des pastilles sur une ligne, il fallait les lire de gauche à droite pour

@@ -2,6 +2,8 @@
    Napoli Coffee — logique de la Mini App
    ══════════════════════════════════════════════════════════════ */
 
+import { decouperLaDescription } from './description.js';
+
 const tg = window.Telegram?.WebApp;
 const CART_KEY = 'kartoon.cart.v1';
 const AGE_KEY = 'kartoon.age.ok';
@@ -1703,7 +1705,7 @@ function openProduct(product) {
   state.currentQty = 1;
 
   $('pName').textContent = product.name;
-  $('pDesc').textContent = product.description;
+  peindreLaDescription(product.description);
   renderPoints(product);
 
   $('pTags').replaceChildren(
@@ -3341,6 +3343,45 @@ function orderCard(order) {
     card.append(reprise);
   }
   return card;
+}
+
+/**
+ * La description du vendeur, telle qu'il l'a écrite.
+ *
+ * Elle partait dans un `textContent` : les retours à la ligne existaient
+ * jusque dans la réponse du serveur, et le navigateur les écrasait au
+ * dernier moment. Six lignes courtes — un titre, un nez, trois points, une
+ * mention de stock — se rejoignaient en un pavé où les tirets flottaient au
+ * milieu des phrases.
+ *
+ * Le découpage vit dans `description.js`, sans DOM, pour être vérifiable
+ * sans navigateur. Ici on ne fait que poser les éléments — et chacun reçoit
+ * son texte en `textContent`, jamais en `innerHTML`. Ce texte vient de
+ * l'espace admin, donc d'une main de confiance ; mais « de confiance
+ * aujourd'hui » n'est pas une propriété du code.
+ */
+function peindreLaDescription(texte) {
+  const hote = $('pDesc');
+  if (!hote) return;
+  hote.replaceChildren();
+
+  for (const bloc of decouperLaDescription(texte)) {
+    if (bloc.type === 'points') {
+      const liste = document.createElement('ul');
+      liste.className = 'pdetail__points';
+      for (const item of bloc.items) {
+        const point = document.createElement('li');
+        point.textContent = item;
+        liste.append(point);
+      }
+      hote.append(liste);
+    } else {
+      const para = document.createElement('p');
+      para.className = 'pdetail__ligne';
+      para.textContent = bloc.texte;
+      hote.append(para);
+    }
+  }
 }
 
 /* ── Panneaux ────────────────────────────────────────────── */
