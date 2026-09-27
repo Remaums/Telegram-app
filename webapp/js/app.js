@@ -2012,8 +2012,25 @@ function renderGalerie(product) {
       video.controls = true;
       video.preload = 'metadata';
       video.playsInline = true;
-      // Ni lecture automatique ni son surprise : une fiche produit qui se met
-      // à parler dans un lieu public fait fermer la boutique.
+      // Muette au départ. Le commentaire qui tenait ici promettait « ni son
+      // surprise » sans que rien dans le code ne l'obtienne : la vidéo
+      // partait à plein volume, et depuis que la boutique a une musique
+      // d'ambiance, par-dessus elle.
+      //
+      // Les contrôles natifs portent le haut-parleur : qui veut le son l'a
+      // d'un geste. On n'impose pas le silence, on cesse de l'imposer à
+      // l'envers.
+      video.muted = true;
+
+      // S'il rallume le son de la vidéo, l'ambiance s'arrête : deux sources
+      // à la fois ne s'écoutent pas, et c'est la vidéo qu'il vient de
+      // choisir. `arreterLeJuke` met en pause sans rien retenir, contrairement
+      // à la pastille — son choix d'avoir de la musique n'est pas effacé par
+      // un geste qui parlait d'autre chose, et elle repart d'un appui.
+      video.addEventListener('volumechange', () => {
+        if (!video.muted && video.volume > 0 && juke.voulue) arreterLeJuke();
+      });
+
       case_.append(video);
 
       const pastille = document.createElement('span');
