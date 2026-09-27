@@ -837,3 +837,30 @@ body.admin {
   background: rgb(var(--neon-rgb) / .14); border-color: rgb(var(--neon-rgb) / .5);
 }
 .a-present--ici small { color: var(--neon); }
+
+/* La playlist d'ambiance, dans l'écran de réglages. */
+.a-musique { display: flex; flex-direction: column; gap: 7px; margin-bottom: 10px; }
+.a-musique__ligne {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 9px; border-radius: 11px;
+  background: rgb(var(--night-rgb) / .45);
+  border: 1px solid var(--line-soft);
+}
+.a-musique__rang {
+  flex: none; width: 20px; text-align: center;
+  font-size: 12px; font-weight: 800; color: var(--muted);
+}
+.a-musique__titre {
+  flex: 1; min-width: 0; padding: 7px 9px; border-radius: 8px;
+  font: inherit; font-size: 13px; color: var(--cream);
+  background: rgb(var(--night-rgb) / .6);
+  border: 1px solid var(--line-soft);
+}
+.a-musique__geste {
+  flex: none; width: 30px; height: 30px; padding: 0; border-radius: 8px;
+  cursor: pointer; font-size: 14px; line-height: 1;
+  color: var(--cream); background: rgb(255 255 255 / .06);
+  border: 1px solid var(--line-soft);
+}
+.a-musique__geste[disabled] { opacity: .3; cursor: default; }
+.a-musique__geste--oter { color: var(--red); }

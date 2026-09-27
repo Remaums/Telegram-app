@@ -31,6 +31,7 @@ import {
   notifyCustomer, notifyBackInStock, sendFileToAdmin, diffuser, botUsername,
   deposerMedia, retrouverVignette, ficheTelegram, ecrireAuClient, proposerAnnonce, POIDS_MAX,
 } from './bot.js';
+import { MUSIQUE_MAX, titreDepuisLeNom, nouvelIdentifiant } from './musique.js';
 import { refusDeTelegram, texteValide } from './messagerie.js';
 import { estAdmin, listerAdmins } from './admins.js';
 import { estPasse, ouvrirLaPorte, oublier as refermerLaPorte } from './bot-captcha.js';
@@ -111,6 +112,7 @@ adminRouter.get(
       currency: config.currency,
       features: FEATURES,
       mediaMax: MEDIA_MAX,
+      musiqueMax: MUSIQUE_MAX,
     });
   })
 );
@@ -503,6 +505,71 @@ adminRouter.post(
   })
 );
 
+/* ── La playlist d'ambiance ──────────────────────────────────
+   Trois portes : en ajouter un, le renommer, le retirer. L'ordre, lui, passe
+   par l'enregistrement des réglages — réordonner est une opération sur la
+   liste entière, pas sur un morceau. */
+
+adminRouter.post(
+  '/musique/upload',
+  route(async (req, res) => {
+    const octets = recevoirFichier(req, 'audio');
+    const { musique } = await getSettings();
+
+    // On refuse avant de déranger Telegram : inutile de faire voyager trois
+    // mégaoctets pour les jeter à l'arrivée.
+    if (musique.titres.length >= MUSIQUE_MAX) {
+      throw new HttpError(400, `La playlist est pleine (${MUSIQUE_MAX} morceaux au maximum).`);
+    }
+
+    const nom = nomDeFichier(req.query.nom, 'audio');
+    const depot = await remettreATelegram(
+      req.telegramUser.id,
+      'audio',
+      octets,
+      nom,
+      '🎵 Ajouté à la playlist de la boutique depuis l\'espace admin.'
+    );
+
+    // Le titre vient des étiquettes du fichier quand il y en a, du nom du
+    // fichier sinon, et de ce que le vendeur a tapé s'il a pris la peine.
+    const titre =
+      String(req.query.titre ?? '').trim() || depot.titre || titreDepuisLeNom(nom);
+
+    const titres = [...musique.titres, { id: nouvelIdentifiant(), titre, fileId: depot.fileId }];
+    const enregistre = await saveSettings({ musique: { titres } });
+    res.status(201).json(enregistre.musique);
+  })
+);
+
+adminRouter.patch(
+  '/musique/:id',
+  route(async (req, res) => {
+    const { musique } = await getSettings();
+    const morceau = musique.titres.find((m) => m.id === req.params.id);
+    if (!morceau) throw new HttpError(404, 'Morceau introuvable.');
+
+    const titre = String(req.body?.titre ?? '').trim();
+    if (!titre) throw new HttpError(400, 'Un morceau sans titre ne se reconnaît pas dans la liste.');
+
+    const titres = musique.titres.map((m) => (m.id === morceau.id ? { ...m, titre } : m));
+    res.json((await saveSettings({ musique: { titres } })).musique);
+  })
+);
+
+adminRouter.delete(
+  '/musique/:id',
+  route(async (req, res) => {
+    const { musique } = await getSettings();
+    const titres = musique.titres.filter((m) => m.id !== req.params.id);
+    if (titres.length === musique.titres.length) throw new HttpError(404, 'Morceau introuvable.');
+
+    // Le fichier reste chez Telegram, dans la conversation du vendeur : on
+    // retire une entrée d'une liste, on ne détruit pas ce qu'il a envoyé.
+    res.json((await saveSettings({ musique: { titres } })).musique);
+  })
+);
+
 /** Le prix d'entrée d'un produit : celui qu'on annonce. */
 function prixMini(produit) {
   const variantes = produit.variants ?? [];
@@ -606,8 +673,8 @@ adminRouter.post(
  * C'est le type déclaré qui décide, jamais l'extension du nom : un exécutable
  * renommé « .jpg » ne doit pas se faire passer pour une image.
  *
- * @param {'photo'|'media'} attendu  `photo` refuse les vidéos — une vignette
- *   de catalogue ne se joue pas.
+ * @param {'photo'|'media'|'audio'} attendu  `photo` refuse les vidéos — une
+ *   vignette de catalogue ne se joue pas ; `audio` n'accepte qu'un morceau.
  */
 function recevoirFichier(req, attendu) {
   const octets = Buffer.isBuffer(req.body) ? req.body : null;
@@ -622,10 +689,29 @@ function recevoirFichier(req, attendu) {
       ? 'video'
       : type.startsWith('image/')
         ? 'photo'
-        : null;
+        : type.startsWith('audio/')
+          ? 'audio'
+          : null;
 
   if (!kind) {
-    throw new HttpError(400, `Ce fichier n'est ni une image ni une vidéo (${type || 'type inconnu'}).`);
+    throw new HttpError(
+      400,
+      `Ce fichier n'est ni une image, ni une vidéo, ni un morceau (${type || 'type inconnu'}).`
+    );
+  }
+  if (attendu === 'audio' && kind !== 'audio') {
+    throw new HttpError(400, 'La playlist attend un fichier audio : MP3, M4A, OGG ou FLAC.');
+  }
+  // Un bot ne peut retélécharger chez Telegram qu'un fichier de 20 Mo au
+  // plus. Au-delà, l'envoi réussirait et la lecture échouerait toujours :
+  // autant refuser ici, où l'on peut encore dire pourquoi.
+  if (kind === 'audio' && octets.length > 20 * 1024 * 1024) {
+    throw new HttpError(
+      400,
+      `Ce morceau fait ${Math.round(octets.length / 1024 / 1024)} Mo. ` +
+        'Telegram ne rend pas un fichier de plus de 20 Mo à un bot : il ne pourrait jamais être joué. ' +
+        'Réencode-le plus léger — trois minutes en 128 kbps font moins de 3 Mo.'
+    );
   }
   if (attendu === 'photo' && kind !== 'photo') {
     throw new HttpError(
@@ -659,7 +745,7 @@ function recevoirFichier(req, attendu) {
 function nomDeFichier(brut, kind) {
   return (
     String(brut ?? '').replace(/[^\w.\- ]/g, '').slice(0, 80) ||
-    `media.${kind === 'video' ? 'mp4' : 'jpg'}`
+    `media.${kind === 'video' ? 'mp4' : kind === 'audio' ? 'mp3' : 'jpg'}`
   );
 }
 

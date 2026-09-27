@@ -1782,3 +1782,160 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .card__gif { width: 100%; height: 100%; object-fit: cover; display: block; }
 img.galerie__gif { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
 .card--soldout .card__gif { filter: grayscale(1); opacity: .38; }
+
+/* ══ Le lecteur de musique ══════════════════════════════════
+   Repris de la boutique sœur, à la couleur près : le jaune d'enseigne
+   de là-bas devient le laiton d'ici. Les hauteurs de barres, elles,
+   sont déjà posées par le script (`--tabbar-h`, `--pbar-h`), et c'est
+   ce qui permet à la pastille de se ranger au-dessus des onglets sans
+   que personne ait à compter les pixels. */
+
+/* ── La pastille de musique ──────────────────────────────────
+   Au-dessus des onglets, à droite : la zone que le pouce atteint sans
+   couvrir le catalogue, et le seul coin que rien d'autre n'occupe. Elle
+   est volontairement petite — c'est une ambiance qu'on propose, pas une
+   fonction de la boutique. */
+.juke {
+  position: fixed; right: 14px; z-index: 34;
+  bottom: calc(var(--tabbar-h, 78px) + 14px);
+  width: 44px; height: 44px; padding: 0; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+  color: rgb(var(--cream-rgb) / .72);
+  background: rgb(var(--night2-rgb) / .92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgb(255 255 255 / .12);
+  box-shadow: 0 6px 18px rgb(0 0 0 / .45);
+  transition: bottom .22s ease, color .18s ease, border-color .18s ease,
+              box-shadow .18s ease, transform .12s ease;
+}
+/* Sur la fiche produit, la barre de commande prend le bas de l'écran : la
+   pastille monte au-dessus plutôt que de se cacher dessous. La hauteur de
+   la barre est mesurée à l'affichage, donc ce calcul suit un article
+   épuisé comme un texte grossi par le téléphone. */
+.juke--haut { bottom: calc(var(--tabbar-h, 78px) + var(--pbar-h, 68px) + 12px); }
+.juke:active { transform: scale(.9); }
+.juke__icone { width: 19px; height: 19px; }
+/* Les deux icônes occupent la même case : on en montre une à la fois, sans
+   que le bouton change de taille au passage. */
+.juke__icone--pause { display: none; }
+.juke--joue .juke__icone--play { display: none; }
+.juke--joue .juke__icone--pause { display: block; }
+.juke--joue {
+  color: var(--gold);
+  border-color: rgb(var(--gold-rgb) / .5);
+  box-shadow: 0 6px 18px rgb(0 0 0 / .45), 0 0 16px rgb(var(--gold-rgb) / .28);
+}
+/* Les barres se rangent sous l'icône, pas par-dessus. Au centre toutes les
+   deux, elles se confondaient avec le symbole pause : on croyait voir un
+   glyphe bizarre, et surtout on ne voyait plus ce que l'appui allait faire.
+   L'icône monte de trois pixels pour leur laisser la place. */
+.juke--joue .juke__icone { transform: translateY(-4px); }
+.juke__onde {
+  position: absolute; left: 0; right: 0; bottom: 8px;
+  display: none; align-items: flex-end; justify-content: center; gap: 2.5px;
+  height: 8px; pointer-events: none; opacity: .75;
+}
+.juke--joue .juke__onde { display: flex; }
+.juke__onde i {
+  width: 2px; height: 4px; border-radius: 1px; background: var(--gold);
+  animation: juke-onde .9s ease-in-out infinite;
+}
+.juke__onde i:nth-child(2) { animation-delay: .18s; }
+.juke__onde i:nth-child(3) { animation-delay: .36s; }
+/* Le battement d'accueil : qui écoutait la dernière fois le retrouve, sans
+   qu'un son parte tout seul. Deux battements suffisent — au-delà, ce n'est
+   plus un rappel, c'est une réclame. */
+.juke--rappel { animation: juke-rappel 1.3s ease-in-out 2; }
+/* ── Le panneau du lecteur ───────────────────────────────────
+   Ancré sur la pastille, aligné à droite comme elle, et posé au-dessus :
+   sous le pouce, là où il vient d'appuyer. Il reste étroit — c'est un
+   lecteur de fond de boutique, pas une application de musique. */
+.juke__menu {
+  position: fixed; right: 14px; z-index: 36;
+  bottom: calc(var(--tabbar-h, 78px) + 66px);
+  width: 214px; padding: 13px 14px 11px;
+  border-radius: 16px; text-align: center;
+  background: rgb(var(--night2-rgb) / .97);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgb(255 255 255 / .12);
+  box-shadow: 0 14px 34px rgb(0 0 0 / .55);
+  opacity: 0; transform: translateY(8px) scale(.97);
+  transform-origin: 85% 100%;
+  transition: opacity .18s ease, transform .18s ease;
+}
+.juke__menu--haut { bottom: calc(var(--tabbar-h, 78px) + var(--pbar-h, 68px) + 64px); }
+.juke__menu--ouvert { opacity: 1; transform: none; }
+.juke__menu-titre {
+  margin: 0 0 2px; font-size: 13.5px; font-weight: 700; line-height: 1.25;
+  color: var(--cream);
+  /* Deux lignes au plus : un titre à rallonge ferait grandir le panneau
+     d'un morceau à l'autre, et les boutons sauteraient sous le pouce. */
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; overflow-wrap: anywhere;
+}
+.juke__menu-rang {
+  margin: 0 0 9px; font-size: 11px; font-weight: 700;
+  letter-spacing: .1em; color: var(--muted);
+}
+.juke__menu-gestes { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.juke__geste {
+  width: 38px; height: 38px; padding: 0; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+  color: rgb(var(--cream-rgb) / .85);
+  background: rgb(255 255 255 / .07);
+  border: 1px solid rgb(255 255 255 / .12);
+  transition: transform .12s ease, color .15s ease, background .15s ease;
+}
+.juke__geste svg { width: 18px; height: 18px; }
+.juke__geste:active { transform: scale(.9); }
+.juke__geste[disabled] { opacity: .32; cursor: default; }
+/* La lecture est la commande principale : plus grande, et jaune dès qu'elle
+   joue — le même jaune que la pastille, pour qu'on lise l'état d'un coup. */
+.juke__geste--grand {
+  width: 46px; height: 46px;
+  background: rgb(255 255 255 / .1);
+}
+.juke__geste--grand svg { width: 21px; height: 21px; }
+.juke__geste--grand.juke--joue {
+  color: var(--gold);
+  border-color: rgb(var(--gold-rgb) / .5);
+  background: rgb(var(--gold-rgb) / .12);
+  box-shadow: none;
+}
+/* Les deux icônes partagent la case ; celle qui ne sert pas s'efface. */
+.juke__geste--grand .juke__icone--pause { display: none; }
+.juke__geste--grand.juke--joue .juke__icone--play { display: none; }
+.juke__geste--grand.juke--joue .juke__icone--pause { display: block; }
+.juke__geste--grand .juke__icone { transform: none; }
+  .juke__menu { transition: none; }
+/* Le titre en cours. Il s'aligne sur la pastille et s'efface tout seul :
+   savoir ce qu'on écoute est utile, le lire en permanence par-dessus les
+   produits ne l'est pas. */
+.juke__titre {
+  position: fixed; right: 66px; z-index: 34;
+  bottom: calc(var(--tabbar-h, 78px) + 25px);
+  margin: 0; max-width: calc(100vw - 96px);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 6px 11px; border-radius: 999px;
+  font-size: 12px; font-weight: 700;
+  color: rgb(var(--cream-rgb) / .9);
+  background: rgb(var(--night2-rgb) / .94);
+  border: 1px solid rgb(255 255 255 / .1);
+  backdrop-filter: blur(12px);
+  opacity: 0; transform: translateX(6px);
+  transition: opacity .24s ease, transform .24s ease;
+  pointer-events: none;
+}
+.juke__titre--vu { opacity: 1; transform: none; }
+[data-anim='off'] .juke--rappel { animation: none; }
+  .juke__onde i, .juke--rappel { animation: none; }
+  .juke, .juke__titre { transition: none; }
+
+@keyframes juke-onde {
+  0%, 100% { height: 3px; opacity: .5; }
+  50%      { height: 8px; opacity: 1; }
+}
+@keyframes juke-rappel {
+  0%, 100% { box-shadow: 0 6px 18px rgb(0 0 0 / .45), 0 0 0 0 rgb(var(--jaune-rgb) / .5); }
+  50%      { box-shadow: 0 6px 18px rgb(0 0 0 / .45), 0 0 0 7px rgb(var(--jaune-rgb) / 0); }
+}

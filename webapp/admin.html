@@ -149,6 +149,29 @@
     </p>
     <div class="a-features" id="featureList"></div>
 
+    <!-- La playlist. Le bloc ne s'affiche que si la fonctionnalité est
+         allumée : régler une liste qui ne joue nulle part donnerait
+         l'impression qu'elle joue. -->
+    <div id="musiqueBlock" hidden>
+      <h2 class="a-h2">Musique d'ambiance</h2>
+      <p class="a-hint">
+        Les morceaux sont envoyés à ta conversation avec le bot, comme tes
+        photos : rien n'est stocké sur le serveur, seule la référence est
+        gardée. L'ordre de la liste est l'ordre de lecture.
+        <b>Le client doit appuyer sur la pastille</b> — aucun navigateur ne
+        démarre un son tout seul, et tant qu'il n'appuie pas il ne télécharge
+        rien.
+      </p>
+      <div id="musiqueListe" class="a-musique"></div>
+      <div class="a-media__envoi" id="musiqueEnvoi" hidden>
+        <div class="a-media__barre"><div id="musiqueProgres"></div></div>
+        <span id="musiqueEtat"></span>
+      </div>
+      <button class="a-btn a-btn--block" id="pickMusique" type="button">Ajouter un morceau</button>
+      <input type="file" id="fileMusique" accept="audio/*" hidden>
+      <p class="a-hint" id="musiqueCompte"></p>
+    </div>
+
     <h2 class="a-h2">Ouverture</h2>
     <div class="a-toggle">
       <label><input type="checkbox" id="fOpen"> Boutique ouverte</label>

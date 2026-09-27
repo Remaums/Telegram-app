@@ -4,6 +4,7 @@ import { defaultHours, normalizeHours } from './opening.js';
 import { normalizeTiers } from './promos.js';
 import { normalizeZones, normalizeSlots, defaultSlots } from './delivery.js';
 import { defaultFeatures, normalizeFeatures } from './features.js';
+import { normalizeMusique } from './musique.js';
 
 /**
  * Réglages de la boutique : ce qui se change en exploitation, sans toucher au
@@ -68,6 +69,9 @@ const DEFAULTS = {
     message: 'La boutique est fermée pour le moment. Reviens un peu plus tard !',
     hours: { enabled: false, timezone: 'Europe/Paris', days: defaultHours() },
   },
+  // La playlist d'ambiance. Vide à l'installation : la pastille du lecteur
+  // ne s'affiche pas tant que le vendeur n'a pas envoyé son premier morceau.
+  musique: { titres: [] },
   // Identifiants Telegram privés de commande, sous forme de chaînes.
   blocked: [],
 };
@@ -106,6 +110,7 @@ export async function getSettings() {
         days: normalizeHours(data.opening?.hours?.days),
       },
     },
+    musique: normalizeMusique(data.musique),
     blocked: Array.isArray(data.blocked) ? data.blocked : [],
   };
 }
@@ -158,6 +163,13 @@ export async function saveSettings(patch) {
     }
     if (patch.discounts) {
       data.discounts = { tiers: normalizeTiers(patch.discounts.tiers) };
+    }
+    // La playlist s'enregistre en entier, jamais par morceau : l'écran de
+    // réglages sert surtout à réordonner, et un réordonnancement n'a de sens
+    // que comme une liste complète. Ce qui ajoute ou retire un fichier passe
+    // par les routes dédiées, qui écrivent ensuite par ici.
+    if (patch.musique) {
+      data.musique = normalizeMusique(patch.musique);
     }
     if (patch.alerts) {
       data.alerts = {

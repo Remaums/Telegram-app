@@ -19,6 +19,7 @@ import { buildChallenge, solveChallenge, passIsValid } from './captcha.js';
 import { getVerification, isApproved } from './verification.js';
 import { isOpenNow, nextChange } from './opening.js';
 import { servirMedia, etatDuCache } from './media-cache.js';
+import { playlistPublique, morceauParId } from './musique.js';
 import { waitlistKey, subscribe, isSubscribed } from './waitlist.js';
 import { bestDiscount, releasePromo } from './promos.js';
 import {
@@ -99,7 +100,15 @@ app.use(['/api/admin/backup/restore', '/api/admin/backup/inspect'], express.json
 // le type voyagent dans l'URL, le fichier est le corps. La limite couvre le
 // plus gros des deux plafonds Telegram ; la route affine ensuite selon le type.
 app.use(
-  ['/api/admin/products/:id/media/upload', '/api/admin/products/:id/image/upload'],
+  [
+    '/api/admin/products/:id/media/upload',
+    '/api/admin/products/:id/image/upload',
+    // Un morceau arrive par le même chemin que les photos. Oublier cette
+    // ligne ne casse rien de visible : le binaire tombe simplement dans
+    // `express.json()`, qui n'en fait rien, et la boutique répond « Aucun
+    // fichier reçu » sur un fichier parfaitement arrivé.
+    '/api/admin/musique/upload',
+  ],
   express.raw({ type: () => true, limit: '21mb' })
 );
 app.use(express.json({ limit: '64kb' }));
@@ -204,6 +213,10 @@ app.get('/api/catalog', async (req, res, next) => {
       // Les notes voyagent avec le catalogue : une étoile sur une carte ne
       // vaut pas un aller-retour de plus, et la grille les affiche toutes.
       notes: settings.features.avis ? await notesDuCatalogue() : {},
+      // Les titres et leur ordre, jamais les `fileId` : cette réponse se lit
+      // sans la moindre signature, et un file_id Telegram est une adresse
+      // utilisable par quiconque possède le token du bot.
+      musique: playlistPublique(settings.musique, settings.features.musique),
     });
   } catch (err) {
     next(err);
@@ -915,6 +928,36 @@ app.get('/api/waitlist', authenticate, async (req, res, next) => {
 });
 
 /* ── Photos de produits ──────────────────────────────────── */
+
+/**
+ * Sert un morceau de la playlist depuis Telegram.
+ *
+ * Le client reçoit un identifiant interne, jamais le `file_id` : c'est ici
+ * que se fait la traduction, morceau par morceau. `media-cache` s'occupe du
+ * reste — il relaie les requêtes de plage, ce dont un lecteur audio a besoin
+ * pour se déplacer dans un morceau sans le retélécharger.
+ *
+ * L'interrupteur est vérifié ici et pas seulement à l'affichage : masquer une
+ * pastille ne ferme aucune porte, l'URL resterait appelable.
+ */
+app.get('/api/musique/:id', async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.features.musique) return res.status(404).json({ error: 'Musique désactivée.' });
+
+    const morceau = morceauParId(settings.musique, req.params.id);
+    if (!morceau) return res.status(404).json({ error: 'Morceau introuvable.' });
+
+    await servirMedia(req, res, { fileId: morceau.fileId, kind: 'audio' });
+  } catch (err) {
+    // Un lecteur audio ferme la connexion dès qu'il a de quoi jouer, et
+    // chaque changement de morceau en abandonne une : ce n'est pas une panne.
+    if (err?.code === 'ERR_STREAM_PREMATURE_CLOSE' || res.writableEnded) return;
+    console.error('Morceau indisponible :', err.message);
+    if (!res.headersSent) res.status(502).json({ error: 'Morceau indisponible.' });
+    else next(err);
+  }
+});
 
 /**
  * Sert la photo d'un produit depuis Telegram.

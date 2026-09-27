@@ -14,6 +14,7 @@ const state = {
   categories: [],
   products: [],
   statuses: {},
+  musique: { titres: [] },  // la playlist d'ambiance, si le vendeur en a une
   category: 'all',
   query: '',           // ce que le client cherche
   sort: 'default',     // et dans quel ordre il veut voir
@@ -99,6 +100,7 @@ async function init() {
     state.tiers = data.discounts?.tiers ?? [];
     state.zones = data.zones ?? [];
     state.slotsEnabled = Boolean(data.slots?.enabled);
+    state.musique = data.musique ?? { titres: [] };
     appliquerLesAnimations();
     applyFeatures();
     state.mode = state.fulfillment.pickup ? 'pickup' : 'delivery';
@@ -129,6 +131,7 @@ async function init() {
   renderCategories();
   renderGrid();
   renderCart();
+  monterLeJuke();
   retirerLeVoile();
   mesurerLaBarre();
   placerLeCurseur();
@@ -2174,6 +2177,335 @@ function setQty(next) {
 
   // On signale la fin de série : c'est ce qui fait bouger un panier.
   $('qtyPlus').disabled = state.currentQty >= available;
+}
+
+/* ── La musique d'ambiance ───────────────────────────────── */
+
+/* Le choix du client survit à la visite. On retient une préférence, pas une
+   position de lecture : reprendre un morceau à la seconde près supposerait
+   qu'il se souvienne de ce qu'il écoutait, ce qui n'arrive pas quand deux
+   jours ont passé. */
+const JUKE_CLEF = 'kartoon.musique';
+
+const juke = {
+  liste: [],
+  index: 0,
+  /* Le client a-t-il demandé la musique ? Distinct de « ça joue » : un
+     morceau qui se charge n'est pas encore un morceau qui joue, et la
+     pastille doit montrer l'intention dès l'appui. */
+  voulue: false,
+  minuteurTitre: null,
+  /* Les drapeaux d'une seule fois. Déclarés plutôt que posés à la volée :
+     lus avant d'être écrits, ils valent `undefined`, ce qui marche par
+     accident et ne se lit nulle part. */
+  branche: false,          // les écouteurs du lecteur sont-ils posés ?
+  guette: false,           // attend-on déjà le premier geste du client ?
+  demarrageTente: false,   // a-t-on déjà tenté de démarrer à l'arrivée ?
+  rappelFait: false,       // la pastille a-t-elle déjà fait son clin d'œil ?
+};
+
+/**
+ * Monte le lecteur, si le vendeur a une playlist et l'a allumée.
+ *
+ * Rien ne démarre ici. Aucun navigateur ni WebView ne joue un son sans geste
+ * du client, et c'est tant mieux : personne n'ouvre une boutique en
+ * s'attendant à de la musique. La pastille est le geste.
+ */
+/**
+ * Attend le premier geste du client, et lance la musique dessus.
+ *
+ * Aucun navigateur ni WebView ne laisse partir un son sans geste fait DANS
+ * la page — et l'appui qui a ouvert la Mini App appartient à Telegram, pas
+ * à nous : il ne compte pas. La boutique sœur récupère ce geste sur le
+ * drapeau d'un cadre d'accueil ; ici il n'y en a pas, et les deux portes
+ * qui pourraient servir — la barrière d'âge et la grille de vérification —
+ * sont l'une et l'autre débrayables par le vendeur. S'y accrocher
+ * reviendrait à faire dépendre la musique d'un réglage sans rapport.
+ *
+ * On écoute donc le premier appui, où qu'il tombe. `once` : l'écouteur se
+ * retire de lui-même, et `capture` le fait passer avant les gestionnaires
+ * de la page, pour qu'un appui sur une carte produise la musique aussi bien
+ * qu'un appui dans le vide.
+ *
+ * Rien ne part si le client a déjà mis en pause lors d'une visite
+ * précédente : `lancerLaMusiqueALArrivee` lit ce choix avant de toucher au
+ * lecteur.
+ */
+function guetterLePremierGeste() {
+  if (juke.guette) return;
+  juke.guette = true;
+  const partir = () => lancerLaMusiqueALArrivee();
+  // `pointerdown` couvre le doigt comme la souris ; `keydown` laisse une
+  // chance à qui navigue au clavier, pour qui aucun appui n'arriverait.
+  document.addEventListener('pointerdown', partir, { once: true, capture: true });
+  document.addEventListener('keydown', partir, { once: true, capture: true });
+}
+
+function monterLeJuke() {
+  const bouton = $('juke');
+  const son = $('jukeSon');
+  if (!bouton || !son) return;
+
+  juke.liste = state.musique?.titres ?? [];
+  if (juke.liste.length) guetterLePremierGeste();
+  // Sans morceau, pas de pastille — même interrupteur allumé. Un bouton qui
+  // ne joue rien est pire qu'un bouton absent.
+  if (!juke.liste.length) {
+    bouton.hidden = true;
+    arreterLeJuke();
+    return;
+  }
+  bouton.hidden = false;
+
+  // Une seule fois : cette fonction est rappelée à chaque rechargement du
+  // catalogue, et empiler les écouteurs ferait avancer la playlist de deux
+  // morceaux à la fin du premier.
+  if (!juke.branche) {
+    juke.branche = true;
+    bouton.addEventListener('click', basculerLeMenu);
+    $('jukeLecture').addEventListener('click', basculerLeJuke);
+    $('jukePrec').addEventListener('click', () => changerDeMorceau(-1));
+    $('jukeSuiv').addEventListener('click', () => changerDeMorceau(1));
+
+    // Un appui ailleurs referme le panneau. Il est posé sur la phase de
+    // capture : sans elle, un appui sur une carte ouvrirait la fiche ET
+    // laisserait le panneau ouvert par-dessus.
+    document.addEventListener('click', (ev) => {
+      if ($('jukeMenu')?.hidden) return;
+      if (ev.target.closest('#jukeMenu') || ev.target.closest('#juke')) return;
+      fermerLeMenu();
+    }, true);
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && !$('jukeMenu')?.hidden) fermerLeMenu();
+    });
+    son.addEventListener('ended', () => jouerLeMorceau(juke.index + 1));
+    // Un morceau introuvable ne doit pas arrêter la playlist : on passe au
+    // suivant. Sans ça, un `file_id` périmé gèle le lecteur sans rien dire.
+    son.addEventListener('error', () => {
+      if (!juke.voulue) return;
+      if (juke.liste.length > 1) jouerLeMorceau(juke.index + 1);
+      else arreterLeJuke();
+    });
+  }
+
+  peindreLeJuke();
+
+}
+
+/**
+ * Le choix de la langue dans le profil.
+ *
+ * Les mêmes boutons que sur l'écran d'accueil, au même endroit du code :
+ * deux listes de drapeaux écrites séparément finiraient par diverger, et
+ * c'est le genre d'écart qu'on ne remarque qu'une fois une langue ajoutée
+ * d'un côté seulement.
+ */
+function lancerLaMusiqueALArrivee() {
+  if (!juke.liste.length || juke.voulue || juke.demarrageTente) return;
+  // Le catalogue se recharge à chaque changement d'état de la boutique : sans
+  // ce garde-fou, chaque rechargement relancerait la playlist au premier
+  // morceau, par-dessus celui qui joue.
+  juke.demarrageTente = true;
+  // « La première du registre » : on repart du haut de la liste, quel que
+  // soit l'endroit où le client en était avant un rechargement.
+  juke.index = 0;
+
+  let choixPasse = null;
+  try { choixPasse = localStorage.getItem(JUKE_CLEF); } catch { /* navigation privée */ }
+  if (choixPasse === 'non') return;
+
+  const son = $('jukeSon');
+  if (!son) return;
+
+  juke.voulue = true;
+  const morceau = juke.liste[juke.index];
+  son.src = morceau.url;
+  son.play().then(
+    () => {
+      montrerLeTitre(morceau.titre);
+      peindreLeJuke();
+    },
+    () => {
+      // Refus : on efface toute trace de la tentative, y compris la source,
+      // sinon le navigateur continue de télécharger un morceau que personne
+      // n'entendra.
+      juke.voulue = false;
+      son.removeAttribute('src');
+      son.load();
+      peindreLeJuke();
+      inviterALaMusique();
+    }
+  );
+  peindreLeJuke();
+}
+
+/** La pastille bat, sans un son : il y a de la musique, elle attend un appui. */
+function inviterALaMusique() {
+  const bouton = $('juke');
+  if (!bouton || juke.rappelFait || !anime()) return;
+  juke.rappelFait = true;
+  bouton.classList.add('juke--rappel');
+  setTimeout(() => bouton.classList.remove('juke--rappel'), 2600);
+}
+
+/**
+ * Ouvre ou referme le panneau du lecteur.
+ *
+ * Rien ne démarre ici : le panneau s'ouvre en silence. Le geste qui autorise
+ * la lecture, aux yeux du navigateur comme à ceux du client, c'est l'appui
+ * sur « lecture » — pas l'appui sur la pastille.
+ */
+function basculerLeMenu() {
+  const menu = $('jukeMenu');
+  if (!menu) return;
+  if (menu.hidden) {
+    // Le titre flottant n'a plus lieu d'être : le panneau le dit en grand.
+    masquerLeTitre();
+    menu.hidden = false;
+    requestAnimationFrame(() => menu.classList.add('juke__menu--ouvert'));
+    $('juke')?.setAttribute('aria-expanded', 'true');
+    peindreLeJuke();
+    // Le premier geste au clavier tombe sur la commande principale.
+    $('jukeLecture')?.focus({ preventScroll: true });
+  } else {
+    fermerLeMenu();
+  }
+  haptic('light');
+}
+
+function fermerLeMenu() {
+  const menu = $('jukeMenu');
+  if (!menu || menu.hidden) return;
+  menu.classList.remove('juke__menu--ouvert');
+  $('juke')?.setAttribute('aria-expanded', 'false');
+  // On attend la fin du repli avant de le retirer du calque : caché
+  // aussitôt, il disparaîtrait d'un coup au lieu de se refermer.
+  setTimeout(() => { menu.hidden = true; }, 200);
+}
+
+/**
+ * Le morceau d'avant ou celui d'après.
+ *
+ * Si rien ne joue, on change quand même de morceau — mais sans lancer la
+ * lecture : le client explore sa playlist, il la démarrera quand il voudra.
+ * L'appel vient d'un appui, donc lancer serait autorisé ; ce n'est pas une
+ * raison pour le faire à sa place.
+ */
+function changerDeMorceau(sens) {
+  if (!juke.liste.length) return;
+  if (juke.voulue) {
+    jouerLeMorceau(juke.index + sens);
+  } else {
+    juke.index = ((juke.index + sens) % juke.liste.length + juke.liste.length) % juke.liste.length;
+    peindreLeJuke();
+  }
+  haptic('light');
+}
+
+/** L'état de la pastille : au repos, ou en train de jouer. */
+function peindreLeJuke() {
+  const bouton = $('juke');
+  if (!bouton) return;
+  bouton.classList.toggle('juke--joue', juke.voulue);
+  bouton.setAttribute('aria-label', 'Ouvrir le lecteur de musique');
+
+  // Le panneau porte le même état : c'est là qu'on lit ce qui joue et qu'on
+  // agit dessus, la pastille ne fait plus que l'ouvrir.
+  const lecture = $('jukeLecture');
+  if (lecture) {
+    lecture.classList.toggle('juke--joue', juke.voulue);
+    lecture.setAttribute('aria-label', juke.voulue ? 'Pause' : 'Lecture');
+  }
+  const morceau = juke.liste[juke.index];
+  const titre = $('jukeMenuTitre');
+  if (titre) titre.textContent = morceau?.titre ?? '—';
+  const rang = $('jukeMenuRang');
+  if (rang) {
+    rang.textContent = juke.liste.length
+      ? `${juke.index + 1} / ${juke.liste.length}`
+      : '';
+  }
+  // Un seul morceau : « précédent » et « suivant » ramèneraient au même, et
+  // un bouton qui ne fait rien vaut moins qu'un bouton éteint.
+  const seul = juke.liste.length < 2;
+  for (const id of ['jukePrec', 'jukeSuiv']) {
+    const b = $(id);
+    if (b) b.disabled = seul;
+  }
+}
+
+function basculerLeJuke() {
+  if (juke.voulue) {
+    arreterLeJuke();
+    try { localStorage.setItem(JUKE_CLEF, 'non'); } catch { /* navigation privée */ }
+  } else {
+    juke.voulue = true;
+    try { localStorage.setItem(JUKE_CLEF, 'oui'); } catch { /* navigation privée */ }
+    jouerLeMorceau(juke.index);
+  }
+  peindreLeJuke();
+  haptic('light');
+}
+
+function arreterLeJuke() {
+  const son = $('jukeSon');
+  juke.voulue = false;
+  if (son) {
+    son.pause();
+    // On vide la source : sans ça, le navigateur continue de télécharger le
+    // morceau en cours après la mise en pause, et le client paie une
+    // ambiance qu'il vient justement de couper.
+    son.removeAttribute('src');
+    son.load();
+  }
+  masquerLeTitre();
+  peindreLeJuke();
+}
+
+function jouerLeMorceau(n) {
+  const son = $('jukeSon');
+  if (!son || !juke.liste.length) return;
+
+  // La playlist tourne en rond : après le dernier, le premier.
+  juke.index = ((n % juke.liste.length) + juke.liste.length) % juke.liste.length;
+  const morceau = juke.liste[juke.index];
+
+  son.src = morceau.url;
+  son.play().then(
+    () => montrerLeTitre(morceau.titre),
+    () => {
+      // Refus du navigateur : la lecture n'a pas été demandée par un geste,
+      // ou la WebView l'interdit. On repasse au repos plutôt que de laisser
+      // une pastille allumée sur un silence.
+      juke.voulue = false;
+      peindreLeJuke();
+    }
+  );
+  peindreLeJuke();
+}
+
+/** Le titre s'annonce quelques secondes, puis rend l'écran au catalogue. */
+function montrerLeTitre(titre) {
+  const ligne = $('jukeTitre');
+  if (!ligne) return;
+  // Panneau ouvert, il affiche déjà le titre en grand : la pastille flottante
+  // ferait doublon, et par-dessus le panneau en plus.
+  if (!$('jukeMenu')?.hidden) return;
+  ligne.textContent = titre;
+  ligne.hidden = false;
+  requestAnimationFrame(() => ligne.classList.add('juke__titre--vu'));
+  clearTimeout(juke.minuteurTitre);
+  juke.minuteurTitre = setTimeout(masquerLeTitre, 3400);
+}
+
+function masquerLeTitre() {
+  const ligne = $('jukeTitre');
+  if (!ligne) return;
+  clearTimeout(juke.minuteurTitre);
+  ligne.classList.remove('juke__titre--vu');
+  // On attend la fin du fondu avant de retirer l'élément du calque : caché
+  // aussitôt, il disparaîtrait d'un coup au lieu de s'effacer.
+  setTimeout(() => { ligne.hidden = true; }, 260);
 }
 
 /* ── Liste d'attente ─────────────────────────────────────── */

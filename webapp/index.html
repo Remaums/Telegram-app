@@ -373,6 +373,73 @@
   </button>
 </div>
 
+<!-- ══ La pastille de musique ══ ═════════════════════════════
+     Posée au-dessus des onglets, à droite, là où le pouce arrive sans
+     couvrir le catalogue. Elle reste cachée tant que le vendeur n'a pas
+     de playlist, ou qu'il a éteint l'interrupteur.
+
+     Le client doit appuyer, et ce n'est pas un choix de design : aucun
+     navigateur ni WebView ne démarre un son sans geste. C'est d'ailleurs
+     ce qui rend la chose honnête — personne ne se fait surprendre par de
+     la musique en ouvrant une boutique.
+
+     `preload="none"` : tant que personne n'appuie, pas un octet d'audio
+     ne part. Un client venu acheter ne paie pas l'ambiance. -->
+<button class="juke" id="juke" type="button" hidden
+        aria-label="Ouvrir le lecteur de musique" aria-expanded="false" aria-controls="jukeMenu">
+  <svg class="juke__icone juke__icone--play" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M8 5.5v13l11-6.5z" fill="currentColor"/>
+  </svg>
+  <svg class="juke__icone juke__icone--pause" viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="7" y="5.5" width="3.4" height="13" rx="1" fill="currentColor"/>
+    <rect x="13.6" y="5.5" width="3.4" height="13" rx="1" fill="currentColor"/>
+  </svg>
+  <span class="juke__onde" aria-hidden="true"><i></i><i></i><i></i></span>
+</button>
+<!-- Le lecteur, ouvert par la pastille.
+
+     La pastille seule ne savait que démarrer et arrêter : passer un morceau
+     demandait d'attendre la fin du précédent. Elle ouvre donc un panneau, et
+     c'est là que vivent les commandes.
+
+     Rien ne démarre à l'ouverture du panneau. Un client qui l'ouvre par
+     curiosité n'a pas à se faire surprendre par du son — et c'est aussi ce
+     que le navigateur exige : le geste qui autorise la lecture, c'est
+     l'appui sur « lecture », pas l'appui sur la pastille. -->
+<div class="juke__menu" id="jukeMenu" hidden role="group" aria-label="Lecteur de musique">
+  <p class="juke__menu-titre" id="jukeMenuTitre" aria-live="polite">—</p>
+  <p class="juke__menu-rang" id="jukeMenuRang"></p>
+  <div class="juke__menu-gestes">
+    <button class="juke__geste" id="jukePrec" type="button" aria-label="Morceau précédent">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M18 5.5v13L8.5 12z" fill="currentColor"/>
+        <rect x="5" y="5.5" width="2.6" height="13" rx="1" fill="currentColor"/>
+      </svg>
+    </button>
+    <button class="juke__geste juke__geste--grand" id="jukeLecture" type="button" aria-label="Lecture">
+      <svg class="juke__icone juke__icone--play" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M8 5.5v13l11-6.5z" fill="currentColor"/>
+      </svg>
+      <svg class="juke__icone juke__icone--pause" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="7" y="5.5" width="3.4" height="13" rx="1" fill="currentColor"/>
+        <rect x="13.6" y="5.5" width="3.4" height="13" rx="1" fill="currentColor"/>
+      </svg>
+    </button>
+    <button class="juke__geste" id="jukeSuiv" type="button" aria-label="Morceau suivant">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6 5.5v13L15.5 12z" fill="currentColor"/>
+        <rect x="16.4" y="5.5" width="2.6" height="13" rx="1" fill="currentColor"/>
+      </svg>
+    </button>
+  </div>
+</div>
+<!-- Le titre en cours, qui se montre quelques secondes à chaque morceau
+     puis s'efface : savoir ce qu'on écoute est utile, le lire en
+     permanence par-dessus le catalogue ne l'est pas. Il ne paraît que
+     lorsque le panneau est fermé — ouvert, il dit déjà le titre. -->
+<p class="juke__titre" id="jukeTitre" hidden aria-live="polite"></p>
+<audio id="jukeSon" preload="none"></audio>
+
 <nav class="tabbar" id="tabbar" role="tablist" aria-label="Navigation">
   <span class="tabbar__curseur tabbar__curseur--pose" id="tabbarCurseur" aria-hidden="true"></span>
   <button class="tabbar__item" type="button" role="tab" data-onglet="filtres" aria-selected="true">

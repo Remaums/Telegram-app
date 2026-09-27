@@ -141,6 +141,16 @@ export const FEATURES = [
     default: true,
   },
   {
+    key: 'musique',
+    label: 'Musique d\'ambiance',
+    hint:
+      'Une pastille discrète, en bas de la boutique, qui joue la playlist du vendeur. ' +
+      "Le client doit appuyer : aucun navigateur ne démarre un son tout seul, et tant qu'il " +
+      "n'a pas appuyé il ne télécharge rien. Sans morceau dans la liste, la pastille ne " +
+      "s'affiche pas, interrupteur allumé ou non.",
+    default: false,
+  },
+  {
     key: 'clientNotifications',
     label: 'Suivi envoyé au client',
     hint: 'Confirmation de commande et messages à chaque changement de statut.',

@@ -1423,6 +1423,24 @@ export async function deposerMedia(chatId, kind, octets, nomFichier, legende) {
     return { kind: 'gif', fileId: anime.file_id, thumbFileId: vignetteDe(anime) };
   }
 
+  // Un morceau passe par `sendAudio` et non par `sendDocument` : Telegram en
+  // lit alors les étiquettes et nous rend le titre, l'interprète et la durée.
+  // Envoyé comme document, le même fichier revient sans rien de tout ça, et
+  // le vendeur devrait retaper à la main ce qui est déjà écrit dedans.
+  if (kind === 'audio') {
+    const message = await bot.api.sendAudio(chatId, fichier, options, AbortSignal.timeout(DELAI_ENVOI));
+    const piste = message.audio ?? message.document;
+    return {
+      kind: 'audio',
+      fileId: piste.file_id,
+      // `title` et `performer` viennent des étiquettes du fichier : absents
+      // sur un enregistrement fait maison, et c'est le nom du fichier qui
+      // prend le relais plus haut.
+      titre: piste.title ? [piste.performer, piste.title].filter(Boolean).join(' — ') : null,
+      duree: Number.isFinite(piste.duration) ? piste.duration : null,
+    };
+  }
+
   const message = await bot.api.sendPhoto(chatId, fichier, options, AbortSignal.timeout(DELAI_ENVOI));
   // Telegram range les tailles de la plus petite à la plus grande : la
   // dernière est celle qu'on veut afficher.

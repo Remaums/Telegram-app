@@ -61,6 +61,7 @@ async function init() {
     state.statuses = session.statuses;
     state.featureList = session.features ?? [];
     state.mediaMax = session.mediaMax ?? 8;
+    state.musiqueMax = session.musiqueMax ?? 30;
     $('adminName').textContent = session.user.first_name ?? 'Admin';
     $('gate').hidden = true;
   } catch (err) {
@@ -151,6 +152,15 @@ function bindHandlers() {
   });
   $('pickMedia').addEventListener('click', () => $('mediaFile').click());
   $('mediaFile').addEventListener('change', envoyerDepuisLaGalerie);
+  $('pickMusique').addEventListener('click', () => $('fileMusique').click());
+  $('fileMusique').addEventListener('change', (ev) => {
+    const fichier = ev.target.files?.[0];
+    // Le champ est vidé aussitôt : sans ça, renvoyer deux fois le même
+    // fichier ne déclenche pas de second `change`, et le vendeur croit que
+    // l'envoi a échoué.
+    ev.target.value = '';
+    if (fichier) envoyerUnMorceau(fichier);
+  });
   $('pickImage').addEventListener('click', () => $('imageFile').click());
   $('imageFile').addEventListener('change', envoyerLaVignette);
   for (const id of ['fSauvegardeAuto', 'fOubliAuto', 'fOubliJours']) {
@@ -1790,6 +1800,7 @@ function renderSettings() {
   if (!settings) return;
 
   renderFeatures();
+  renderMusique();
   renderLinkTargets();
 
   const opening = settings.opening ?? { open: true, hours: {} };
@@ -2259,12 +2270,29 @@ async function envoyerDepuisLaGalerie(event) {
   }
 }
 
-/** Un fichier, en corps brut, avec l'avancement rapporté au fur et à mesure. */
+/** Un média de produit : l'adresse se déduit de la fiche ouverte. */
 function televerser(fichier, avance, chemin = 'media') {
+  const nom = encodeURIComponent(fichier.name || 'media');
+  return televerserVers(
+    `/api/admin/products/${state.editing.id}/${chemin}/upload?nom=${nom}`,
+    fichier,
+    avance
+  );
+}
+
+/**
+ * Un fichier, en corps brut, avec l'avancement rapporté au fur et à mesure.
+ *
+ * L'adresse est un paramètre depuis que la playlist emprunte le même chemin :
+ * un morceau ne se range pas sous un produit, et recopier trente lignes pour
+ * changer une URL aurait fait deux envois à corriger le jour où l'un casse.
+ *
+ * `XMLHttpRequest` plutôt que `fetch` : lui seul sait dire où en est l'envoi.
+ */
+function televerserVers(url, fichier, avance) {
   return new Promise((resolve, rejeter) => {
     const requete = new XMLHttpRequest();
-    const nom = encodeURIComponent(fichier.name || 'media');
-    requete.open('POST', `/api/admin/products/${state.editing.id}/${chemin}/upload?nom=${nom}`);
+    requete.open('POST', url);
     requete.setRequestHeader('Content-Type', fichier.type || 'application/octet-stream');
     requete.setRequestHeader('X-Telegram-Init-Data', tg?.initData ?? '');
 
@@ -3192,6 +3220,120 @@ async function saveCategoryList() {
 }
 
 /* ── Utilitaires ─────────────────────────────────────────── */
+
+/* ── La playlist d'ambiance ─────────────────────────────── */
+
+/**
+ * La liste des morceaux, avec leur ordre.
+ *
+ * Réordonner se fait par deux flèches et non par glisser-déposer : sur un
+ * téléphone, un glisser dans une liste qui défile attrape le défilement une
+ * fois sur deux, et le vendeur croit avoir déplacé un morceau qui n'a pas
+ * bougé.
+ */
+function renderMusique() {
+  const bloc = $('musiqueBlock');
+  if (!bloc) return;
+
+  // Le bloc suit l'interrupteur : régler une playlist qui ne joue nulle part
+  // donnerait l'impression qu'elle joue.
+  bloc.hidden = !state.settings?.features?.musique;
+  if (bloc.hidden) return;
+
+  const titres = state.settings?.musique?.titres ?? [];
+  const liste = $('musiqueListe');
+  const max = state.musiqueMax ?? 30;
+
+  $('musiqueCompte').textContent = titres.length
+    ? `${titres.length} morceau${titres.length > 1 ? 'x' : ''} sur ${max}.`
+    : "Aucun morceau : la pastille ne s'affiche pas encore dans la boutique.";
+  $('pickMusique').disabled = titres.length >= max;
+
+  liste.replaceChildren(
+    ...titres.map((morceau, rang) => {
+      const ligne = document.createElement('div');
+      ligne.className = 'a-musique__ligne';
+      ligne.innerHTML = `
+        <span class="a-musique__rang">${rang + 1}</span>
+        <input class="a-musique__titre" value="${escapeHtml(morceau.titre)}" maxlength="80"
+               aria-label="Titre du morceau ${rang + 1}">
+        <button class="a-musique__geste" type="button" data-sens="-1" title="Monter"
+                aria-label="Monter" ${rang === 0 ? 'disabled' : ''}>↑</button>
+        <button class="a-musique__geste" type="button" data-sens="1" title="Descendre"
+                aria-label="Descendre" ${rang === titres.length - 1 ? 'disabled' : ''}>↓</button>
+        <button class="a-musique__geste a-musique__geste--oter" type="button" data-oter="1"
+                title="Retirer" aria-label="Retirer">✕</button>`;
+
+      // Le titre s'enregistre quand le champ perd le focus, pas à chaque
+      // frappe : une requête par lettre saturerait la liaison du téléphone.
+      const champ = ligne.querySelector('.a-musique__titre');
+      champ.addEventListener('change', async () => {
+        const titre = champ.value.trim();
+        if (!titre || titre === morceau.titre) { champ.value = morceau.titre; return; }
+        try {
+          const musique = await api(`/musique/${morceau.id}`, { method: 'PATCH', body: { titre } });
+          state.settings.musique = musique;
+          renderMusique();
+        } catch (err) { toast(err.message); champ.value = morceau.titre; }
+      });
+
+      for (const bouton of ligne.querySelectorAll('[data-sens]')) {
+        bouton.addEventListener('click', () => deplacerLeMorceau(rang, Number(bouton.dataset.sens)));
+      }
+      ligne.querySelector('[data-oter]').addEventListener('click', async () => {
+        if (!confirm(`Retirer « ${morceau.titre} » de la playlist ?`)) return;
+        try {
+          state.settings.musique = await api(`/musique/${morceau.id}`, { method: 'DELETE' });
+          renderMusique();
+        } catch (err) { toast(err.message); }
+      });
+      return ligne;
+    })
+  );
+}
+
+/** Monte ou descend un morceau, et enregistre la liste entière. */
+async function deplacerLeMorceau(rang, sens) {
+  const titres = [...(state.settings?.musique?.titres ?? [])];
+  const vise = rang + sens;
+  if (vise < 0 || vise >= titres.length) return;
+  [titres[rang], titres[vise]] = [titres[vise], titres[rang]];
+
+  try {
+    const reglages = await api('/settings', { method: 'PUT', body: { musique: { titres } } });
+    state.settings = reglages;
+    renderMusique();
+  } catch (err) { toast(err.message); }
+}
+
+/** Envoie un morceau depuis le téléphone. */
+async function envoyerUnMorceau(fichier) {
+  const zone = $('musiqueEnvoi');
+  const barre = $('musiqueProgres');
+  const etat = $('musiqueEtat');
+
+  zone.hidden = false;
+  $('pickMusique').disabled = true;
+  etat.textContent = 'Envoi…';
+
+  try {
+    const nom = encodeURIComponent(fichier.name || 'morceau.mp3');
+    const musique = await televerserVers(
+      `/api/admin/musique/upload?nom=${nom}`,
+      fichier,
+      (part) => { barre.style.width = `${Math.round(part * 100)}%`; }
+    );
+    state.settings.musique = musique;
+    renderMusique();
+    toast('Morceau ajouté.');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    zone.hidden = true;
+    barre.style.width = '0%';
+    $('pickMusique').disabled = false;
+  }
+}
 
 async function api(path, { method = 'GET', body } = {}) {
   const res = await fetch(`/api/admin${path}`, {

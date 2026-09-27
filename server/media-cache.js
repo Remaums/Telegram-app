@@ -312,7 +312,12 @@ export async function servirMedia(req, res, media) {
   // Un GIF déposé chez Telegram revient en MP4 : c'est le type à annoncer
   // faute de mieux, sans quoi le navigateur recevrait une vidéo étiquetée
   // « image/jpeg » et n'afficherait rien.
-  const parDefaut = media.kind === 'video' || media.kind === 'gif' ? 'video/mp4' : 'image/jpeg';
+  const parDefaut =
+    media.kind === 'video' || media.kind === 'gif'
+      ? 'video/mp4'
+      : media.kind === 'audio'
+        ? 'audio/mpeg'
+        : 'image/jpeg';
   const type = upstream.headers.get('content-type') || parDefaut;
 
   res.status(upstream.status === 206 ? 206 : 200);
