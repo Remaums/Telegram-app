@@ -1642,6 +1642,13 @@ function productCard(product) {
   // Muette et sans contrôles : la carte entière reste un bouton qui ouvre la
   // fiche, et aucun son ne sort d'une grille de catalogue.
   const photo = video ? null : photoDeVitrine(product);
+  // Une vraie image du vendeur, photo ou film — par opposition au dessin de
+  // remplacement. C'est ce qui décide de l'intensité du néon, et la classe
+  // est posée ici plutôt que lue par `:has()` dans la feuille de style : la
+  // WebView de Telegram n'est pas toujours récente, et un sélecteur qu'elle
+  // ne comprend pas éteindrait l'effet sans rien dire.
+  if (photo || video) card.classList.add('card--vitrine');
+
   const visuel = video?.image
     ? `<img class="card__gif" src="${escapeHtml(video.url)}" alt="" loading="lazy">`
     : video

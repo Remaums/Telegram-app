@@ -487,17 +487,53 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 8px; }
 @media (min-width: 520px) { .grid { grid-template-columns: repeat(3, 1fr); } }
 
+/* Les cartes, sous néon.
+   Elles étaient plates sur un fond presque de la même couleur : la grille se
+   lisait comme un pavé gris, et rien n'appelait l'œil. Le contour terre
+   cuite et son halo les détachent — c'est la teinte qui sert déjà aux
+   favoris, donc la boutique n'y gagne pas une couleur de plus.
+
+   `--halo2-rgb` et non le laiton : sur ce fond d'encre, le laiton se
+   confond avec le doré des prix, et deux choses dorées côte à côte n'en
+   mettent aucune en valeur. */
 .card {
   position: relative; display: flex; flex-direction: column;
   color: var(--cream);
   background: var(--panel);
-  border: var(--line) solid var(--line-soft);
+  border: var(--line) solid rgb(var(--halo2-rgb) / .5);
   border-radius: var(--radius);
-  box-shadow: none;
+  box-shadow:
+    0 0 0 1px rgb(var(--halo2-rgb) / .22),
+    0 14px 30px rgb(0 0 0 / .72),
+    0 0 32px -6px rgb(var(--halo2-rgb) / .6);
   overflow: hidden; text-align: left; padding: 0;
-  transition: transform .14s ease, border-color .14s ease;
+  transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease;
 }
-.card:active { transform: scale(.975); border-color: rgb(var(--neon-rgb) / .45); }
+
+/* Plus vif sur ce que le vendeur a photographié : c'est ce qui mérite d'être
+   regardé, et ça lui donne une raison de remplacer les derniers dessins de
+   remplacement par de vraies images. */
+.card--vitrine {
+  border-color: rgb(var(--halo2-rgb));
+  box-shadow:
+    0 0 0 2px rgb(var(--halo2-rgb) / .45),
+    0 16px 34px rgb(0 0 0 / .85),
+    0 0 24px -2px rgb(var(--halo2-rgb) / .85),
+    0 0 56px 2px rgb(var(--halo2-rgb) / .5);
+}
+
+/* Épuisé : le néon s'éteint. Faire briller ce qu'on ne peut pas acheter,
+   c'est appeler l'œil vers une déception. */
+.card--soldout,
+.card--soldout.card--vitrine {
+  border-color: var(--line-soft);
+  box-shadow: 0 10px 22px rgb(0 0 0 / .5);
+}
+
+.card:active {
+  transform: scale(.975);
+  border-color: rgb(var(--neon-rgb) / .45);
+}
 
 /* La vignette d'un produit sans photo. Le halo vert derrière la feuille a
    sauté : il donnait à chaque case l'air d'être en promotion, y compris
