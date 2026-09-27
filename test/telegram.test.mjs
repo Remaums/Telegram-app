@@ -95,6 +95,16 @@ const jouer = async (update) => {
 };
 const dit = (e) => e.map((x) => x.payload?.text ?? x.payload?.caption ?? '').join(' | ');
 
+/* Reconnaître l'accueil à sa bannière « 🌿 *Nom de la boutique* », et non au
+   mot « Bienvenue ».
+   Le message salue par le prénom quand Telegram en donne un — « Salut Luca »
+   — et ne dit « Bienvenue » que pour un compte sans prénom. Chercher ce mot
+   revenait à faire dépendre la suite d'une tournure de phrase : la retoucher
+   faisait échouer trois épreuves qui ne parlent pas de formulation mais de
+   savoir si la porte s'est ouverte. La bannière, elle, n'est envoyée que
+   par l'accueil — et par rien d'autre dans tout le bot. */
+const accueilli = (e) => /🌿 \*/.test(dit(e));
+
 /* ── Ce qui est ouvert à tous ────────────────────────────── */
 
 await saveSettings({ features: { orderHistory: true, photos: true, verification: false } });
@@ -192,7 +202,7 @@ await saveSettings({ features: { photos: true } });
 
   e = await jouer(message(INCONNU, '/start'));
   check('Un inconnu tombe sur un calcul', /Combien font/.test(dit(e)), dit(e).slice(0, 60));
-  check("Et pas sur l'accueil", !/Bienvenue/.test(dit(e)));
+  check("Et pas sur l'accueil", !accueilli(e));
   let choix = boutons(e).map((d) => Number(d.split(':')[1]));
   check('Six réponses sont proposées', choix.length === 6, choix.join(' '));
 
@@ -244,11 +254,11 @@ await saveSettings({ features: { photos: true } });
   const bonne = dernier[2] === '+' ? Number(dernier[1]) + Number(dernier[3]) : Number(dernier[1]) - Number(dernier[3]);
 
   e = await jouer(message(INCONNU, String(bonne)));
-  check('Une réponse écrite ouvre aussi la porte', /Bienvenue/.test(dit(e)), dit(e).slice(0, 45));
+  check('Une réponse écrite ouvre aussi la porte', accueilli(e), dit(e).slice(0, 45));
   check('Et la porte reste ouverte', (await estPasse(INCONNU.id)) === true);
 
   e = await jouer(message(INCONNU, '/start'));
-  check("On ne redemande jamais deux fois", !/Combien font/.test(dit(e)) && /Bienvenue/.test(dit(e)));
+  check("On ne redemande jamais deux fois", !/Combien font/.test(dit(e)) && accueilli(e));
 
   // Le vendeur n'a pas à se justifier auprès de sa propre boutique.
   e = await jouer(message(ADMIN, '/start'));
@@ -265,7 +275,7 @@ await saveSettings({ features: { photos: true } });
   });
   e = await jouer(message(ANCIEN, '/start'));
   check("Un client qui a déjà commandé entre sans rien prouver",
-    !/Combien font/.test(dit(e)) && /Bienvenue/.test(dit(e)), dit(e).slice(0, 40));
+    !/Combien font/.test(dit(e)) && accueilli(e), dit(e).slice(0, 40));
 
   // `/admin` reste ouvert : c'est par lui qu'un vendeur qui vient d'installer
   // sa boutique découvre son identifiant Telegram. Lui opposer un calcul le

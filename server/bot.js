@@ -123,18 +123,64 @@ const PAS_D_URL =
  */
 const isAdmin = (id) => estAdmin(id);
 
-/** L'accueil : ce que voit quelqu'un qui vient d'ouvrir la conversation. */
-const accueillir = (ctx) =>
-  ctx.reply(
-    `🌿 *${escapeMarkdown(config.shopName)}*\n\n` +
-      "Bienvenue dans la boutique\\. Tout se passe dans l'app : catalogue en images, " +
-      'panier, et commande envoyée en un bouton\\.\n\n' +
-      `Ton ID Telegram : \`${ctx.from.id}\``,
+/**
+ * Comment on récupère sa commande, dit d'après les réglages et non en dur.
+ *
+ * Le vendeur ouvre et ferme la livraison depuis l'espace admin : une phrase
+ * écrite en dur ici deviendrait fausse le jour où il la change, et personne
+ * ne penserait à venir corriger le message d'accueil.
+ */
+function commentOnSeRetrouve(fulfillment) {
+  const retrait = fulfillment?.pickup !== false;
+  const livraison = Boolean(fulfillment?.delivery);
+  if (retrait && livraison) return '🤝 Retrait sur place ou livraison, on convient du rendez-vous ici.';
+  if (livraison) return '🛵 Livraison : on demande ton adresse au moment de la commande.';
+  if (retrait) return '🤝 Retrait sur place : on convient du rendez-vous ici.';
+  return null;
+}
+
+/**
+ * L'accueil : ce que voit quelqu'un qui vient d'ouvrir la conversation.
+ *
+ * Il répond à ce qu'on se demande en arrivant — qu'est-ce qu'il y a, comment
+ * on paie, comment on récupère, à qui on parle — plutôt que de décrire les
+ * rouages de l'application. Le client se moque qu'il y ait un panier ; il
+ * veut savoir s'il doit avancer de l'argent.
+ *
+ * L'identifiant Telegram n'est plus ici. C'était la dernière ligne, donc
+ * celle sur laquelle l'œil s'arrête, et elle ne veut rien dire pour un
+ * acheteur : c'est de la plomberie. Elle a déménagé dans /aide, là où on va
+ * chercher quand on a un souci — et là où le vendeur la trouvera le jour où
+ * il devra se donner les clés.
+ *
+ * Tout le texte passe par `escapeMarkdown` plutôt que d'être échappé à la
+ * main : en MarkdownV2 un point oublié fait refuser le message entier par
+ * Telegram, et l'accueil est précisément le message qu'on ne peut pas se
+ * permettre de perdre.
+ */
+const accueillir = async (ctx) => {
+  const { fulfillment } = await getSettings().catch(() => ({}));
+  const prenom = ctx.from?.first_name?.trim();
+
+  const lignes = [
+    prenom ? `Salut ${prenom} 👋` : 'Bienvenue 👋',
+    '',
+    'Le catalogue est dans la boutique : photos, formats, prix. ' +
+      'Tu remplis ton panier, tu envoies, et on te répond ici.',
+    '',
+    '💶 Paiement en espèces, à la remise — rien à avancer.',
+    commentOnSeRetrouve(fulfillment),
+    '💬 Une question ? Écris-la dans cette conversation, elle arrive chez nous.',
+  ].filter((l) => l !== null);
+
+  return ctx.reply(
+    `🌿 *${escapeMarkdown(config.shopName)}*\n\n${escapeMarkdown(lignes.join('\n'))}`,
     {
       parse_mode: 'MarkdownV2',
       reply_markup: shopKeyboard(),
     }
   );
+};
 
 /* ── La porte du bot ─────────────────────────────────────── */
 
@@ -685,7 +731,12 @@ bot.command('aide', async (ctx) =>
           '\n/dev — ouvrir la boutique en chantier (aperçu)' +
           '\n/addadmin, /deladmin — donner ou reprendre les clés' +
           '\n📸 envoie une photo avec le nom du produit en légende pour changer son image'
-        : '')
+        : '') +
+      // Son identifiant, en dernier : inutile à un acheteur, précieux à qui
+      // nous écrit pour un souci — et au vendeur, le jour où il se donne les
+      // clés. C'est la raison pour laquelle il a quitté le message d'accueil,
+      // où il était la dernière chose lue par tout le monde.
+      `\n\nTon identifiant Telegram : ${ctx.from.id}`
   )
 );
 
