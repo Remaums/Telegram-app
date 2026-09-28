@@ -110,6 +110,58 @@ export async function configurerMenu() {
   return { type: 'web_app', url: config.webappUrl };
 }
 
+/**
+ * Le menu « / » de Telegram : vide pour tout le monde, garni pour le vendeur.
+ *
+ * Par défaut, Telegram propose à chaque client la liste des commandes du bot.
+ * Une liste affichée à un acheteur lui apprend surtout qu'il en existe
+ * d'autres : il essaie `/annonce`, `/addadmin`, se fait refuser — et le refus
+ * lui confirme qu'elles existent. Le catalogue s'ouvre d'un bouton ; un
+ * client n'a aucune commande à taper.
+ *
+ * Deux portées, donc. `all_private_chats` reçoit une liste vide : c'est ce
+ * que voient tous ceux qui ne sont pas nommés. Chaque administrateur reçoit
+ * la sienne, sur la portée `chat`, qui l'emporte sur la précédente.
+ *
+ * Reposé à chaque démarrage, comme le bouton de menu : c'est ainsi qu'un
+ * administrateur ajouté depuis le bot finit par voir ses commandes, sans
+ * manœuvre. Un échec n'arrête rien — le menu est un confort, pas la boutique.
+ */
+export async function configurerLesCommandes() {
+  await bot.api.setMyCommands([], { scope: { type: 'all_private_chats' } });
+
+  const patrons = (await listerAdmins().catch(() => [])).map((a) => String(a.id));
+  let poses = 0;
+  for (const id of patrons) {
+    try {
+      await bot.api.setMyCommands(COMMANDES_TELEGRAM, { scope: { type: 'chat', chat_id: id } });
+      poses += 1;
+    } catch {
+      // Presque toujours « chat not found » : cet administrateur n'a jamais
+      // ouvert la conversation. Rien à réparer, et rien à dire — il verra
+      // ses commandes au premier /start.
+    }
+  }
+  return { caches: true, patrons: patrons.length, poses };
+}
+
+/**
+ * Ce que Telegram affiche dans le menu d'un administrateur.
+ *
+ * Volontairement court : le menu de Telegram est une aide à la frappe, pas
+ * une documentation. La liste complète, avec ce que fait chaque commande,
+ * est dans `/admin`.
+ */
+const COMMANDES_TELEGRAM = [
+  { command: 'admin', description: 'Espace admin, et la liste des commandes' },
+  { command: 'boutique', description: 'Ouvrir le catalogue' },
+  { command: 'ouvrir', description: 'Ouvrir la boutique' },
+  { command: 'fermer', description: 'Fermer la boutique' },
+  { command: 'enligne', description: 'Les visites de la dernière demi-heure' },
+  { command: 'annonce', description: 'Écrire à tous les clients' },
+  { command: 'admins', description: 'Qui a les clés' },
+];
+
 /** Ce qu'il faut dire quand aucun bouton ne peut être proposé. */
 const PAS_D_URL =
   "⚠️ WEBAPP_URL n'est pas renseignée (ou n'est pas en HTTPS) : Telegram refuse " +
@@ -149,9 +201,10 @@ function commentOnSeRetrouve(fulfillment) {
  *
  * L'identifiant Telegram n'est plus ici. C'était la dernière ligne, donc
  * celle sur laquelle l'œil s'arrête, et elle ne veut rien dire pour un
- * acheteur : c'est de la plomberie. Elle a déménagé dans /aide, là où on va
- * chercher quand on a un souci — et là où le vendeur la trouvera le jour où
- * il devra se donner les clés.
+ * acheteur : c'est de la plomberie. Elle est dans /admin, qui la donne aussi
+ * bien à qui n'a pas les clés qu'à qui les a — c'est-à-dire exactement aux
+ * deux personnes qui en ont besoin, le vendeur qui doit se déclarer et celui
+ * qui nous écrit pour un souci.
  *
  * Tout le texte passe par `escapeMarkdown` plutôt que d'être échappé à la
  * main : en MarkdownV2 un point oublié fait refuser le message entier par
@@ -413,10 +466,32 @@ bot.command('admin', async (ctx) => {
   // la commande ne répondait rien du tout.
   if (!urlUtilisable()) return ctx.reply(PAS_D_URL);
 
-  await ctx.reply('Gestion du stock, des produits et des commandes 👇', {
-    reply_markup: adminKeyboard(),
-  });
+  await ctx.reply(
+    'Gestion du stock, des produits et des commandes 👇\n\n' + COMMANDES_DU_VENDEUR +
+      `\n\nTon identifiant Telegram : ${ctx.from.id}`,
+    { reply_markup: adminKeyboard() }
+  );
 });
+
+/**
+ * Ce que le vendeur peut taper. Ici et nulle part ailleurs.
+ *
+ * C'était `/aide`, ouvert à tout le monde. Une liste de commandes affichée à
+ * un client lui apprend surtout qu'il en existe d'autres : il essaie
+ * `/annonce`, `/addadmin`, et se fait refuser — ce qui lui confirme qu'elles
+ * existent. Le vendeur, lui, a un seul endroit où les retrouver, et c'est
+ * celui qu'il ouvre déjà.
+ */
+const COMMANDES_DU_VENDEUR =
+  'Tes commandes :\n' +
+  '/ouvrir, /fermer — ouvrir ou fermer la boutique\n' +
+  '/verification [on|off] — contrôle des pièces d\'identité\n' +
+  '/enligne — les visites de la dernière demi-heure\n' +
+  '/annonce <texte> — écrire à tous ceux qui ont ouvert le bot\n' +
+  '/dev — ouvrir la boutique en chantier (aperçu)\n' +
+  '/admins — qui a les clés\n' +
+  '/addadmin, /deladmin — donner ou reprendre les clés\n' +
+  '📸 une photo avec le nom du produit en légende change son image';
 
 /** Ouvre ou ferme la boutique sans quitter la conversation. */
 for (const [command, open] of [['ouvrir', true], ['fermer', false]]) {
@@ -713,32 +788,6 @@ bot.callbackQuery(/^vf:(\d+):(approved|refused)$/, async (ctx) => {
     console.error('Réponse au client impossible :', err.message);
   }
 });
-
-bot.command('aide', async (ctx) =>
-  ctx.reply(
-    'Commandes disponibles :\n' +
-      '/boutique — ouvrir le catalogue\n' +
-      '/commandes — voir tes commandes\n' +
-      '/stop — ne plus recevoir d\'annonces\n' +
-      '/aide — ce message' +
-      ((await isAdmin(ctx.from.id))
-        ? '\n/admin — espace administrateur' +
-          '\n/ouvrir, /fermer — ouvrir ou fermer la boutique' +
-          '\n/verification [on|off] — contrôle des pièces d\'identité' +
-          '\n/enligne — les visites de la dernière demi-heure' +
-          '\n/annonce <texte> — écrire à tous ceux qui ont ouvert le bot' +
-          '\n/admins — qui a les clés' +
-          '\n/dev — ouvrir la boutique en chantier (aperçu)' +
-          '\n/addadmin, /deladmin — donner ou reprendre les clés' +
-          '\n📸 envoie une photo avec le nom du produit en légende pour changer son image'
-        : '') +
-      // Son identifiant, en dernier : inutile à un acheteur, précieux à qui
-      // nous écrit pour un souci — et au vendeur, le jour où il se donne les
-      // clés. C'est la raison pour laquelle il a quitté le message d'accueil,
-      // où il était la dernière chose lue par tout le monde.
-      `\n\nTon identifiant Telegram : ${ctx.from.id}`
-  )
-);
 
 /* ── Les clés de la boutique ─────────────────────────────── */
 
@@ -1218,6 +1267,20 @@ bot.on('message:text', async (ctx) => {
     return;
   }
 
+  // Une commande inconnue n'est pas un message pour le vendeur.
+  //
+  // Depuis que `/aide` n'existe plus, c'est ici que tombe qui la tape encore —
+  // et aussi qui essaie `/annonce` ou `/promo` pour voir. Relayer tout cela
+  // faisait arriver « /aide » dans la conversation du vendeur, à côté des
+  // vraies questions de clients, et le poussait à répondre à un robot.
+  const commande = /^\/[A-Za-z0-9_]+/.test(ctx.message.text.trim());
+  if (commande && !patron) {
+    return ctx.reply(
+      "Je ne connais pas cette commande. Tout se passe dans la boutique 👇",
+      { reply_markup: shopKeyboard() }
+    );
+  }
+
   // Un administrateur qui écrit au bot sans répondre à personne cherche ses
   // commandes : lui relayer son propre message à lui-même n'aiderait personne.
   const refus = patron ? null : await relayerAuVendeur(ctx);
@@ -1227,7 +1290,7 @@ bot.on('message:text', async (ctx) => {
       ? 'Je ne comprends que quelques commandes :\n' +
           '/boutique — ouvrir le catalogue\n' +
           '/commandes — retrouver tes commandes\n' +
-          '/aide — tout ce que je sais faire'
+          '/admin — la gestion, et la liste de tes commandes'
       : refus ?? 'Message transmis à la boutique, on te répond ici.',
     { reply_markup: config.webappUrl ? shopKeyboard() : undefined }
   );

@@ -521,10 +521,9 @@ dans ton bot.
 | `/start` | Message d'accueil + bouton boutique + affiche l'ID du client |
 | `/boutique` | Rouvre la Mini App |
 | `/commandes` | Les 5 dernières commandes du client |
-| `/aide` | Liste des commandes |
 | `/stop` | ne plus recevoir d'annonces |
 | `/annonces` | les recevoir de nouveau |
-| `/admin` | Espace d'administration (réservé) |
+| `/admin` | Espace d'administration, **la liste des commandes du vendeur** et l'identifiant Telegram (réservé) |
 | `/ouvrir` `/fermer` | Ouvre ou ferme la boutique (réservé) |
 | `/verification on\|off` | Allume ou coupe la vérification d'identité (réservé) |
 | `/enligne` | Les **visites de la dernière demi-heure** (réservé) |
@@ -534,8 +533,20 @@ dans ton bot.
 | `/deladmin <id\|@pseudo>` | Les reprend (réservé) |
 
 Tout autre message d'un client est **relayé au vendeur**, qui répond en
-répondant au message. Un message du vendeur lui-même reçoit la liste des
-commandes.
+répondant au message. Une commande inconnue, elle, n'est pas relayée : le
+client reçoit le bouton de la boutique, et le vendeur n'a pas `/aide` qui
+arrive à côté des vraies questions.
+
+**Les clients ne voient aucune commande.** Le menu « / » de Telegram reçoit
+une liste vide sur la portée `all_private_chats`, et la liste du vendeur sur
+la portée `chat` de chacun de ses administrateurs — celle-ci l'emporte. Une
+liste affichée à un acheteur lui apprend surtout qu'il en existe d'autres :
+il essaie `/annonce`, se fait refuser, et le refus lui confirme qu'elles
+existent. Le catalogue s'ouvre d'un bouton ; un client n'a rien à taper.
+
+Il n'y a plus de `/aide`. La liste des commandes du vendeur, et son
+identifiant Telegram, sont dans `/admin` — l'endroit qu'il ouvre déjà, et
+celui qui donne déjà son identifiant à qui n'a pas encore les clés.
 
 ### Les visites de la dernière demi-heure
 

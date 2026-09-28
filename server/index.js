@@ -29,6 +29,7 @@ import {
 import { adminRouter, requireAdmin } from './admin.js';
 import {
   bot, notifyAdmin, notifyOrderPlaced, notifyLowStock, notifyNouvelAvis, configurerMenu,
+  configurerLesCommandes,
   sendFileToAdmin,
 } from './bot.js';
 import { demarrerLEntretien } from './entretien.js';
@@ -1272,6 +1273,14 @@ if (standalone) {
               )
             )
             .catch((err) => console.warn(`  Bouton de menu non réglé : ${err.message}`));
+          // Le menu « / » : vide pour les clients, garni pour le vendeur.
+          configurerLesCommandes()
+            .then((r) =>
+              console.log(
+                `  Menu des commandes : caché aux clients, posé pour ${r.poses}/${r.patrons} admin(s).`
+              )
+            )
+            .catch((err) => console.warn(`  Menu des commandes non réglé : ${err.message}`));
         },
       })
       .catch(signaler);

@@ -19,7 +19,7 @@ if (!process.env.BOT_TOKEN) {
 
 const ADMIN_ID = Number((process.env.ADMIN_IDS ?? '424242').split(',')[0].trim());
 
-const { bot, configurerMenu } = await import('../server/bot.js');
+const { bot, configurerMenu, configurerLesCommandes } = await import('../server/bot.js');
 const { config } = await import('../server/config.js');
 const { createOrder, getOrder } = await import('../server/orders.js');
 const { getCatalog, removeProductMedia } = await import('../server/catalog.js');
@@ -109,9 +109,51 @@ const accueilli = (e) => /🌿 \*/.test(dit(e));
 
 await saveSettings({ features: { orderHistory: true, photos: true, verification: false } });
 
-for (const cmd of ['/start', '/aide', '/boutique']) {
+for (const cmd of ['/start', '/boutique']) {
   const e = await jouer(message(CLIENT, cmd));
   check(`${cmd} répond`, e.length > 0, dit(e).slice(0, 40));
+}
+
+/* ── Ce qu'un client ne doit PAS pouvoir lire ────────────── */
+
+// `/aide` listait toutes les commandes, y compris celles du vendeur, à qui
+// les demandait. Une liste affichée à un acheteur lui apprend surtout qu'il
+// en existe d'autres : il essaie `/annonce`, se fait refuser, et le refus
+// lui confirme qu'elles existent. La commande n'existe plus ; ce qui reste
+// est la réponse fourre-tout, et elle ne doit nommer aucune commande
+// réservée — ni partir dans la conversation du vendeur.
+{
+  const e = await jouer(message(CLIENT, '/aide'));
+  const texte = dit(e);
+  check('/aide ne liste plus les commandes', !/\/annonce|\/addadmin|\/enligne|\/verification/.test(texte),
+    texte.slice(0, 60));
+  check("Et n'annonce pas d'espace administrateur", !/administrateur/i.test(texte), texte.slice(0, 60));
+  check("Elle n'est pas relayée au vendeur",
+    !e.some((x) => String(x.payload?.chat_id) === String(ADMIN_ID) && /\/aide/.test(x.payload?.text ?? '')),
+    e.map((x) => `${x.payload?.chat_id}`).join(' '));
+}
+
+/* ── Le menu « / » de Telegram ───────────────────────────── */
+
+// Ce n'est pas un détail d'affichage : c'est Telegram lui-même qui propose
+// la liste des commandes à chaque client. Vide pour tout le monde, garnie
+// pour les seuls administrateurs, sur la portée qui l'emporte.
+{
+  envois = [];
+  const bilan = await configurerLesCommandes();
+  const poses = envois.filter((e) => e.method === 'setMyCommands');
+  const pourTous = poses.find((e) => e.payload?.scope?.type === 'all_private_chats');
+  const pourLePatron = poses.find(
+    (e) => e.payload?.scope?.type === 'chat' && String(e.payload.scope.chat_id) === String(ADMIN_ID)
+  );
+  check('Une liste vide est posée pour tous les clients',
+    Array.isArray(pourTous?.payload?.commands) && pourTous.payload.commands.length === 0,
+    JSON.stringify(pourTous?.payload?.commands));
+  check('Et la liste du vendeur est posée sur sa seule conversation',
+    (pourLePatron?.payload?.commands?.length ?? 0) > 0,
+    (pourLePatron?.payload?.commands ?? []).map((c) => c.command).join(' '));
+  check("Aucune commande réservée n'est publiée à tous",
+    !(pourTous?.payload?.commands ?? []).length, String(bilan.caches));
 }
 
 /* ── Ce qui est réservé ──────────────────────────────────── */
