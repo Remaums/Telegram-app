@@ -1592,6 +1592,83 @@ function videoDeVitrine(product) {
 }
 
 /**
+ * Fait peindre à la vignette vidéo sa propre première image.
+ *
+ * Le défaut qu'elle corrige, et il est subtil : l'attribut `poster` ne
+ * disparaît PAS quand la vidéo est chargée. Tant que la lecture n'a jamais
+ * commencé, le navigateur garde le poster affiché — vérifié, une vidéo
+ * entièrement décodée (`readyState` à 4) montrait toujours le dessin de
+ * secours. La carte annonçait donc une vidéo et affichait un dessin.
+ *
+ * Un déplacement, même d'un vingtième de seconde, lève ce drapeau : le
+ * navigateur remplace le poster par l'image réelle. C'est le seul geste qui
+ * y parvienne sans lancer la lecture — et lancer la lecture d'une douzaine
+ * de vidéos dans une grille de catalogue est hors de question.
+ *
+ * Le poster reste posé : il tient la place pendant le chargement, et c'est
+ * bien mieux qu'un rectangle noir. Il cède dès qu'il y a mieux à montrer.
+ */
+function peindreLaPremiereImage(video) {
+  if (!video) return;
+  const avancer = () => {
+    // 0.05 s et non 0 : remettre `currentTime` à la valeur qu'il a déjà
+    // n'est pas un déplacement, et le navigateur garderait son poster.
+    try { video.currentTime = 0.05; } catch { /* source illisible */ }
+  };
+  // `loadeddata` plutôt que `loadedmetadata` : à la seconde, la durée est
+  // connue mais aucune image ne l'est, et le déplacement n'aurait rien à
+  // peindre. L'écoute se retire d'elle-même — la grille se repeint souvent.
+  if (video.readyState >= 2) avancer();
+  else video.addEventListener('loadeddata', avancer, { once: true });
+}
+
+/**
+ * La vignette d'un produit, pour les listes qui ne sont pas la grille.
+ *
+ * Trois endroits la dessinaient chacun à sa façon : la piste de suggestions,
+ * la liste des favoris, la ligne du panier. Les trois posaient une `<img>`,
+ * et une image ne peut pas montrer une vidéo : un produit qui n'a qu'un film
+ * dans sa galerie y retombait sur le dessin de remplacement, alors même que
+ * la grille, elle, montrait le film.
+ *
+ * D'où cette fonction. Elle rend l'élément qui convient — `<video>` quand
+ * c'est une vidéo, `<img>` sinon — et c'est elle qu'on appelle désormais.
+ *
+ * La grille garde son propre montage : elle porte en plus une pastille
+ * « ▶ », un cœur, une classe d'état et une lecture en boucle sous l'œil du
+ * client, et la refondre ici la rendrait illisible pour gagner trois lignes.
+ */
+function vignetteDuProduit(produit, classe) {
+  const video = videoDeVitrine(produit);
+
+  // Un vrai fichier GIF ne se décode pas dans un lecteur vidéo : c'est une
+  // image, et elle s'anime toute seule.
+  if (video && !video.image) {
+    const lecteur = document.createElement('video');
+    if (classe) lecteur.className = classe;
+    lecteur.src = video.url;
+    if (video.poster) lecteur.poster = video.poster;
+    // Muette, sans contrôles, hors du parcours au clavier : ce n'est pas un
+    // lecteur, c'est une vignette. La carte entière reste le bouton.
+    lecteur.muted = true;
+    lecteur.playsInline = true;
+    lecteur.preload = 'metadata';
+    lecteur.setAttribute('disablepictureinpicture', '');
+    lecteur.tabIndex = -1;
+    lecteur.setAttribute('aria-hidden', 'true');
+    peindreLaPremiereImage(lecteur);
+    return lecteur;
+  }
+
+  const image = document.createElement('img');
+  if (classe) image.className = classe;
+  image.src = (video?.image ? video.url : photoDeVitrine(produit)) ?? produit.image ?? '';
+  image.alt = '';
+  image.loading = 'lazy';
+  return image;
+}
+
+/**
  * L'image à montrer en attendant que la vidéo arrive.
  *
  * Une vidéo de plusieurs mégaoctets met le temps qu'il faut, et sans `poster`
@@ -1696,6 +1773,10 @@ function productCard(product) {
     // L'attribut seul ne suffit pas partout : sans cette ligne, un navigateur
     // refuse la lecture faute de garantie que le son est coupé.
     lecteur.muted = true;
+    // Et sans lecture — animations coupées, carte hors écran, autoplay
+    // refusé — le poster reste affiché indéfiniment : la carte annoncerait
+    // une vidéo en montrant le dessin de remplacement.
+    peindreLaPremiereImage(lecteur);
     if (regardSurLaGrille) regardSurLaGrille.observe(lecteur);
     else if (anime()) lecteur.play().catch(() => {});
   }
@@ -1900,13 +1981,9 @@ function carteSuggeree(produit) {
 
   const vignette = document.createElement('span');
   vignette.className = 'suggestion__art';
-  const image = document.createElement('img');
-  // Photo importée d'abord, dessin ensuite : une piste de suggestions faite
-  // de dessins par défaut ne donne envie d'ouvrir aucune des fiches.
-  image.src = photoDeVitrine(produit) ?? produit.image ?? '';
-  image.alt = '';
-  image.loading = 'lazy';
-  vignette.append(image);
+  // Photo, vidéo, dessin — dans cet ordre. Une piste de suggestions faite de
+  // dessins par défaut ne donne envie d'ouvrir aucune des fiches.
+  vignette.append(vignetteDuProduit(produit, ''));
 
   const nom = document.createElement('span');
   nom.className = 'suggestion__nom';
@@ -3023,8 +3100,12 @@ function renderCart() {
 function cartRow(line) {
   const li = document.createElement('li');
   li.className = line.short ? 'cart-item cart-item--short' : 'cart-item';
+  // `--photo` marque une vraie image du vendeur, par opposition au dessin de
+  // remplacement : un film en est une aussi, et la ligne doit le traiter
+  // comme tel.
+  const vitrine = photoDeVitrine(line.product) || videoDeVitrine(line.product);
   li.innerHTML = `
-    <span class="cart-item__art${photoDeVitrine(line.product) ? ' cart-item__art--photo' : ''}"><img src="${escapeHtml(photoDeVitrine(line.product) ?? line.product.image)}" alt=""></span>
+    <span class="cart-item__art${vitrine ? ' cart-item__art--photo' : ''}"></span>
     <span class="cart-item__info">
       <span class="cart-item__name">${escapeHtml(line.product.name)}</span>
       <span class="cart-item__meta">${line.variant ? escapeHtml(line.variant.label) + ' · ' : ''}${formatPrice(line.lineTotal)}</span>
@@ -3035,6 +3116,8 @@ function cartRow(line) {
       <span>${line.quantity}</span>
       <button type="button" data-act="plus" aria-label="Ajouter un">+</button>
     </span>`;
+
+  li.querySelector('.cart-item__art').append(vignetteDuProduit(line.product, ''));
 
   li.querySelector('[data-act="minus"]').addEventListener('click', () => changeLine(line.key, -1));
   li.querySelector('[data-act="plus"]').addEventListener('click', () => changeLine(line.key, +1));
@@ -4015,7 +4098,6 @@ function renderFavoris(favoris) {
       const epuise = isSoldOut(produit);
 
       carte.innerHTML =
-        `<img class="favori__image" src="${escapeHtml(photoDeVitrine(produit) ?? produit.image)}" alt="" loading="lazy">` +
         '<div class="favori__corps">' +
         `<span class="favori__nom">${escapeHtml(produit.name)}</span>` +
         `<span class="favori__prix goldtext">${produit.variants ? '<small>dès</small> ' : ''}${formatPrice(produit.price)}</span>` +
@@ -4023,7 +4105,12 @@ function renderFavoris(favoris) {
         '</div>' +
         '<button class="favori__coeur" type="button" aria-label="Retirer des favoris">♥</button>';
 
-      carte.querySelector('.favori__image').addEventListener('click', () => openProduct(produit));
+      // La vignette est posée devant le corps plutôt qu'écrite dans le
+      // gabarit : selon le produit c'est une image ou une vidéo, et un
+      // gabarit de chaîne ne sait fabriquer qu'une des deux.
+      const vignette = vignetteDuProduit(produit, 'favori__image');
+      carte.prepend(vignette);
+      vignette.addEventListener('click', () => openProduct(produit));
       carte.querySelector('.favori__corps').addEventListener('click', () => openProduct(produit));
       carte.querySelector('.favori__coeur').addEventListener('click', async (ev) => {
         ev.stopPropagation();

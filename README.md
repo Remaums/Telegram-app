@@ -240,6 +240,35 @@ les vraies arrivent.
 > simplement immobile. Une animation ne doit jamais être ce qui rend une chose
 > visible, et un balayage navigateur vérifie les deux états.
 
+### La vignette d'un produit qui n'a qu'une vidéo
+
+Elle montre la vidéo, pas l'illustration de secours. Deux chemins, dans cet
+ordre :
+
+1. **la vignette que Telegram fabrique** pour chaque vidéo qu'on lui confie —
+   quelques kilo-octets, elle arrive tout de suite. Une vidéo déposée
+   aujourd'hui l'apporte avec elle ;
+2. **à défaut, la vidéo peint sa propre première image.** C'est nécessaire
+   parce que l'attribut `poster` ne cède pas tout seul : tant que la lecture
+   n'a jamais commencé, le navigateur le garde affiché — une vidéo
+   entièrement chargée montrait quand même le dessin. Un déplacement d'un
+   vingtième de seconde lève ce drapeau, sans lancer la lecture.
+
+Cela vaut partout où un produit se montre en petit : **la grille, la piste de
+suggestions au bas d'une fiche, la liste des favoris et la ligne du panier**.
+Les quatre dessinaient leur vignette chacune à sa façon, et les trois
+dernières posaient une `<img>` — or une image ne peut pas montrer une vidéo.
+Elles passent désormais par la même fonction.
+
+> Une **photo** passe devant une vidéo : un produit qui a les deux montre sa
+> photo. Et un produit qui n'a **aucun** média garde son illustration — c'est
+> le seul cas où le dessin est la bonne réponse.
+
+Pour les vidéos déposées **avant** que la boutique ne pense à garder la
+vignette, l'espace admin a un bouton par média qui va la rechercher chez
+Telegram. C'est le chemin le moins coûteux : la vignette pèse quelques
+kilo-octets, la vidéo plusieurs mégaoctets.
+
 ### Photos et vidéos d'une fiche produit
 
 Chaque produit porte une galerie : jusqu'à **huit médias**, photos et vidéos
