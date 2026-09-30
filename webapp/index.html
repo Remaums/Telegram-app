@@ -142,10 +142,30 @@
          lentement : il donne un signe de vie à l'écran d'accueil sans se
          disputer l'attention avec les photos de produits. -->
     <img class="hero__embleme" id="heroEmbleme" src="/assets/ui/napoli-feuille.gif" alt="" aria-hidden="true">
+    <!-- L'EMPLACEMENT POUR TON ILLUSTRATION.
+         Dépose un PNG à fond transparent dans
+         webapp/assets/ui/heros.png et il s'affiche ici, à droite de la
+         bannière. Tant que le fichier n'existe pas, l'image se retire
+         toute seule (voir `onerror`) et la bannière reste complète :
+         aucun cadre vide, aucune icône d'image cassée.
+         Format conseillé : 900 × 700 px, sujet à droite. -->
+    <img class="hero__heros" id="heroHeros" src="/assets/ui/heros.png" alt=""
+         aria-hidden="true" onerror="this.remove()">
     <div class="hero__body">
       <p class="hero__eyebrow">Commande sur Telegram</p>
       <h1 class="hero__title goldtext">Fraîchement<br>débarqué</h1>
       <p class="hero__sub">Sélection maison, photos réelles, commande en deux clics.</p>
+      <!-- Deux boutons, deux destinations RÉELLES. La référence en montre
+           deux qui mènent au même endroit ; ici l'un descend au catalogue,
+           l'autre ouvre les rayons. -->
+      <div class="hero__actions">
+        <button class="btn btn--primary hero__cta" id="heroCatalogue" type="button">
+          Voir le catalogue
+        </button>
+        <button class="btn btn--ghost hero__cta" id="heroRayons" type="button">
+          Explorer par rayon →
+        </button>
+      </div>
     </div>
   </section>
 
@@ -201,6 +221,7 @@
   <nav class="cats" id="cats" aria-label="Catégories"></nav>
 
   <!-- ══ Grille produits ══ -->
+  <p class="orne"><span class="orne__t">Nos trésors</span></p>
   <section class="grid" id="grid" aria-live="polite"></section>
 
   <p class="empty" id="empty" hidden>Rien dans cette catégorie pour le moment.</p>

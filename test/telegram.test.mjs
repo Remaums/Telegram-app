@@ -239,13 +239,19 @@ await saveSettings({ features: { photos: true } });
   const INCONNU = { id: 900000 + Math.floor(Math.random() * 90000), is_bot: false, first_name: 'Passant' };
   await oublier(INCONNU.id);
 
+  // Toutes les charges, pas seulement la première : après un clic, le bot
+  // répond d'abord par un `answerCallbackQuery` sans clavier, et le nouveau
+  // clavier arrive dans le `sendMessage` suivant. Ne lire que `e[0]` rendait
+  // une liste vide — qui se compare sans broncher et ne prouve rien.
   const boutons = (e) =>
-    (e[0]?.payload?.reply_markup?.inline_keyboard ?? []).flat().map((b) => b.callback_data);
+    e.flatMap((x) => (x?.payload?.reply_markup?.inline_keyboard ?? []).flat())
+      .map((b) => b.callback_data);
 
   e = await jouer(message(INCONNU, '/start'));
   check('Un inconnu tombe sur un calcul', /Combien font/.test(dit(e)), dit(e).slice(0, 60));
   check("Et pas sur l'accueil", !accueilli(e));
   let choix = boutons(e).map((d) => Number(d.split(':')[1]));
+  const ordreInitial = boutons(e).join(',');
   check('Six réponses sont proposées', choix.length === 6, choix.join(' '));
 
   // La bonne réponse ne doit se lire nulle part : ni dans le texte, ni dans
@@ -271,7 +277,22 @@ await saveSettings({ features: { photos: true } });
   check('Une mauvaise réponse est refusée', /pas ça/i.test(dit(e)), dit(e).slice(0, 40));
   check('Et il reste des essais', /2 essais/.test(dit(e)), dit(e).slice(0, 60));
   const apresErreur = dit(e).match(/Combien font (\d+) ([+−]) (\d+)/);
-  check('Un nouveau calcul est tiré', apresErreur[0] !== enonce[0], `${enonce[0]} → ${apresErreur[0]}`);
+  // Ce qu'on éprouve, c'est qu'une épreuve NEUVE a été tirée — pas que son
+  // énoncé diffère. Les deux ne sont pas la même chose : a et b se tirent
+  // dans [2,10) avec + ou −, donc deux tirages successifs retombent sur le
+  // même énoncé environ une fois sur quatre-vingt-dix. Cette ligne
+  // comparait les énoncés et faisait donc échouer la suite ~1,1 % des
+  // lancements sans que rien ne soit cassé.
+  //
+  // L'ordre des six boutons est remélangé à chaque tirage. Énoncé ET ordre
+  // identiques signifient qu'aucun tirage n'a eu lieu ; qu'un seul des deux
+  // change suffit à prouver le contraire. La coïncidence restante — même
+  // énoncé ET même ordre parmi 720 — vaut moins d'une chance sur soixante
+  // mille.
+  const ordreApres = boutons(e).join(',');
+  check('Un nouveau calcul est tiré',
+    apresErreur[0] !== enonce[0] || ordreApres !== ordreInitial,
+    `${enonce[0]} → ${apresErreur[0]}`);
   check("La porte est toujours fermée", (await estPasse(INCONNU.id)) === false);
 
   // Trois erreurs valent une attente : c'est ce qui rend l'essai systématique

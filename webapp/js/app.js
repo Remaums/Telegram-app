@@ -284,6 +284,19 @@ function bindStaticHandlers() {
   $('ageNo').addEventListener('click', () => (tg ? tg.close() : window.history.back()));
 
   $('cartBtn').addEventListener('click', () => openSheet('cartSheet'));
+  // Les deux boutons de la bannière. « Voir le catalogue » descend la page
+  // jusqu'à la grille plutôt que de changer d'onglet : on y est déjà.
+  $('heroCatalogue')?.addEventListener('click', () => {
+    document.getElementById('grid')?.scrollIntoView({
+      behavior: anime() ? 'smooth' : 'auto', block: 'start',
+    });
+    haptic('light');
+  });
+  $('heroRayons')?.addEventListener('click', () => {
+    montrerLOnglet('categories');
+    haptic('light');
+  });
+
   for (const bouton of $('tabbar').querySelectorAll('.tabbar__item')) {
     bouton.addEventListener('click', () => {
       montrerLOnglet(bouton.dataset.onglet);
@@ -1746,7 +1759,7 @@ function productCard(product) {
       ${note ? `<span class="card__note">${etoiles(note.moyenne)} <small>${note.nombre}</small></span>` : ''}
       <span class="card__foot">
         <span class="card__price goldtext">${fromLabel}${formatPrice(product.price)}</span>
-        <span class="card__add" aria-hidden="true">+</span>
+        <span class="card__add" aria-hidden="true"><b>+</b><i>Ajouter</i></span>
       </span>
     </div>`;
 

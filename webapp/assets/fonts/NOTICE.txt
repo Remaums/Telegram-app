@@ -6,6 +6,11 @@ Luckiest Guy
   Source   : https://fonts.google.com/specimen/Luckiest+Guy
   Licence  : SIL Open Font License 1.1 (https://openfontlicense.org)
 
+Cinzel
+  Auteur   : Natanael Gama
+  Source   : https://fonts.google.com/specimen/Cinzel
+  Licence  : SIL Open Font License 1.1 (https://openfontlicense.org)
+
 Baloo 2
   Auteur   : Ek Type
   Source   : https://fonts.google.com/specimen/Baloo+2
