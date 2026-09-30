@@ -21,33 +21,42 @@
    données en composantes brutes pour pouvoir moduler l'opacité avec
    la syntaxe rgb(var(--x) / .5). */
 :root {
-  --void-rgb:     6  6  7;    /* fonds d'écran modaux */
-  --night-rgb:   14 14 16;    /* fond de page — encre */
-  --night2-rgb:  20 20 23;    /* barres hautes et basses */
-  --panel-rgb:   30 30 34;    /* surface haute (cartes, panneaux) */
-  --panel2-rgb:  23 23 26;    /* surface basse */
-  --ink-rgb:      9  9 11;    /* contours, et texte posé sur l'ivoire */
-  --cream-rgb: 240 238 233;   /* texte */
-  --line-rgb:   130 130 138;  /* filets et bordures */
+  /* ── Thème shōnen ──────────────────────────────────────────
+     Encre bleu nuit plutôt que gris neutre : c'est la couleur du papier
+     de manga imprimé, et elle fait chanter l'orange posé dessus. */
+  --void-rgb:     4  5 10;    /* fonds d'écran modaux */
+  --night-rgb:   11 13 22;    /* fond de page — encre */
+  --night2-rgb:  16 19 31;    /* barres hautes et basses */
+  --panel-rgb:   26 30 46;    /* surface haute (cartes, panneaux) */
+  --panel2-rgb:  20 23 36;    /* surface basse */
+  --ink-rgb:      6  7 12;    /* contours, et texte posé sur l'accent */
+  --cream-rgb: 244 243 238;   /* texte — blanc papier */
+  --line-rgb:  118 134 176;   /* filets et bordures, acier froid */
 
-  /* L'ivoire. C'est l'accent, et c'est presque une absence de couleur : ce
-     qui compte se détache par sa clarté, pas par sa teinte. `--neon` a gardé
-     son nom — il est cité par une centaine de déclarations, et le renommer
-     partout n'aurait rien changé à l'écran. */
-  --neon-rgb:  232 226 212;
-  --halo-rgb:  232 226 212;
-  --halo2-rgb: 190 140 120;   /* terre cuite sourde : favoris */
-  --halo3-rgb: 140 150 145;   /* gris-vert : compteurs */
+  /* L'accent : l'orange du gi. C'est LA couleur du genre, et elle porte
+     tout ce qui compte. `--neon` a gardé son nom — il est cité par une
+     centaine de déclarations, et le renommer n'aurait rien changé à
+     l'écran. */
+  --neon-rgb:  255 122 26;
+  --halo-rgb:  255 140 50;
+  --halo2-rgb:  56 176 255;   /* bleu ki : contour des cartes, compteurs */
+  --halo3-rgb: 232  52 44;    /* rouge : ce qui alerte */
 
-  --gold-rgb:  214 196 150;   /* os : commandes en cours, avertissements */
-  --gold-lo-rgb: 170 150 110;
-  --red-rgb:   205  95  85;   /* alertes, ruptures */
+  --gold-rgb:  255 201 60;    /* or du trésor : commandes en cours */
+  --gold-lo-rgb: 214 160 32;
+  --red-rgb:   236  64  54;   /* alertes, ruptures */
   --tg-rgb:     42 171 238;   /* le bleu de Telegram : il ne nous appartient pas */
 
-  --neon-hi: #f4f0e6;         /* survol */
-  --neon-deep: #cfc8b6;       /* appui */
-  --gold-hi: #e8dcb8;
-  --sauge: #9aa89f;           /* ce qui est ouvert, en stock */
+  --neon-hi: #ffa455;         /* survol */
+  --neon-deep: #e05f00;       /* appui */
+  --gold-hi: #ffe08a;
+  --sauge: #46d37b;           /* ce qui est ouvert, en stock */
+
+  /* Propres au thème : le bleu de l'énergie, et le noir de contour qui
+     donne aux titres leur air imprimé. */
+  --ki-rgb:     56 176 255;
+  --ki: rgb(var(--ki-rgb));
+  --contour: #07080d;
 }
 
 :root {
@@ -82,10 +91,11 @@
   --red: rgb(var(--red-rgb));
   --paper: var(--night);
 
-  /* Les titres sont écrits dans la même famille que le texte, en plus
-     gras. La police d'affiche donnait un air de fête foraine à un écran
-     qui vend des grammes : le contraire de ce qu'on veut inspirer. */
-  --display: 'Baloo 2', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Le lettrage d'affiche, celui des couvertures de shōnen. Il avait été
+     écarté pour « air de fête foraine » — c'est précisément ce qu'on
+     cherche maintenant. Il ne sert qu'aux titres et aux prix : du texte
+     courant dans cette graisse serait illisible. */
+  --display: 'Luckiest Guy', 'Baloo 2', system-ui, -apple-system, sans-serif;
 
   --line: 1px;
   --radius: 16px;
@@ -197,15 +207,23 @@ h1, h2, h3, .display,
    La classe reste : elle est posée sur une trentaine de titres, et un
    renommage n'aurait rien changé à l'écran. Un dégradé très court garde
    un peu de matière dans les grands titres, sans se voir dans les petits. */
+/* Le lettrage des couvertures : un dégradé chaud, une arête sombre dessous,
+   et une lueur. L'arête passe par `drop-shadow` et non `text-shadow` : avec
+   un remplissage transparent — ce que réclame `background-clip: text` — une
+   ombre de texte se peint DANS la forme de la lettre et donne des lettres
+   noires pleines. Le filtre, lui, s'applique au rendu déjà dégradé. */
 .goldtext {
-  color: var(--cream);
-  letter-spacing: -.01em;
+  color: var(--gold);
+  letter-spacing: .005em;
 }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .goldtext {
-    background: linear-gradient(180deg, #ffffff 0%, var(--cream) 58%, rgb(var(--cream-rgb) / .78) 100%);
+    background: linear-gradient(176deg, #fff3c4 0%, var(--gold) 38%, #ff9a2e 78%, #ff7a1a 100%);
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent; color: transparent;
+    filter:
+      drop-shadow(0 2px 0 var(--contour))
+      drop-shadow(0 0 16px rgb(var(--neon-rgb) / .38));
   }
 }
 
@@ -500,12 +518,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
   position: relative; display: flex; flex-direction: column;
   color: var(--cream);
   background: var(--panel);
-  border: var(--line) solid rgb(var(--halo2-rgb) / .5);
+  border: 2px solid var(--contour);
   border-radius: var(--radius);
+  /* Le trait noir épais des cases de manga, et une lueur froide très
+     discrète dessous. La lueur portait avant la couleur du cadre à
+     pleine intensité : en bleu vif, la grille entière clignotait et les
+     photos passaient au second plan. */
   box-shadow:
-    0 0 0 1px rgb(var(--halo2-rgb) / .22),
-    0 14px 30px rgb(0 0 0 / .72),
-    0 0 32px -6px rgb(var(--halo2-rgb) / .6);
+    0 0 0 1px rgb(var(--halo2-rgb) / .28),
+    0 10px 0 -4px var(--contour),
+    0 16px 30px rgb(0 0 0 / .66),
+    0 0 26px -10px rgb(var(--halo2-rgb) / .5);
   overflow: hidden; text-align: left; padding: 0;
   transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease;
 }
@@ -514,12 +537,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
    regardé, et ça lui donne une raison de remplacer les derniers dessins de
    remplacement par de vraies images. */
 .card--vitrine {
-  border-color: rgb(var(--halo2-rgb));
+  border-color: var(--contour);
   box-shadow:
-    0 0 0 2px rgb(var(--halo2-rgb) / .45),
-    0 16px 34px rgb(0 0 0 / .85),
-    0 0 24px -2px rgb(var(--halo2-rgb) / .85),
-    0 0 56px 2px rgb(var(--halo2-rgb) / .5);
+    0 0 0 2px rgb(var(--halo2-rgb) / .62),
+    0 10px 0 -4px var(--contour),
+    0 18px 34px rgb(0 0 0 / .8),
+    0 0 30px -8px rgb(var(--halo2-rgb) / .75);
 }
 
 /* Épuisé : le néon s'éteint. Faire briller ce qu'on ne peut pas acheter,
@@ -2022,3 +2045,85 @@ img.galerie__gif { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: c
   0%, 100% { box-shadow: 0 6px 18px rgb(0 0 0 / .45), 0 0 0 0 rgb(var(--jaune-rgb) / .5); }
   50%      { box-shadow: 0 6px 18px rgb(0 0 0 / .45), 0 0 0 7px rgb(var(--jaune-rgb) / 0); }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   LE FOND ANIMÉ
+   ══════════════════════════════════════════════════════════════
+   Trois couches fixes derrière toute la boutique. Aucune n'intercepte
+   le doigt, aucune ne participe au défilement, et chacune n'anime que
+   `transform` ou `opacity` — les deux seules propriétés qu'un
+   téléphone sait bouger sans repeindre la page à chaque image.
+
+   Elles sont volontairement discrètes. Un fond de manga plein écran
+   sous un catalogue de produits rend les photos illisibles : ce qu'on
+   cherche, c'est que l'écran ait l'air imprimé, pas qu'il crie. */
+.fond {
+  position: fixed; inset: 0; z-index: -1;
+  pointer-events: none; overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgb(var(--panel-rgb)) 0%, transparent 60%),
+    linear-gradient(180deg, rgb(var(--night2-rgb)) 0%, rgb(var(--night-rgb)) 40%);
+}
+.fond > span { position: absolute; display: block; }
+
+/* La trame d'impression. Deux points par maille, décalés, comme un
+   demi-ton de presse. Elle ne bouge pas : c'est du papier. */
+.fond__trame {
+  inset: 0;
+  background-image:
+    radial-gradient(rgb(var(--line-rgb) / .16) .9px, transparent 1px),
+    radial-gradient(rgb(var(--line-rgb) / .10) .9px, transparent 1px);
+  background-size: 14px 14px, 14px 14px;
+  background-position: 0 0, 7px 7px;
+  mask-image: radial-gradient(120% 90% at 50% 8%, #000 0%, transparent 72%);
+}
+
+/* Les lignes de vitesse : un éventail de rayons qui part du haut de
+   l'écran. Le carré fait deux fois la diagonale pour qu'aucun coin ne
+   se découvre en tournant. */
+.fond__vitesse {
+  top: 50%; left: 50%;
+  width: 280vmax; height: 280vmax;
+  margin: -140vmax 0 0 -140vmax;
+  background: repeating-conic-gradient(
+    from 0deg at 50% 50%,
+    rgb(var(--neon-rgb) / .055) 0deg 1.1deg,
+    transparent 1.1deg 4.2deg
+  );
+  mask-image: radial-gradient(circle at 50% 50%, transparent 14%, #000 34%, transparent 62%);
+  animation: fond-tourne 150s linear infinite;
+  will-change: transform;
+}
+
+/* La pulsation d'énergie, en haut : un souffle lent, celui qu'on voit
+   autour d'un personnage qui charge. */
+.fond__aura {
+  top: -28vmax; left: 50%;
+  width: 92vmax; height: 92vmax; margin-left: -46vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgb(var(--neon-rgb) / .16) 0%,
+    rgb(var(--ki-rgb) / .09) 38%,
+    transparent 66%);
+  animation: fond-souffle 9s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes fond-tourne { to { transform: rotate(360deg); } }
+@keyframes fond-souffle {
+  0%, 100% { transform: scale(1);    opacity: .70; }
+  50%      { transform: scale(1.11); opacity: 1; }
+}
+
+/* Sobre : le décor reste, il cesse de bouger. On garde la trame et
+   l'aura — ce sont elles qui donnent le thème — et on immobilise. */
+[data-anim='off'] .fond__vitesse,
+[data-anim='off'] .fond__aura { animation: none; }
+
+/* Le fond passe DERRIÈRE le contenu par un z-index négatif, et non en
+   remontant tout le reste. La première version de cette règle posait
+   `position: relative` sur .topbar, .tabbar, .pbar et .sheet — qui
+   étaient `sticky` ou `fixed`. La barre du haut cessait de coller, la
+   barre d'onglets retombait dans le flux et ouvrait un vide de 450 px
+   en haut de l'écran. Un fond décoratif n'a aucune raison de toucher
+   au positionnement de quoi que ce soit. */
