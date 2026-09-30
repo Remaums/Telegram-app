@@ -21,42 +21,55 @@
    données en composantes brutes pour pouvoir moduler l'opacité avec
    la syntaxe rgb(var(--x) / .5). */
 :root {
-  /* ── Thème shōnen ──────────────────────────────────────────
-     Encre bleu nuit plutôt que gris neutre : c'est la couleur du papier
-     de manga imprimé, et elle fait chanter l'orange posé dessus. */
-  --void-rgb:     4  5 10;    /* fonds d'écran modaux */
-  --night-rgb:   11 13 22;    /* fond de page — encre */
-  --night2-rgb:  16 19 31;    /* barres hautes et basses */
-  --panel-rgb:   26 30 46;    /* surface haute (cartes, panneaux) */
-  --panel2-rgb:  20 23 36;    /* surface basse */
-  --ink-rgb:      6  7 12;    /* contours, et texte posé sur l'accent */
-  --cream-rgb: 244 243 238;   /* texte — blanc papier */
-  --line-rgb:  118 134 176;   /* filets et bordures, acier froid */
+  /* ── Thème animé, en clair ─────────────────────────────────
+     Le rendu d'un dessin animé : des fonds clairs, des aplats vifs et
+     des contours noirs nets. Rien n'est sombre ici sauf le trait.
 
-  /* L'accent : l'orange du gi. C'est LA couleur du genre, et elle porte
-     tout ce qui compte. `--neon` a gardé son nom — il est cité par une
-     centaine de déclarations, et le renommer n'aurait rien changé à
-     l'écran. */
-  --neon-rgb:  255 122 26;
-  --halo-rgb:  255 140 50;
-  --halo2-rgb:  56 176 255;   /* bleu ki : contour des cartes, compteurs */
-  --halo3-rgb: 232  52 44;    /* rouge : ce qui alerte */
+     ATTENTION aux noms. `--night`, `--ink`, `--cream` et `--neon`
+     disent l'inverse de ce qu'ils valent maintenant : « night » est un
+     papier, « cream » est de l'encre. Ils sont cités par plusieurs
+     centaines de déclarations, et les renommer aurait touché tout le
+     fichier sans rien changer à l'écran. On garde les noms, on inverse
+     les valeurs, et c'est écrit ici. */
+  --void-rgb:  214 226 240;   /* voile derrière les panneaux */
+  --night-rgb: 240 245 252;   /* fond de page — papier */
+  --night2-rgb: 255 255 255;  /* barres hautes et basses */
+  --panel-rgb: 255 255 255;   /* surface haute (cartes, panneaux) */
+  --panel2-rgb: 233 240 250;  /* surface basse */
+  --ink-rgb:    16 21 31;     /* LE TRAIT, et le texte posé sur l'accent */
+  --cream-rgb:  23 32 46;     /* texte courant — encre bleutée */
+  --line-rgb:   42 52 70;     /* filets et bordures : le contour noir */
+  /* Une surface EN RETRAIT sur la page : champs de saisie, pistes de
+     jauge, fonds de vignette. Sous l'ancien thème sombre c'était
+     `--ink` à faible opacité — de l'encre posée sur du noir. Sur du
+     papier, la même règle donnait des pastilles gris foncé au milieu
+     d'un écran clair. */
+  --creux-rgb: 222 232 245;
 
-  --gold-rgb:  255 201 60;    /* or du trésor : commandes en cours */
-  --gold-lo-rgb: 214 160 32;
-  --red-rgb:   236  64  54;   /* alertes, ruptures */
+  /* Les aplats. Vifs et francs : un dessin animé ne nuance pas ses
+     couleurs, il les pose. L'orange reste l'accent et porte tout ce
+     qui s'appuie. `--neon` a gardé son nom pour la même raison que
+     les autres. */
+  --neon-rgb:  255 106 0;
+  --halo-rgb:  255 138 40;
+  --halo2-rgb:  20 146 240;   /* bleu ciel : mises en avant */
+  --halo3-rgb: 226  40  30;   /* rouge : ce qui alerte */
+
+  --gold-rgb:  245 166  10;   /* jaune soleil, assombri pour rester lisible
+                                 sur du papier : le jaune vif y disparaît */
+  --gold-lo-rgb: 196 128  0;
+  --red-rgb:   226  40  30;   /* alertes, ruptures */
   --tg-rgb:     42 171 238;   /* le bleu de Telegram : il ne nous appartient pas */
 
-  --neon-hi: #ffa455;         /* survol */
-  --neon-deep: #e05f00;       /* appui */
-  --gold-hi: #ffe08a;
-  --sauge: #46d37b;           /* ce qui est ouvert, en stock */
+  --neon-hi: #ff8c33;         /* survol */
+  --neon-deep: #d84f00;       /* appui */
+  --gold-hi: #ffb92e;
+  --sauge: #0f9e4c;           /* ce qui est ouvert, en stock */
 
-  /* Propres au thème : le bleu de l'énergie, et le noir de contour qui
-     donne aux titres leur air imprimé. */
-  --ki-rgb:     56 176 255;
+  /* Propres au thème : le bleu du ciel, et le trait noir des contours. */
+  --ki-rgb:     20 146 240;
   --ki: rgb(var(--ki-rgb));
-  --contour: #07080d;
+  --contour: #101521;
 }
 
 :root {
@@ -99,9 +112,9 @@
 
   --line: 1px;
   --radius: 16px;
-  --shadow: 0 8px 24px rgba(0, 0, 0, .45);
-  --shadow-sm: 0 3px 10px rgba(0, 0, 0, .35);
-  --shadow-lg: 0 18px 44px rgba(0, 0, 0, .55);
+  --shadow: 0 8px 22px rgb(16 21 31 / .14);
+  --shadow-sm: 0 2px 8px rgb(16 21 31 / .11);
+  --shadow-lg: 0 16px 38px rgb(16 21 31 / .18);
   /* Gardés pour les règles qui les nomment encore, mais réduits à presque
      rien : supprimer les deux variables aurait cassé trente déclarations
      pour le même résultat. */
@@ -111,7 +124,7 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -146,7 +159,7 @@ body {
 .find__icon { position: absolute; left: 12px; font-size: 14px; pointer-events: none; opacity: .75; }
 .find__box input {
   width: 100%; font: inherit; font-size: 14px; font-weight: 600; color: var(--cream);
-  background: rgb(var(--ink-rgb) / .55); border: var(--line) solid var(--line-soft);
+  background: rgb(var(--creux-rgb) / .55); border: var(--line) solid var(--line-soft);
   border-radius: 999px; padding: 10px 34px 10px 34px;
   -webkit-appearance: none; appearance: none;
 }
@@ -161,7 +174,7 @@ body {
 }
 .find select {
   flex: 0 1 auto; max-width: 42%; font: inherit; font-size: 13px; font-weight: 700;
-  color: var(--cream); background: rgb(var(--ink-rgb) / .55);
+  color: var(--cream); background: rgb(var(--creux-rgb) / .55);
   border: var(--line) solid var(--line-soft); border-radius: 999px; padding: 10px 12px;
 }
 .find select:focus { outline: none; border-color: var(--neon); box-shadow: var(--glow-neon); }
@@ -221,9 +234,10 @@ h1, h2, h3, .display,
     background: linear-gradient(176deg, #fff3c4 0%, var(--gold) 38%, #ff9a2e 78%, #ff7a1a 100%);
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent; color: transparent;
-    filter:
-      drop-shadow(0 2px 0 var(--contour))
-      drop-shadow(0 0 16px rgb(var(--neon-rgb) / .38));
+    /* Le relief seul. La lueur orange de 16 px allait avec un fond noir ;
+       sur du papier elle ne s'allume pas, elle salit — un halo brun
+       autour de chaque lettre. */
+    filter: drop-shadow(0 2px 0 var(--contour));
   }
 }
 
@@ -334,7 +348,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tile {
   aspect-ratio: 1; display: grid; place-items: center;
   font-size: 34px; line-height: 1;
-  background: rgb(var(--ink-rgb) / .5);
+  background: rgb(var(--creux-rgb) / .5);
   border: var(--line) solid var(--line-soft); border-radius: 16px;
   transition: transform .1s ease, border-color .14s ease, box-shadow .14s ease;
 }
@@ -517,18 +531,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .card {
   position: relative; display: flex; flex-direction: column;
   color: var(--cream);
-  background: var(--panel);
-  border: 2px solid var(--contour);
+  background: transparent;
+  /* Aucun cadre. Sur du papier, un contour autour de chaque case
+     fabrique une grille de boîtes ; la photo se suffit, et l'ombre
+     portée dit seule qu'elle est posée dessus. */
+  border: 0;
   border-radius: var(--radius);
-  /* Le trait noir épais des cases de manga, et une lueur froide très
-     discrète dessous. La lueur portait avant la couleur du cadre à
-     pleine intensité : en bleu vif, la grille entière clignotait et les
-     photos passaient au second plan. */
-  box-shadow:
-    0 0 0 1px rgb(var(--halo2-rgb) / .28),
-    0 10px 0 -4px var(--contour),
-    0 16px 30px rgb(0 0 0 / .66),
-    0 0 26px -10px rgb(var(--halo2-rgb) / .5);
+  box-shadow: none;
   overflow: hidden; text-align: left; padding: 0;
   transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease;
 }
@@ -536,13 +545,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* Plus vif sur ce que le vendeur a photographié : c'est ce qui mérite d'être
    regardé, et ça lui donne une raison de remplacer les derniers dessins de
    remplacement par de vraies images. */
-.card--vitrine {
-  border-color: var(--contour);
+/* Ce que le vendeur a photographié se distingue par un liseré sur la
+   VIGNETTE, pas autour de la carte : il n'y a plus de carte à cercler. */
+.card--vitrine { box-shadow: none; }
+.card--vitrine .card__art {
   box-shadow:
-    0 0 0 2px rgb(var(--halo2-rgb) / .62),
-    0 10px 0 -4px var(--contour),
-    0 18px 34px rgb(0 0 0 / .8),
-    0 0 30px -8px rgb(var(--halo2-rgb) / .75);
+    0 0 0 2.5px var(--gold),
+    0 10px 22px rgb(var(--ink-rgb) / .22);
 }
 
 /* Épuisé : le néon s'éteint. Faire briller ce qu'on ne peut pas acheter,
@@ -553,17 +562,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
   box-shadow: 0 10px 22px rgb(0 0 0 / .5);
 }
 
-.card:active {
-  transform: scale(.975);
-  border-color: rgb(var(--neon-rgb) / .45);
-}
+.card:active { transform: scale(.975); }
+.card:active .card__art { box-shadow: 0 0 0 2.5px var(--neon), 0 6px 14px rgb(var(--ink-rgb) / .2); }
 
 /* La vignette d'un produit sans photo. Le halo vert derrière la feuille a
    sauté : il donnait à chaque case l'air d'être en promotion, y compris
    celles qui n'ont pas encore d'image. */
 .card__art {
   position: relative; aspect-ratio: 1; display: grid; place-items: center;
-  background: rgb(var(--ink-rgb) / .45);
+  border-radius: var(--radius); overflow: hidden;
+  box-shadow: 0 8px 18px rgb(var(--ink-rgb) / .18), 0 1px 0 rgb(var(--ink-rgb) / .1);
+  background: rgb(var(--panel2-rgb));
   border-bottom: 1px solid var(--line-soft);
 }
 .card__art img { width: 74%; opacity: .5; }
@@ -577,13 +586,21 @@ button { font: inherit; color: inherit; cursor: pointer; }
   /* Vert plein : c'est la couleur de ce qui est bon à savoir dans toute la
      boutique. Le dégradé rose vers vert disait surtout « regarde comme je
      brille », sur une vignette qui n'a que 170 px de large. */
+  /* Un aplat cerné de noir, comme tout le reste du thème.
+     Et SURTOUT un z-index : le voile sombre de la vignette
+     (`.card__art--photo::after`) est peint après la pastille et passait
+     donc par-dessus, alors qu'il existe justement pour la rendre
+     lisible. Sur fond sombre on ne le voyait pas ; sur du papier il
+     délavait « TOP VENTE » jusqu'à le rendre illisible. */
+  z-index: 2;
   background: var(--neon);
-  color: var(--ink); font-size: 10px; font-weight: 800;
-  letter-spacing: .04em; padding: 4px 8px; border: 0;
-  border-radius: 6px; box-shadow: none;
+  color: #fff; font-size: 10px; font-weight: 800;
+  letter-spacing: .04em; padding: 4px 8px;
+  border: 2px solid var(--contour);
+  border-radius: 6px; box-shadow: 0 2px 0 var(--contour);
 }
 
-.card__body { padding: 11px 12px 13px; display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.card__body { padding: 10px 2px 4px; display: flex; flex-direction: column; gap: 3px; flex: 1; }
 .card__name { font-size: 18px; line-height: 1.12; letter-spacing: .01em; }
 .card__short { font-size: 12px; line-height: 1.3; color: var(--muted); font-weight: 600; flex: 1; }
 .card__foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 8px; }
@@ -644,7 +661,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   position: absolute; top: 12px; right: 12px; z-index: 3;
   width: 36px; height: 36px; border-radius: 50%;
   color: var(--cream);
-  background: rgb(var(--ink-rgb) / .6);
+  background: rgb(var(--creux-rgb) / .6);
   border: var(--line) solid var(--line-soft);
   font-size: 15px; font-weight: 800; backdrop-filter: blur(6px);
 }
@@ -653,7 +670,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .sheet__bar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 12px 14px calc(12px + var(--safe-bottom));
-  background: rgb(var(--ink-rgb) / .72);
+  background: rgb(var(--creux-rgb) / .72);
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--line-soft);
 }
@@ -664,7 +681,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
    au milieu d'une surface sombre. D'où les deux jeux de règles. */
 .pdetail__art {
   display: grid; place-items: center; padding: 26px 0 20px;
-  background: rgb(var(--ink-rgb) / .45);
+  background: rgb(var(--creux-rgb) / .45);
   border: 1px solid var(--line-soft);
   border-radius: 16px; overflow: hidden;
 }
@@ -790,7 +807,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .cart-item__art {
   width: 52px; height: 52px; flex: none; display: grid; place-items: center;
-  background: rgb(var(--ink-rgb) / .45);
+  background: rgb(var(--creux-rgb) / .45);
   border: 1px solid var(--line-soft); border-radius: 12px;
 }
 /* `video` autant que `img` : un produit qui n'a qu'un film dans sa galerie
@@ -822,7 +839,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .field span { font-size: 13px; font-weight: 800; display: block; margin-bottom: 6px; color: var(--muted); }
 .field textarea, .field input, .field select {
   width: 100%; font: inherit; font-size: 14px; font-weight: 600; color: var(--cream);
-  background: rgb(var(--ink-rgb) / .55); border: var(--line) solid var(--line-soft); border-radius: 14px;
+  background: rgb(var(--creux-rgb) / .55); border: var(--line) solid var(--line-soft); border-radius: 14px;
   padding: 11px 13px; resize: none;
 }
 .field textarea::placeholder, .field input::placeholder { color: rgb(var(--cream-rgb) / .38); }
@@ -981,14 +998,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 
 /* ── Ruptures de stock ───────────────────────────────────── */
-.card--soldout .card__art { background: linear-gradient(180deg, rgb(var(--ink-rgb) / .5), rgb(var(--ink-rgb) / .8)); }
+.card--soldout .card__art { background: rgb(var(--creux-rgb)); }
+.card--soldout .card__art img { filter: grayscale(.85) opacity(.45); }
 .card--soldout .card__art img { filter: grayscale(1); opacity: .38; }
 .card--soldout .card__price { -webkit-text-fill-color: rgb(var(--cream-rgb) / .4); color: rgb(var(--cream-rgb) / .4); background: none; text-shadow: none; }
 /* La famille d'affiche s'applique au prix, mais pas son remplissage : sans
    cette ligne, le dégradé de .goldtext repeindrait le prix en blanc. */
-.card__price { -webkit-text-fill-color: var(--neon); }
+/* Le prix porte `goldtext` pour la police, pas pour le relief : à 19 px
+   l'arête sombre empâte les chiffres au lieu de les détacher. */
+.card__price { -webkit-text-fill-color: var(--neon); filter: none; }
 .card--soldout .card__add { background: rgba(255, 255, 255, .1); color: var(--muted); box-shadow: none; }
-.card__badge--out { background: rgb(var(--ink-rgb) / .85); border-color: var(--line-soft); box-shadow: none; color: var(--muted); }
+.card__badge--out { background: rgb(var(--creux-rgb) / .85); border-color: var(--line-soft); box-shadow: none; color: var(--muted); }
 
 .variant[disabled] {
   background: rgba(255, 255, 255, .03); color: rgb(var(--cream-rgb) / .38);
@@ -1001,7 +1021,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* ── Photos ──────────────────────────────────────────────── */
 /* Une vraie photo remplit son cadre au lieu de flotter dans le halo, avec
    un voile sombre en haut pour que la pastille reste lisible. */
-.card__art--photo, .card__art--video { background: rgb(var(--ink-rgb) / .6); overflow: hidden; }
+.card__art--photo, .card__art--video { background: rgb(var(--creux-rgb) / .6); overflow: hidden; }
 .card__art--photo img { width: 100%; height: 100%; object-fit: cover; filter: none; }
 .card__art--photo::after, .card__art--video::after {
   content: ''; position: absolute; inset: 0 0 55% 0; pointer-events: none;
@@ -1012,7 +1032,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
    la carte entière doit rester le bouton qui ouvre la fiche. */
 .card__video {
   width: 100%; height: 100%; object-fit: cover;
-  pointer-events: none; background: rgb(var(--ink-rgb) / .7);
+  pointer-events: none; background: rgb(var(--creux-rgb) / .7);
 }
 /* La pastille dit « vidéo » même immobile : sur un système qui demande moins de
    mouvement, la vitrine montre la première image et rien ne bouge. */
@@ -1109,7 +1129,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .jauge__texte span:last-child { color: var(--muted); font-weight: 700; white-space: nowrap; }
 .jauge__piste {
   height: 7px; border-radius: 999px; overflow: hidden;
-  background: rgb(var(--ink-rgb) / .55);
+  background: rgb(var(--creux-rgb) / .55);
 }
 .jauge__barre {
   height: 100%; border-radius: 999px; width: 0;
@@ -1158,7 +1178,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .galerie__media {
   position: relative;
   flex: 0 0 100%; scroll-snap-align: center;
-  display: grid; place-items: center; background: rgb(var(--ink-rgb) / .55);
+  display: grid; place-items: center; background: rgb(var(--creux-rgb) / .55);
 }
 /* Une proportion plutôt qu'une hauteur fixe : 250 px donnaient une bande
    étroite sur un grand téléphone et une image plus haute que large sur un
@@ -1219,7 +1239,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   object-fit: cover; opacity: 1; filter: none;
 }
 
-.cart-item__art--photo { overflow: hidden; background: rgb(var(--ink-rgb) / .5); }
+.cart-item__art--photo { overflow: hidden; background: rgb(var(--creux-rgb) / .5); }
 .cart-item__art--photo img,
 .cart-item__art--photo video { width: 100%; height: 100%; object-fit: cover; }
 
@@ -1351,7 +1371,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: grid; place-items: center; cursor: pointer;
   font-size: 17px; line-height: 1;
   color: rgb(var(--cream-rgb) / .55);
-  background: rgb(var(--ink-rgb) / .55); border: 1px solid rgb(var(--cream-rgb) / .18);
+  z-index: 2;
+  background: rgb(255 255 255 / .92); border: 1px solid rgb(var(--ink-rgb) / .12);
+  box-shadow: 0 2px 8px rgb(var(--ink-rgb) / .22);
   backdrop-filter: blur(6px);
 }
 .card__coeur.est-favori, .pdetail__coeur.est-favori {
@@ -1379,7 +1401,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .profil__compte {
   display: inline-block; margin-left: 5px; padding: 0 6px; border-radius: 999px;
-  font-size: 11px; background: rgb(var(--ink-rgb) / .22);
+  font-size: 11px; background: rgb(var(--creux-rgb) / .22);
 }
 .profil__onglet[aria-selected="false"] .profil__compte { background: rgb(var(--cream-rgb) / .12); }
 .profil__intro { margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: var(--muted); }
@@ -1398,7 +1420,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* Même règle pour les deux : la vignette d'un favori est une photo ou une
    vidéo selon ce que le produit a, et le carré ne change pas pour autant. */
 .favori__image { width: 58px; height: 58px; border-radius: 12px; object-fit: cover; flex: none; }
-video.favori__image { display: block; background: rgb(var(--ink-rgb) / .45); }
+video.favori__image { display: block; background: rgb(var(--creux-rgb) / .45); }
 .favori__corps { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .favori__nom { font-size: 14.5px; font-weight: 800; overflow-wrap: anywhere; }
 .favori__prix { font-size: 14px; font-weight: 800; }
@@ -1769,7 +1791,7 @@ video.favori__image { display: block; background: rgb(var(--ink-rgb) / .45); }
 }
 .suggestion__art {
   display: block; aspect-ratio: 1; overflow: hidden;
-  background: rgb(var(--ink-rgb) / .45);
+  background: rgb(var(--creux-rgb) / .45);
   border: 1px solid var(--line-soft); border-radius: 13px;
 }
 /* `video` autant que `img` : un produit qui n'a qu'une vidéo montre sa
@@ -1821,7 +1843,7 @@ video.favori__image { display: block; background: rgb(var(--ink-rgb) / .45); }
    bouton de lecture, donc rien à réserver en bas. */
 .galerie__gif {
   width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; display: block;
-  background: rgb(var(--ink-rgb) / .5);
+  background: rgb(var(--creux-rgb) / .5);
 }
 
 /* ══ Ce qui bouge ═══════════════════════════════════════════════
@@ -1883,7 +1905,7 @@ img.galerie__gif { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: c
 
 /* Ce que porte une vidéo qui ne viendra pas. Le voile reste, mais il cesse
    de tourner : un anneau qui tourne promet une arrivée. */
-.vcharge--panne { background: rgb(var(--ink-rgb) / .72); }
+.vcharge--panne { background: rgb(var(--creux-rgb) / .72); }
 .vcharge__panne {
   font-size: 12px; font-weight: 700; letter-spacing: .04em;
   color: rgb(var(--cream-rgb) / .8); text-align: center; padding: 0 14px;
