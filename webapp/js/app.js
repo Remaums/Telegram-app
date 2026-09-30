@@ -263,6 +263,16 @@ function appliquerLesAnimations() {
   // Un GIF ne se met pas en pause : une balise image le joue en boucle et
   // n'écoute personne. La seule façon de respecter « pas d'animations » est
   // donc de lui donner une autre adresse — le même dessin, immobile.
+  // Une vidéo ne s'arrête pas toute seule : `autoplay` et `loop` la
+  // relancent. Le CSS ne peut rien contre elle — seul `pause()` compte.
+  // Elle reste à l'écran sur son image, ce qui dit encore « ça charge »
+  // sans bouger.
+  const film = document.getElementById('chargeFilm');
+  if (film) {
+    if (coupe) film.pause();
+    else film.play?.().catch(() => { /* le navigateur refuse : l'affiche suffit */ });
+  }
+
   const embleme = document.getElementById('heroEmbleme');
   if (embleme) {
     const voulu = coupe ? '/assets/ui/leaf.svg' : '/assets/ui/napoli-feuille.gif';

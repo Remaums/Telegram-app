@@ -33,12 +33,26 @@
 </div>
 
 <div class="charge" id="charge">
-  <div class="charge__anneau" aria-hidden="true">
-    <span class="charge__arc"></span>
-    <img src="/assets/ui/leaf.svg" alt="" class="charge__feuille">
+  <!-- L'animation de la maison. `poster` est une vraie image du film : sur
+       un réseau lent, ou dans une WebView qui refuse de lire une vidéo,
+       l'écran montre l'affiche au lieu d'un rectangle vide. `playsinline`
+       est indispensable — sans lui, iOS ouvre le lecteur plein écran
+       par-dessus la boutique. -->
+  <!-- Deux encodages, et le navigateur prend le premier qu'il sait lire ;
+       il n'en télécharge qu'un. Le webm (VP9) d'abord, parce qu'un
+       Chromium sans codecs propriétaires ne décode PAS le H.264 — il
+       resterait sur l'affiche. iOS ignore le webm et prend le mp4. -->
+  <video class="charge__film" id="chargeFilm" autoplay muted loop playsinline
+         preload="auto" poster="/assets/ui/accueil.jpg" aria-hidden="true">
+    <source src="/assets/ui/accueil.webm" type="video/webm">
+    <source src="/assets/ui/accueil.mp4" type="video/mp4">
+  </video>
+  <div class="charge__voile" aria-hidden="true"></div>
+  <div class="charge__pied">
+    <p class="charge__nom goldtext">Napoli Coffee</p>
+    <p class="charge__texte" id="chargeTexte">Ouverture de la boutique…</p>
+    <span class="charge__barre" aria-hidden="true"><i></i></span>
   </div>
-  <p class="charge__nom goldtext">Napoli Coffee</p>
-  <p class="charge__texte" id="chargeTexte">Ouverture de la boutique…</p>
 </div>
 
 <!-- ══ La porte du bot : le calcul se fait dans la conversation ══ -->

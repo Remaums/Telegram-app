@@ -21,46 +21,47 @@
    données en composantes brutes pour pouvoir moduler l'opacité avec
    la syntaxe rgb(var(--x) / .5). */
 :root {
-  /* ── Noir et or ────────────────────────────────────────────
-     La référence du vendeur : une nuit bleutée, des filets dorés, et
-     l'or qui porte tout ce qui compte. Rien de vif ici — l'or se suffit,
-     et une seconde couleur vive lui volerait son éclat.
+  /* ── Devanture néon ────────────────────────────────────────
+     Les valeurs sont PRÉLEVÉES sur l'animation d'accueil, pas choisies
+     de tête : magenta et rose 300–340°, violet d'enseigne 270°, ambre
+     de vitrine 29°, et un noir BLEUTÉ (#000010) — pas un gris neutre.
+     C'est ce bleu dans le noir qui fait tenir les néons ensemble.
 
-     ATTENTION aux noms. `--cream` est du texte clair, `--ink` du texte
-     posé SUR l'or, et `--neon` est l'or lui-même. Ils sont cités par
-     plusieurs centaines de déclarations ; les renommer aurait touché
-     tout le fichier sans rien changer à l'écran. */
-  --void-rgb:     3  6 14;    /* voile derrière les panneaux */
-  --night-rgb:    7 12 24;    /* fond de page — la nuit en mer */
-  --night2-rgb:   5  9 19;    /* barres hautes et basses */
-  --panel-rgb:   14 21 38;    /* surface haute (cartes, panneaux) */
-  --panel2-rgb:  10 16 30;    /* surface basse */
-  --ink-rgb:      8 11 20;    /* texte posé SUR l'or */
-  --cream-rgb: 240 235 222;   /* texte — ivoire */
-  --line-rgb:  198 160  78;   /* filets et bordures : le liseré doré */
-  --creux-rgb:   16 24 43;    /* surfaces en retrait : champs, jauges */
+     ATTENTION aux noms. `--neon` porte enfin le sien : c'est le rose
+     d'enseigne. `--cream` est du texte clair, `--ink` du texte posé sur
+     le rose. Ils sont cités des centaines de fois ; les renommer aurait
+     touché tout le fichier sans rien changer à l'écran. */
+  --void-rgb:     3  2 10;    /* voile derrière les panneaux */
+  --night-rgb:    8  6 20;    /* fond de page — la rue, la nuit */
+  --night2-rgb:  13 10 30;    /* barres hautes et basses */
+  --panel-rgb:   23 16 48;    /* surface haute (cartes, panneaux) */
+  --panel2-rgb:  16 11 34;    /* surface basse */
+  --ink-rgb:      9  5 22;    /* texte posé SUR le rose */
+  --cream-rgb: 246 240 255;   /* texte — blanc légèrement violacé */
+  --line-rgb:  150 110 220;   /* filets et bordures : violet d'enseigne */
+  --creux-rgb:   20 14 42;    /* surfaces en retrait : champs, jauges */
 
-  /* L'or. C'est l'accent, et il porte l'enseigne, les prix et les
-     boutons. `--neon` a gardé son nom. */
-  --neon-rgb:  212 175  84;
-  --halo-rgb:  240 208 120;
-  --halo2-rgb: 198 160  78;   /* le même or : les filets des cartes */
-  --halo3-rgb:  62 160 110;   /* vert : ce qui rassure, « sans THC » */
+  /* Les néons. Le rose porte tout ce qui s'appuie ; le violet et le bleu
+     électrique tiennent les contours et les lueurs. */
+  --neon-rgb:  255  61 154;   /* rose d'enseigne — l'accent */
+  --halo-rgb:  200  70 240;   /* magenta : les lueurs */
+  --halo2-rgb:  46 201 255;   /* bleu électrique : contours des cartes */
+  --halo3-rgb: 168  85 247;   /* violet : compteurs et seconds rôles */
 
-  --gold-rgb:  240 208 120;   /* or clair : titres et prix */
-  --gold-lo-rgb: 168 132  52;
-  --red-rgb:   198  62  52;   /* alertes, ruptures */
+  --gold-rgb:  255 182  74;   /* ambre de vitrine : prix et titres */
+  --gold-lo-rgb: 214 138  30;
+  --red-rgb:   255  70  90;   /* alertes, ruptures */
   --tg-rgb:     42 171 238;   /* le bleu de Telegram : il ne nous appartient pas */
 
-  --neon-hi: #f0d078;         /* survol */
-  --neon-deep: #a8842e;       /* appui */
-  --gold-hi: #fbeec2;
-  --sauge: #3ea06e;           /* ce qui est ouvert, en stock */
+  --neon-hi: #ff6fb4;         /* survol */
+  --neon-deep: #d4177a;       /* appui */
+  --gold-hi: #ffd08a;
+  --sauge: #3ddc84;           /* ce qui est ouvert, en stock */
 
-  /* Propres au thème : le filet doré, et le noir de fond des cartouches. */
-  --ki-rgb:    198 160  78;
+  /* Propres au thème : le violet d'enseigne, et le noir de contour. */
+  --ki-rgb:    168  85 247;
   --ki: rgb(var(--ki-rgb));
-  --contour: #05080f;
+  --contour: #060312;
 }
 
 :root {
@@ -99,10 +100,14 @@
      écarté pour « air de fête foraine » — c'est précisément ce qu'on
      cherche maintenant. Il ne sert qu'aux titres et aux prix : du texte
      courant dans cette graisse serait illisible. */
-  --display: 'Cinzel', 'Baloo 2', Georgia, serif;
+  /* Le lettrage d'affiche, celui des couvertures. Cinzel — les capitales
+     romaines — servait la demande précédente, en noir et or ; elle est
+     trop sérieuse pour une devanture néon. Elle reste embarquée : la
+     remettre ne coûtera qu'une ligne. */
+  --display: 'Luckiest Guy', 'Baloo 2', system-ui, sans-serif;
 
   --line: 1px;
-  --radius: 16px;
+  --radius: 20px;
   --shadow: 0 10px 28px rgb(0 0 0 / .55);
   --shadow-sm: 0 3px 12px rgb(0 0 0 / .45);
   --shadow-lg: 0 20px 48px rgb(0 0 0 / .62);
@@ -222,14 +227,17 @@ h1, h2, h3, .display,
 }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .goldtext {
-    background: linear-gradient(178deg, #fbeec2 0%, var(--gold) 34%, #d4af54 72%, #a8842e 100%);
+    background: linear-gradient(176deg, #fff0fa 0%, #ffb64a 30%, #ff3d9a 72%, #c846f0 100%);
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent; color: transparent;
     /* Sur la nuit, l'or a le droit de luire un peu : c'est ce qui le
        distingue d'un simple jaune. L'arête reste, plus fine. */
+    /* Un néon, ça déborde : deux lueurs de rayons différents, une serrée
+       et une large, plus l'arête sombre qui décolle la lettre du fond. */
     filter:
-      drop-shadow(0 1px 0 var(--contour))
-      drop-shadow(0 0 18px rgb(var(--gold-rgb) / .3));
+      drop-shadow(0 2px 0 var(--contour))
+      drop-shadow(0 0 10px rgb(var(--neon-rgb) / .55))
+      drop-shadow(0 0 30px rgb(var(--halo-rgb) / .35));
   }
 }
 
@@ -254,15 +262,24 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* Un aplat, pas un dégradé à trois arrêts avec reflet intérieur et halo.
    Le bouton principal se distingue d'être le seul vert de l'écran ; il
    n'a pas besoin de briller en plus. */
+/* Le bouton principal rayonne : sur une devanture, un aplat mat au
+   milieu des néons a l'air éteint. La lueur reste sous le bouton, elle
+   ne l'entoure pas — un halo tout autour bave sur le texte voisin. */
 .btn--primary {
-  color: var(--ink);
-  background: var(--neon);
+  color: #fff;
+  background: linear-gradient(180deg, var(--neon-hi), rgb(var(--neon-rgb)));
   border-color: transparent;
-  box-shadow: 0 4px 14px rgb(var(--neon-rgb) / .18);
-  text-shadow: none;
+  box-shadow:
+    0 6px 20px rgb(var(--neon-rgb) / .45),
+    inset 0 1px 0 rgb(255 255 255 / .28);
+  text-shadow: 0 1px 2px rgb(var(--ink-rgb) / .45);
 }
 .btn--primary:active { background: var(--neon-deep); }
-.btn--ghost { background: rgba(255, 255, 255, .06); }
+.btn--ghost {
+  background: rgb(var(--panel-rgb) / .8);
+  border: 1px solid rgb(var(--halo3-rgb) / .45);
+  color: var(--cream);
+}
 
 /* Ce qui renvoie vers Telegram porte le bleu de Telegram : c'est la seule
    couleur que le client reconnaît sans lire le bouton. */
@@ -569,13 +586,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .card {
   position: relative; display: flex; flex-direction: column;
   color: var(--cream);
-  /* Un filet doré d'un pixel sur une surface de nuit : c'est tout ce
-     qui tient la carte. Pas de lueur, pas d'ombre colorée — l'or ne
-     brille que par contraste avec le noir autour. */
-  border: 1px solid rgb(var(--line-rgb) / .38);
+  /* Un tube de néon autour d'une surface de nuit. L'ombre est COLORÉE —
+     violet, pas gris : une ombre neutre sous un contour néon fait un
+     trou mort dans le décor, et c'est ce qui trahit le plus vite un
+     thème posé par-dessus un autre. */
+  border: 1.5px solid rgb(var(--halo2-rgb) / .42);
   border-radius: var(--radius);
-  background: rgb(var(--panel-rgb));
-  box-shadow: 0 8px 24px rgb(0 0 0 / .55);
+  background: linear-gradient(168deg, rgb(var(--panel-rgb)), rgb(var(--panel2-rgb)));
+  box-shadow:
+    0 0 0 1px rgb(var(--halo3-rgb) / .16),
+    0 10px 26px rgb(var(--ink-rgb) / .85),
+    0 0 26px -10px rgb(var(--halo2-rgb) / .7);
   overflow: hidden; text-align: left; padding: 0;
   transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease;
 }
@@ -586,8 +607,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* Ce que le vendeur a photographié se distingue par un liseré sur la
    VIGNETTE, pas autour de la carte : il n'y a plus de carte à cercler. */
 .card--vitrine {
-  border-color: rgb(var(--gold-rgb) / .75);
-  box-shadow: 0 8px 24px rgb(0 0 0 / .55), 0 0 22px -8px rgb(var(--gold-rgb) / .5);
+  border-color: rgb(var(--neon-rgb) / .8);
+  box-shadow:
+    0 0 0 1px rgb(var(--neon-rgb) / .28),
+    0 10px 26px rgb(var(--ink-rgb) / .85),
+    0 0 30px -8px rgb(var(--neon-rgb) / .75);
 }
 
 /* Épuisé : le néon s'éteint. Faire briller ce qu'on ne peut pas acheter,
@@ -598,7 +622,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   box-shadow: 0 10px 22px rgb(0 0 0 / .5);
 }
 
-.card:active { transform: scale(.975); border-color: var(--gold); }
+.card:active { transform: scale(.975); border-color: var(--neon); }
 
 /* La vignette d'un produit sans photo. Le halo vert derrière la feuille a
    sauté : il donnait à chaque case l'air d'être en promotion, y compris
@@ -606,7 +630,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .card__art {
   position: relative; aspect-ratio: 1; display: grid; place-items: center;
   overflow: hidden;
-  border-bottom: 1px solid rgb(var(--line-rgb) / .28);
+  border-bottom: 1.5px solid rgb(var(--halo2-rgb) / .3);
   background: rgb(var(--panel2-rgb));
   border-bottom: 1px solid var(--line-soft);
 }
@@ -654,6 +678,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .card__add b { font-weight: 800; font-size: 16px; line-height: 1; }
 .card__add {
+  box-shadow: 0 4px 14px rgb(var(--neon-rgb) / .4);
+  background: linear-gradient(180deg, var(--neon-hi), rgb(var(--neon-rgb)));
+  color: #fff;
   min-width: 32px; height: 32px; flex: none;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   padding: 0 12px;
@@ -1546,44 +1573,62 @@ video.favori__image { display: block; background: rgb(var(--creux-rgb) / .45); }
   display: grid !important;   /* on le fait disparaître en fondu, pas d'un coup */
   opacity: 0; visibility: hidden; pointer-events: none;
 }
-.charge__anneau {
-  position: relative; width: 104px; height: 104px;
-  display: grid; place-items: center;
+/* ── L'écran de chargement : l'animation de la maison ─────────
+   La vidéo remplit l'écran en `cover` : le film est en portrait 400×593,
+   un téléphone ne l'est jamais exactement, et `contain` laisserait deux
+   bandes noires. On perd un peu des bords, jamais les visages — ils sont
+   au centre.
+
+   Elle est muette et en boucle : un navigateur refuse de lancer une
+   vidéo sonore sans geste du client, et l'écran resterait figé sur
+   l'affiche. `playsinline` est dans le HTML, sans quoi iOS ouvre son
+   lecteur plein écran par-dessus la boutique. */
+.charge__film {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; object-fit: cover;
+  border: 0;
 }
-.charge__anneau::before {
-  content: ''; position: absolute; inset: 0; border-radius: 50%;
-  background: radial-gradient(circle, rgb(var(--halo2-rgb) / .28), transparent 68%);
+/* Un voile en bas, pour que le nom et le mot de chargement se lisent
+   quelle que soit l'image du film qui passe dessous. */
+.charge__voile {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgb(var(--void-rgb) / .55) 0%, transparent 26%),
+    linear-gradient(0deg, rgb(var(--void-rgb) / .94) 0%, rgb(var(--void-rgb) / .6) 20%, transparent 46%);
 }
-.charge__arc {
-  position: absolute; inset: 0; border-radius: 50%;
-  border: 2.5px solid rgb(var(--line-rgb) / .18);
-  border-top-color: var(--neon);
-  border-right-color: rgb(var(--halo2-rgb) / .85);
-  animation: charge-tour 1.05s linear infinite;
+.charge__pied {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 0 22px calc(30px + var(--safe-bottom));
+  display: grid; justify-items: center; gap: 9px;
+  text-align: center;
 }
-.charge__feuille {
-  width: 46px; height: 46px; position: relative;
-  filter: drop-shadow(0 0 12px rgb(var(--halo2-rgb) / .6));
-  animation: charge-souffle 2.2s ease-in-out infinite;
-}
-.charge__nom { font-size: 26px; line-height: 1; }
+.charge__nom { font-size: 30px; line-height: 1; margin: 0; }
 .charge__texte { margin: 0; font-size: 13px; font-weight: 700; color: var(--muted); }
 
-@keyframes charge-tour { to { transform: rotate(360deg); } }
-@keyframes charge-souffle {
-  0%, 100% { transform: scale(1); opacity: .92; }
-  50%      { transform: scale(1.08); opacity: 1; }
+/* La barre : elle ne mesure rien — on ne sait pas combien de temps le
+   catalogue mettra. Elle va et vient pour dire « ça travaille », ce qui
+   est la seule chose vraie qu'on puisse en dire. */
+.charge__barre {
+  width: 132px; height: 3px; border-radius: 2px; overflow: hidden;
+  background: rgb(var(--cream-rgb) / .16);
+}
+.charge__barre i {
+  display: block; width: 42%; height: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--neon), var(--halo));
+  box-shadow: 0 0 12px rgb(var(--neon-rgb) / .8);
+  animation: charge-va 1.5s ease-in-out infinite;
+}
+@keyframes charge-va {
+  0%, 100% { transform: translateX(-24%); }
+  50%      { transform: translateX(160%); }
 }
 
-/* Le voile reste — c'est lui qui dit que ça charge — mais il cesse de
-   tourner : une boutique sobre doit rester lisible, pas immobile au
-   point d'avoir l'air figée. */
-[data-anim='off'] .charge__arc,
-[data-anim='off'] .charge__feuille { animation: none; }
-[data-anim='off'] .charge__arc { border-top-color: var(--neon); }
+/* Sobre : le film s'arrête sur son affiche, et la barre cesse d'aller et
+   venir. L'écran reste lisible, il ne bouge plus. */
+[data-anim='off'] .charge__barre i { animation: none; width: 100%; }
 
 @media (prefers-reduced-motion: reduce) {
-  .charge__arc, .charge__feuille { animation: none; }
+  .charge__barre i { animation: none; width: 100%; }
   .charge { transition: none; }
 }
 
@@ -2114,86 +2159,66 @@ img.galerie__gif { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: c
 }
 
 /* ══════════════════════════════════════════════════════════════
-   LE FOND ANIMÉ
+   LE FOND : UNE DEVANTURE, LA NUIT
    ══════════════════════════════════════════════════════════════
-   Trois couches fixes derrière toute la boutique. Aucune n'intercepte
-   le doigt, aucune ne participe au défilement, et chacune n'anime que
-   `transform` ou `opacity` — les deux seules propriétés qu'un
-   téléphone sait bouger sans repeindre la page à chaque image.
+   Trois couches fixes derrière toute la boutique : la trame
+   d'impression, deux halos de néon qui respirent, et un liseré de
+   lumière en haut — la vitrine qu'on devine. Aucune n'intercepte le
+   doigt, et chacune n'anime que `opacity` ou `transform`, les deux
+   seules propriétés qu'un téléphone bouge sans repeindre la page.
 
-   Elles sont volontairement discrètes. Un fond de manga plein écran
-   sous un catalogue de produits rend les photos illisibles : ce qu'on
-   cherche, c'est que l'écran ait l'air imprimé, pas qu'il crie. */
+   Les teintes viennent de l'animation d'accueil, pas d'un nuancier :
+   violet d'enseigne, magenta, et l'ambre de la vitrine. */
 .fond {
   position: fixed; inset: 0; z-index: -1;
   pointer-events: none; overflow: hidden;
   background:
-    radial-gradient(120% 80% at 50% -10%, rgb(var(--panel-rgb)) 0%, transparent 60%),
-    linear-gradient(180deg, rgb(var(--night2-rgb)) 0%, rgb(var(--night-rgb)) 40%);
+    radial-gradient(130% 70% at 50% -8%, rgb(var(--panel-rgb)) 0%, transparent 62%),
+    linear-gradient(180deg, rgb(var(--night2-rgb)) 0%, rgb(var(--night-rgb)) 42%);
 }
 .fond > span { position: absolute; display: block; }
 
-/* La trame d'impression. Deux points par maille, décalés, comme un
-   demi-ton de presse. Elle ne bouge pas : c'est du papier. */
+/* La trame d'impression, immobile : c'est du papier, pas une lumière. */
 .fond__trame {
   inset: 0;
   background-image:
     radial-gradient(rgb(var(--line-rgb) / .16) .9px, transparent 1px),
     radial-gradient(rgb(var(--line-rgb) / .10) .9px, transparent 1px);
-  background-size: 14px 14px, 14px 14px;
-  background-position: 0 0, 7px 7px;
-  mask-image: radial-gradient(120% 90% at 50% 8%, #000 0%, transparent 72%);
+  background-size: 15px 15px, 15px 15px;
+  background-position: 0 0, 7.5px 7.5px;
+  mask-image: radial-gradient(120% 90% at 50% 6%, #000 0%, transparent 74%);
 }
 
-/* Les lignes de vitesse : un éventail de rayons qui part du haut de
-   l'écran. Le carré fait deux fois la diagonale pour qu'aucun coin ne
-   se découvre en tournant. */
+/* Le néon de gauche : magenta, il respire lentement. */
 .fond__vitesse {
-  top: 50%; left: 50%;
-  width: 280vmax; height: 280vmax;
-  margin: -140vmax 0 0 -140vmax;
-  background: repeating-conic-gradient(
-    from 0deg at 50% 50%,
-    rgb(var(--neon-rgb) / .055) 0deg 1.1deg,
-    transparent 1.1deg 4.2deg
-  );
-  mask-image: radial-gradient(circle at 50% 50%, transparent 14%, #000 34%, transparent 62%);
-  animation: fond-tourne 150s linear infinite;
-  will-change: transform;
-}
-
-/* La pulsation d'énergie, en haut : un souffle lent, celui qu'on voit
-   autour d'un personnage qui charge. */
-.fond__aura {
-  top: -28vmax; left: 50%;
-  width: 92vmax; height: 92vmax; margin-left: -46vmax;
-  border-radius: 50%;
+  top: -18vmax; left: -22vmax;
+  width: 78vmax; height: 78vmax; border-radius: 50%;
   background: radial-gradient(circle,
-    rgb(var(--neon-rgb) / .16) 0%,
-    rgb(var(--ki-rgb) / .09) 38%,
-    transparent 66%);
-  animation: fond-souffle 9s ease-in-out infinite;
-  will-change: transform, opacity;
+    rgb(var(--halo-rgb) / .22) 0%, rgb(var(--halo3-rgb) / .12) 40%, transparent 68%);
+  animation: fond-respire 11s ease-in-out infinite;
+  will-change: opacity, transform;
 }
 
-@keyframes fond-tourne { to { transform: rotate(360deg); } }
-@keyframes fond-souffle {
-  0%, 100% { transform: scale(1);    opacity: .70; }
-  50%      { transform: scale(1.11); opacity: 1; }
+/* Celui de droite : bleu électrique, décalé pour que les deux ne
+   pulsent jamais ensemble — deux lumières au même rythme font un
+   clignotant, pas une rue. */
+.fond__aura {
+  top: 6vmax; right: -30vmax;
+  width: 86vmax; height: 86vmax; border-radius: 50%;
+  background: radial-gradient(circle,
+    rgb(var(--halo2-rgb) / .18) 0%, rgb(var(--neon-rgb) / .10) 42%, transparent 68%);
+  animation: fond-respire 14s ease-in-out infinite -5s;
+  will-change: opacity, transform;
 }
 
-/* Sobre : le décor reste, il cesse de bouger. On garde la trame et
-   l'aura — ce sont elles qui donnent le thème — et on immobilise. */
+@keyframes fond-respire {
+  0%, 100% { transform: scale(.9);  opacity: .55; }
+  50%      { transform: scale(1.1); opacity: 1; }
+}
+
+/* Sobre : le décor reste, il cesse de respirer. */
 [data-anim='off'] .fond__vitesse,
 [data-anim='off'] .fond__aura { animation: none; }
-
-/* Le fond passe DERRIÈRE le contenu par un z-index négatif, et non en
-   remontant tout le reste. La première version de cette règle posait
-   `position: relative` sur .topbar, .tabbar, .pbar et .sheet — qui
-   étaient `sticky` ou `fixed`. La barre du haut cessait de coller, la
-   barre d'onglets retombait dans le flux et ouvrait un vide de 450 px
-   en haut de l'écran. Un fond décoratif n'a aucune raison de toucher
-   au positionnement de quoi que ce soit. */
 
 /* ══════════════════════════════════════════════════════════════
    LA BANNIÈRE, D'APRÈS LA RÉFÉRENCE DU VENDEUR
@@ -2218,12 +2243,13 @@ img.galerie__gif { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: c
 
 .hero__actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 16px; }
 .hero__cta { font-size: 13.5px; padding: 11px 16px; }
-/* Le bouton secondaire est cerné d'or et vide : sur une bannière, deux
-   aplats dorés côte à côte ne se hiérarchisent plus. */
+/* Le bouton secondaire est un tube vide, cerné de violet : deux aplats
+   roses côte à côte ne se hiérarchisent plus. */
 .hero__actions .btn--ghost {
   background: rgb(var(--void-rgb) / .55);
-  border: 1px solid rgb(var(--line-rgb) / .55);
-  color: var(--gold);
+  border: 1.5px solid rgb(var(--halo3-rgb) / .7);
+  color: var(--cream);
+  box-shadow: 0 0 18px -6px rgb(var(--halo3-rgb) / .8);
   backdrop-filter: blur(2px);
 }
 
