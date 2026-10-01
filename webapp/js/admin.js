@@ -55,6 +55,16 @@ async function init() {
 
   bindHandlers();
 
+  // Sans la moindre signature, ce n'est pas un refus d'accès : c'est une
+  // page ouverte au mauvais endroit. Inutile d'interroger le serveur pour
+  // s'en apercevoir — il répondrait « initData manquant », et ce message
+  // technique s'affichait en blanc sur noir, seul au milieu d'un écran
+  // vide. Celui qui le lisait croyait à une panne de sa boutique.
+  if (!tg?.initData) {
+    ouvrirDepuisTelegram();
+    return;
+  }
+
   try {
     const session = await api('/session');
     state.currency = session.currency;
@@ -77,6 +87,26 @@ async function init() {
   } catch (err) {
     denyAccess(err.message);
   }
+}
+
+/**
+ * La page a été ouverte hors de Telegram — un navigateur, un favori, un
+ * lien recopié. Rien n'est cassé : il manque la signature que seul
+ * Telegram ajoute, et aucune réponse du serveur ne peut l'inventer. On le
+ * dit, et on dit surtout par où passer.
+ */
+function ouvrirDepuisTelegram() {
+  $('gate').hidden = false;
+  $('gateSpinner').hidden = true;
+  $('gateTitre').hidden = false;
+  $('gateTitre').textContent = '📱 À ouvrir depuis Telegram';
+  $('gateText').textContent =
+    "Ce panneau s'ouvre dans Telegram, pas dans un navigateur : il se signe "
+    + 'avec ton compte, et cette signature ne peut venir que de là.';
+  $('gateAide').hidden = false;
+  $('gateAide').textContent =
+    'Dans la conversation du bot, tape /admin puis appuie sur « Espace admin ». '
+    + "Ça marche aussi bien sur Telegram Bureau que sur ton téléphone.";
 }
 
 function denyAccess(message) {

@@ -864,3 +864,16 @@ body.admin {
 }
 .a-musique__geste[disabled] { opacity: .3; cursor: default; }
 .a-musique__geste--oter { color: var(--red); }
+
+/* L'écran « à ouvrir depuis Telegram ». Le rideau d'accès ne portait
+   qu'une ligne : quand elle disait « initData manquant », elle flottait
+   seule au milieu du noir et ressemblait à une panne. */
+.a-gate__titre {
+  margin: 0 0 10px; font-size: 19px; font-weight: 800;
+  color: var(--cream, #f0f0f0);
+}
+.a-gate__aide {
+  margin: 12px 0 0; font-size: 13px; line-height: 1.55;
+  opacity: .72; max-width: 34ch;
+}
+.a-gate__card { max-width: 36ch; text-align: center; }
