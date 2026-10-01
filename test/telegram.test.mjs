@@ -446,9 +446,14 @@ for (const [label, texte] of [
 
   config.webappUrl = 'https://boutique.example.com';
   let vu = null;
-  const espion = async (prev, method, payload) => {
+  // L'espion OBSERVE et laisse passer. Sa première version rendait un
+  // résultat sans rappeler `prev` : installée pour de bon, elle court-
+  // circuitait l'intercepteur qui remplit `envois`, et TOUT test ajouté
+  // après ce bloc ne capturait plus rien — le bot répondait, la suite ne
+  // le voyait pas. Un piège silencieux pour qui écrit la ligne suivante.
+  const espion = async (prev, method, payload, signal) => {
     if (method === 'setChatMenuButton') vu = payload.menu_button;
-    return { ok: true, result: true };
+    return prev(method, payload, signal);
   };
   bot.api.config.use(espion);
 
@@ -459,6 +464,42 @@ for (const [label, texte] of [
   config.webappUrl = '';
   await configurerMenu();
   check('Sans URL valide, on repose le menu par défaut', vu?.type === 'default', vu?.type);
+
+  config.webappUrl = urlAvant;
+}
+
+/* ── /linkadmin : l'adresse du panneau, en clair ─────────── */
+
+console.log('\n── L adresse du panneau admin ──────────────────────');
+{
+  const urlAvant = config.webappUrl;
+
+  // Avec une barre oblique de fin — le cas le plus fréquent, l'adresse se
+  // recopiant depuis un navigateur. Elle ne doit pas se retrouver doublée.
+  config.webappUrl = 'https://boutique.example.com/';
+  let e = await jouer(message(ADMIN, '/linkadmin'));
+  check("L'adresse du panneau est rendue en clair",
+    /https:\/\/boutique\.example\.com\/admin\.html/.test(dit(e)), dit(e).slice(0, 70));
+  check('Sans double barre oblique', !/com\/\/admin/.test(dit(e)), dit(e).slice(0, 70));
+  check('Et le bouton Mini App est joint',
+    JSON.stringify(e.at(-1)?.payload?.reply_markup ?? {}).includes('admin.html'));
+  check("L'aperçu de lien est coupé",
+    e.at(-1)?.payload?.link_preview_options?.is_disabled === true,
+    JSON.stringify(e.at(-1)?.payload?.link_preview_options ?? 'absent'));
+  check('Le message dit qu il faut passer par Telegram',
+    /depuis telegram/i.test(dit(e)), dit(e).slice(-90));
+
+  // Un client ne doit RIEN obtenir : pas même un refus, qui apprendrait que
+  // la commande existe.
+  e = await jouer(message(CLIENT, '/linkadmin'));
+  check('Un client n obtient rien du tout', dit(e) === '', dit(e).slice(0, 60) || '(silence)');
+  check("Et surtout pas l'adresse", !/admin\.html/.test(JSON.stringify(e)));
+
+  // Sans URL configurée, on explique au lieu de rendre « undefined/admin.html ».
+  config.webappUrl = '';
+  e = await jouer(message(ADMIN, '/linkadmin'));
+  check('Sans WEBAPP_URL, on explique', /WEBAPP_URL/.test(dit(e)), dit(e).slice(0, 60));
+  check("Et aucune adresse bancale n'est servie", !/admin\.html/.test(dit(e)));
 
   config.webappUrl = urlAvant;
 }

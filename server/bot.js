@@ -55,9 +55,19 @@ const urlUtilisable = () => /^https:\/\/[^\s]+$/.test(config.webappUrl);
 const shopKeyboard = () =>
   urlUtilisable() ? new InlineKeyboard().webApp('🛒 Ouvrir la boutique', config.webappUrl) : undefined;
 
+/**
+ * L'adresse du panneau admin, fabriquée à un seul endroit.
+ *
+ * La barre oblique de fin se retire : `WEBAPP_URL` se recopie à la main dans
+ * le `.env`, et une adresse collée depuis un navigateur en porte presque
+ * toujours une. `https://…/` + `/admin.html` donnait `//admin.html`, que
+ * Telegram accepte comme bouton mais qui tombe sur un 404 au clic.
+ */
+const lienDuPanneau = () => `${config.webappUrl.replace(/\/+$/, '')}/admin.html`;
+
 const adminKeyboard = () =>
   urlUtilisable()
-    ? new InlineKeyboard().webApp('⚙️ Espace admin', `${config.webappUrl}/admin.html`)
+    ? new InlineKeyboard().webApp('⚙️ Espace admin', lienDuPanneau())
     : undefined;
 
 /**
@@ -474,6 +484,37 @@ bot.command('admin', async (ctx) => {
 });
 
 /**
+ * L'adresse du panneau admin, en clair, pour qu'on puisse la copier.
+ *
+ * `/admin` pose un BOUTON Mini App — pratique, mais on ne copie pas un
+ * bouton. On ne le met pas en favori, on ne se l'envoie pas sur un autre
+ * appareil, et on ne vérifie pas d'un coup d'œil que `WEBAPP_URL` pointe où
+ * l'on croit. D'où cette commande, qui rend le texte.
+ *
+ * Silencieuse pour qui n'est pas admin, comme `/dev` : refuser en toutes
+ * lettres apprend surtout à un curieux que la commande existe.
+ *
+ * L'aperçu de lien est coupé : Telegram irait chercher la page et collerait
+ * une vignette de la boutique sous le message, pour une adresse qu'on veut
+ * juste lire.
+ */
+bot.command('linkadmin', async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) return;
+  if (!urlUtilisable()) return ctx.reply(PAS_D_URL);
+
+  await ctx.reply(
+    '⚙️ Espace admin\n\n' +
+      `${lienDuPanneau()}\n\n` +
+      'À ouvrir DEPUIS Telegram — le bouton ci-dessous, ou ce lien collé dans ' +
+      'une conversation.\n\n' +
+      "Collé dans un navigateur ordinaire, la page s'affiche mais reste vide : " +
+      'le panneau se signe avec ton compte Telegram, et le serveur refuse ' +
+      'tout ce qui arrive sans cette signature.',
+    { reply_markup: adminKeyboard(), link_preview_options: { is_disabled: true } }
+  );
+});
+
+/**
  * Ce que le vendeur peut taper. Ici et nulle part ailleurs.
  *
  * C'était `/aide`, ouvert à tout le monde. Une liste de commandes affichée à
@@ -489,6 +530,7 @@ const COMMANDES_DU_VENDEUR =
   '/enligne — les visites de la dernière demi-heure\n' +
   '/annonce <texte> — écrire à tous ceux qui ont ouvert le bot\n' +
   '/dev — ouvrir la boutique en chantier (aperçu)\n' +
+  '/linkadmin — l\'adresse du panneau admin, en clair\n' +
   '/admins — qui a les clés\n' +
   '/addadmin, /deladmin — donner ou reprendre les clés\n' +
   '📸 une photo avec le nom du produit en légende change son image';
