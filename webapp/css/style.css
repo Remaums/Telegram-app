@@ -2278,3 +2278,13 @@ img.galerie__gif { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: c
 }
 .orne__t::before { margin-right: 10px; }
 .orne__t::after { margin-left: 10px; }
+
+/* Le voile « téléphone uniquement » retire la boutique au lieu de la
+   recouvrir : `display: none` est plus fort qu'une opacité ou un
+   `z-index`, et ce qui n'est pas peint ne se découvre pas en effaçant
+   un élément dans les outils du navigateur. */
+body.verrouille .page,
+body.verrouille .tabbar,
+body.verrouille .pbar,
+body.verrouille .lpastille,
+body.verrouille .juke { display: none !important; }

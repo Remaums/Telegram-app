@@ -94,6 +94,15 @@ export const FEATURES = [
     default: false,
   },
   {
+    key: 'mobileSeulement',
+    label: 'Téléphone uniquement',
+    hint: "La boutique ne s'ouvre que depuis Telegram sur Android ou iPhone. "
+      + 'Sur ordinateur, un message invite à passer au téléphone. '
+      + "Le panneau admin, lui, reste accessible partout — c'est sur "
+      + "ordinateur qu'on gère un stock confortablement.",
+    default: true,
+  },
+  {
     key: 'waitlist',
     label: "Liste d'attente",
     hint: 'Sur un article épuisé, le client demande à être prévenu du retour.',

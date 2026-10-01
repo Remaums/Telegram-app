@@ -1358,6 +1358,7 @@ function writePass(pass) {
  * entrer. Chacune appelle donc la suivante en se refermant.
  */
 async function runGates() {
+  if (await gateMobile()) return;
   if (gateAge()) return;
   if (await gatePorte()) return;
 
@@ -1408,6 +1409,93 @@ function ouvrirProduitDemande() {
 }
 
 /** @returns {boolean} vrai si la porte reste ouverte. */
+/* ── Le voile « téléphone uniquement » ───────────────────────
+ *
+ * CE QU'IL FAIT, ET CE QU'IL NE FAIT PAS.
+ *
+ * Il ferme la BOUTIQUE à qui n'ouvre pas depuis un téléphone. Il ne
+ * ferme pas « le bot » : l'API de Telegram ne dit nulle part sur quel
+ * appareil se trouve celui qui écrit au bot. Un message n'emporte pas
+ * cette information, et aucune commande ne peut donc la lire. Seule une
+ * Mini App la connaît, parce que le client Telegram la lui passe à
+ * l'ouverture.
+ *
+ * Et elle la passe HORS de la signature : `initData` — la partie signée,
+ * celle que le serveur vérifie — ne contient pas la plateforme. Elle
+ * arrive à côté, en clair. Quelqu'un qui sait ouvrir les outils de
+ * développement d'un navigateur peut donc se déclarer « android » et
+ * entrer. Ce voile décourage, il n'interdit pas : c'est une consigne
+ * d'usage, pas un verrou, et le présenter autrement serait mentir.
+ *
+ * On LISTE les plateformes qui passent au lieu d'énumérer celles qu'on
+ * refuse : un client Telegram nouveau, ou un identifiant qu'on ne
+ * connaît pas encore, doit être arrêté plutôt que laissé entrer.
+ */
+const TELEPHONES = new Set(['android', 'android_x', 'ios']);
+
+/** Vrai si l'on peut raisonnablement parler d'un téléphone. */
+function surUnTelephone() {
+  const plateforme = String(tg?.platform ?? '').toLowerCase();
+  if (plateforme) return TELEPHONES.has(plateforme);
+
+  // Hors de Telegram, il n'y a pas de plateforme à lire. On se rabat sur
+  // ce que le navigateur dit de l'appareil : un doigt plutôt qu'une
+  // souris, et un écran étroit. C'est grossier, et ça ne sert qu'à ne
+  // pas fermer la porte au nez de quelqu'un qui ouvre le lien depuis
+  // son téléphone, hors de l'application.
+  const doigt = window.matchMedia?.('(pointer: coarse)').matches === true;
+  return doigt && window.innerWidth <= 820;
+}
+
+/**
+ * L'administrateur passe toujours.
+ *
+ * Il teste sa boutique depuis son ordinateur, et se faire refuser
+ * l'entrée de son propre magasin serait absurde. On ne lui demande rien :
+ * une route admin répond 200 à qui en a les clés et 403 à tous les
+ * autres, ce qui suffit à trancher — et c'est le serveur qui tranche,
+ * sur la signature, pas le navigateur sur une valeur qu'il a écrite
+ * lui-même.
+ *
+ * L'appel n'a lieu QUE sur un appareil refusé : un client sur téléphone
+ * n'y passe jamais.
+ */
+async function laBoutiqueMAppartient() {
+  if (!tg?.initData) return false;
+  try {
+    const res = await fetch('/api/admin/settings', {
+      headers: { 'X-Telegram-Init-Data': tg.initData },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function gateMobile() {
+  const voile = $('mobilegate');
+  const laisserEntrer = () => {
+    voile.hidden = true;
+    document.body.classList.remove('verrouille');
+    return false;
+  };
+  if (state.features.mobileSeulement === false || surUnTelephone()) return laisserEntrer();
+  if (await laBoutiqueMAppartient()) return laisserEntrer();
+
+  // La boutique est masquée en plus d'être recouverte : rien d'elle ne
+  // reste à l'écran, et aucun de ses boutons n'est atteignable.
+  //
+  // Ce n'est pas un verrou, et il ne faut pas le lire comme tel. Les
+  // fiches restent dans la page, et `/api/catalog` se lit sans aucune
+  // signature : qui sait ouvrir les outils d'un navigateur voit le
+  // catalogue de toute façon. Ce voile dit « pas ici, prends ton
+  // téléphone » — c'est une consigne d'usage, et elle tient pour qui ne
+  // cherche pas à la contourner.
+  document.body.classList.add('verrouille');
+  voile.hidden = false;
+  return true;
+}
+
 function gateAge() {
   // Appelée avant le catalogue au premier affichage : sans réponse du serveur
   // on garde la porte fermée, plus prudent que de l'ouvrir par défaut.
