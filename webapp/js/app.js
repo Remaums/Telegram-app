@@ -113,7 +113,7 @@ async function init() {
     // simplement injoignable. Pour un client c'est une boutique abandonnée ;
     // pour le vendeur qui installe, c'est une fausse piste. On le dit donc en
     // clair, et on laisse de quoi réessayer.
-    retirerLeVoile();
+    retirerLeVoile({ toutDeSuite: true });
     montrerPanne(err);
     return;
   }
@@ -170,15 +170,46 @@ function chargerLaBoutiqueSignee() {
 /* ── Le voile de chargement ──────────────────────────────── */
 
 /**
+ * Combien de temps l'animation reste à l'écran, au minimum.
+ *
+ * ← C'EST LA LIGNE À CHANGER. En millisecondes. Le film dure 6 s ;
+ * mettre 6000 le laisse se dérouler en entier, 0 revient à l'ancien
+ * comportement (le voile part dès que la boutique est prête).
+ *
+ * Le compte part du chargement de la page, pas d'ici : c'est donc un
+ * PLANCHER, jamais une addition. Une boutique prête en 400 ms attend
+ * le reste ; une boutique lente à 5 s n'attend rien du tout et s'ouvre
+ * aussitôt. Ajouter l'attente au temps de chargement aurait puni deux
+ * fois ceux qui ont le moins de réseau.
+ */
+const DUREE_DU_VOILE = 4500;
+
+/**
  * Retire le voile d'ouverture.
  *
  * `hidden` plutôt qu'un retrait du DOM : la feuille de style le fait
  * disparaître en fondu, et un élément arraché ne peut pas fondre. Il ne gêne
  * plus personne une fois transparent (`pointer-events: none`).
+ *
+ * `tout de suite` sert au cas de panne : faire regarder l'animation en
+ * entier à quelqu'un pour lui annoncer ensuite que la boutique est
+ * injoignable, c'est le faire attendre pour rien.
  */
-function retirerLeVoile() {
+function retirerLeVoile({ toutDeSuite = false } = {}) {
   const voile = document.getElementById('charge');
-  if (voile) voile.hidden = true;
+  if (!voile) return;
+
+  // `performance.now()` compte depuis l'ouverture de la page : ce qu'il
+  // reste à attendre est donc ce qui manque, et rien de plus.
+  const reste = toutDeSuite || !anime()
+    ? 0
+    : Math.max(0, DUREE_DU_VOILE - performance.now());
+
+  if (reste === 0) {
+    voile.hidden = true;
+    return;
+  }
+  setTimeout(() => { voile.hidden = true; }, reste);
 }
 
 /** Change le mot sous l'anneau, quand l'attente a une raison qu'on sait dire. */
