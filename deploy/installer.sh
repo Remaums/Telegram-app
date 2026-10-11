@@ -22,6 +22,13 @@ set -euo pipefail
 
 NOEUD_MINIMUM=20
 SERVICE=coffeeshop68
+PORT_BOUTIQUE=3000
+# Le tunnel porte le nom de la boutique. Il s'appelait `tunnel` tout court —
+# comme celui de l'autre boutique, dont l'installeur est le jumeau de
+# celui-ci. Sur un VPS qui héberge les deux, relancer un installeur
+# réécrivait /etc/systemd/system/tunnel.service vers SON port : l'autre
+# boutique perdait son adresse publique sans que rien ne le signale.
+TUNNEL="tunnel-$SERVICE"
 RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # ── De quoi lire ce qui se passe ────────────────────────────
@@ -250,11 +257,23 @@ case "${choix:-}" in
     # toujours ouvert — un peu moins rapide, mais il marche partout.
     poser_tunnel() {
       local protocole=${1-}
-      local options='tunnel --url http://localhost:3000'
-      [ -n "$protocole" ] && options="tunnel --protocol $protocole --url http://localhost:3000"
-      sudo tee /etc/systemd/system/tunnel.service >/dev/null <<TUNNEL
+      local options="tunnel --url http://localhost:$PORT_BOUTIQUE"
+      [ -n "$protocole" ] && options="tunnel --protocol $protocole --url http://localhost:$PORT_BOUTIQUE"
+
+      # L'ancien `tunnel.service`, partagé par les deux boutiques. On ne le
+      # coupe QUE s'il sert notre port : s'il sert l'autre boutique, c'est
+      # le sien jusqu'à ce que son propre installeur le remplace, et le
+      # couper ici la mettrait hors ligne.
+      if [ -f /etc/systemd/system/tunnel.service ] \
+         && grep -q "localhost:$PORT_BOUTIQUE" /etc/systemd/system/tunnel.service; then
+        sudo systemctl disable --now tunnel >/dev/null 2>&1 || true
+        sudo rm -f /etc/systemd/system/tunnel.service
+        note "L'ancien service « tunnel » servait cette boutique : remplacé par « $TUNNEL »."
+      fi
+
+      sudo tee "/etc/systemd/system/$TUNNEL.service" >/dev/null <<TUNNEL
 [Unit]
-Description=Tunnel Cloudflare vers la boutique
+Description=Tunnel Cloudflare vers $SERVICE
 After=network-online.target
 Wants=network-online.target
 
@@ -268,8 +287,8 @@ User=$(id -un)
 WantedBy=multi-user.target
 TUNNEL
       sudo systemctl daemon-reload
-      sudo systemctl restart tunnel
-      sudo systemctl enable tunnel >/dev/null 2>&1
+      sudo systemctl restart "$TUNNEL"
+      sudo systemctl enable "$TUNNEL" >/dev/null 2>&1
     }
 
     # Guette l'adresse dans le journal, le temps qu'il faut.
@@ -280,7 +299,7 @@ TUNNEL
     guetter_adresse() {
       local reste=${1:-75} trouve=''
       while [ "$reste" -gt 0 ]; do
-        trouve=$(sudo journalctl -u tunnel -n 200 --no-pager 2>/dev/null \
+        trouve=$(sudo journalctl -u "$TUNNEL" -n 200 --no-pager 2>/dev/null \
           | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true)
         [ -n "$trouve" ] && { printf '%s' "$trouve"; return 0; }
         sleep 3
@@ -301,7 +320,7 @@ TUNNEL
 
     # Rien après 75 s : l'UDP sortant est le suspect numéro un. On bascule en
     # HTTP/2 et on laisse une seconde chance, au lieu de rendre la main.
-    if [ -z "$adresse" ] && sudo journalctl -u tunnel -n 200 --no-pager 2>/dev/null \
+    if [ -z "$adresse" ] && sudo journalctl -u "$TUNNEL" -n 200 --no-pager 2>/dev/null \
          | grep -qiE 'quic|udp|7844|timeout|failed to (dial|connect)'; then
       note "Pas d'adresse, et le journal parle de QUIC/UDP : ton hébergeur filtre probablement l'UDP sortant."
       note "Je rebascule le tunnel en HTTP/2 (port 443 en TCP) et je réessaie…"
@@ -330,8 +349,8 @@ TUNNEL
       # On montre le journal plutôt que d'inviter à aller le lire : c'est
       # précisément l'information qui manque à qui reste devant un écran muet.
       note "Toujours pas d'adresse. Voici ce que le tunnel raconte :"
-      sudo journalctl -u tunnel -n 25 --no-pager 2>/dev/null | sed 's/^/      /' \
-        || note "      (journal illisible — relance : sudo journalctl -u tunnel -n 25)"
+      sudo journalctl -u "$TUNNEL" -n 25 --no-pager 2>/dev/null | sed 's/^/      /' \
+        || note "      (journal illisible — relance : sudo journalctl -u "$TUNNEL" -n 25)"
       printf '\n'
       note "Les causes habituelles :"
       note "  · sortie réseau très filtrée — essaie l'option 2 (DuckDNS), qui n'a besoin que du 80 et du 443 ;"
