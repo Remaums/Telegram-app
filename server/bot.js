@@ -21,6 +21,7 @@ import {
 } from './messagerie.js';
 import { deposerAvis, refusDAvis } from './avis.js';
 import { estAdmin, listerAdmins, ajouterAdmin, retirerAdmin } from './admins.js';
+import { noterMessage, reprendreMessage } from './messages-admin.js';
 import { creerCadence, attenteEnClair } from './cadence.js';
 import { noterPassage, visitesDesClients, FENETRE_MS, MEMOIRE_MS } from './presence.js';
 import { noterUtilisateur, trouverParPseudo, ficheDuRegistre } from './users.js';
@@ -1820,11 +1821,33 @@ bot.callbackQuery(/^st:([A-Za-z0-9-]+):([a-z]+)$/, async (ctx) => {
 export async function notifyAdmin(order) {
   if (!config.adminChatId) return;
   try {
-    await bot.api.sendMessage(config.adminChatId, orderMessage(order), {
+    const envoye = await bot.api.sendMessage(config.adminChatId, orderMessage(order), {
       reply_markup: statusKeyboard(order),
     });
+    await noterMessage(order.reference, config.adminChatId, envoye.message_id).catch((err) =>
+      console.error('Suivi de la notification impossible :', err.message)
+    );
   } catch (err) {
     console.error('Notification admin impossible :', err.message);
+  }
+}
+
+/**
+ * Retire l'avis d'une commande supprimée de la conversation du vendeur.
+ *
+ * Rend « retire », « aucun » (pas de message connu, ou trop vieux pour
+ * Telegram) ou « impossible » (Telegram a refusé) : l'écran le dit, pour que
+ * le propriétaire sache s'il doit aller l'effacer à la main.
+ */
+export async function retirerAvisAdmin(reference) {
+  const message = await reprendreMessage(reference).catch(() => null);
+  if (!message) return 'aucun';
+  try {
+    await bot.api.deleteMessage(message.chatId, message.messageId);
+    return 'retire';
+  } catch (err) {
+    console.error('Avis de commande non retiré :', err.description ?? err.message);
+    return 'impossible';
   }
 }
 

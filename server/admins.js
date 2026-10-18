@@ -61,6 +61,19 @@ async function ajoutes() {
 /** Les identifiants déclarés dans le `.env`, qui ne se retirent pas d'ici. */
 export const adminsDuFichier = () => config.adminIds.map(String);
 
+/**
+ * Vrai pour un administrateur du `.env` : le propriétaire.
+ *
+ * Certains gestes lui sont réservés — supprimer des commandes, remplacer la
+ * boutique par une sauvegarde. Un administrateur ajouté depuis le bot gère
+ * les commandes, il ne fait pas disparaître celles que le propriétaire veut
+ * garder, ni n'efface ce que le propriétaire a voulu cacher.
+ */
+export function estProprietaire(id) {
+  const cible = String(id ?? '');
+  return cible !== '' && adminsDuFichier().includes(cible);
+}
+
 /** Vrai si cet identifiant ouvre l'espace admin, d'une source ou de l'autre. */
 export async function estAdmin(id) {
   const cible = String(id ?? '');

@@ -721,6 +721,18 @@ sens ni dans l'autre : l'espace admin s'ouvre et se referme tout de suite.
 > pour te mettre dehors de ta propre boutique, sans recours. `/admins` marque
 > donc chaque ligne : 🔒 fichier `.env`, ou 🤖 ajouté depuis le bot.
 
+**Supprimer une commande est réservé aux administrateurs du `.env`.** Dans
+l'onglet Commandes, eux seuls voient le bouton 🗑 **Supprimer** : la commande
+disparaît alors pour tous les administrateurs, du bilan, et de « Mes
+commandes » chez le client. Le message qui l'annonçait dans la conversation du
+vendeur est retiré aussi, tant que Telegram le permet (moins de 48 heures) —
+au-delà, l'écran prévient qu'il reste à l'effacer à la main. Supprimer n'est
+pas annuler : le stock ne bouge pas ; pour remettre les articles en rayon, on
+annule d'abord. Pour la même raison, l'effacement en masse et la restauration
+d'une sauvegarde (qui remplace tout l'historique) sont réservés au `.env`. Le
+refus est vérifié par le serveur : masquer un bouton n'empêcherait pas d'envoyer
+la requête à la main.
+
 ---
 
 ## Sécurité

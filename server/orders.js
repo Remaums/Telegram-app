@@ -249,6 +249,22 @@ export async function replaceOrders(orders) {
   });
 }
 
+/**
+ * Retire une commande de l'historique, pour de bon.
+ *
+ * Le stock n'y est pas touché : supprimer n'est pas annuler. Une commande
+ * livrée a bien vidé le rayon, et une commande en cours que le propriétaire
+ * préfère traiter hors du registre aussi. Pour remettre les articles en
+ * rayon, on l'annule d'abord.
+ */
+export async function supprimerCommande(reference) {
+  return store.update((orders) => {
+    const rang = orders.findIndex((o) => o.reference === reference);
+    if (rang === -1) throw new HttpError(404, 'Commande introuvable.');
+    return orders.splice(rang, 1)[0];
+  });
+}
+
 export async function getOrder(reference) {
   const orders = await store.read();
   return orders.find((o) => o.reference === reference) ?? null;

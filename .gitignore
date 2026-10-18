@@ -21,3 +21,4 @@ server/data/avis.json
 server/data/admins.json
 server/data/preferences.json
 server/data/favoris.json
+server/data/messages-admin.json

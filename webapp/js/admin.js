@@ -69,6 +69,8 @@ async function init() {
     const session = await api('/session');
     state.currency = session.currency;
     state.statuses = session.statuses;
+    state.proprietaire = session.proprietaire === true;
+    for (const zone of document.querySelectorAll('[data-proprietaire]')) zone.hidden = !state.proprietaire;
     state.featureList = session.features ?? [];
     state.mediaMax = session.mediaMax ?? 8;
     state.musiqueMax = session.musiqueMax ?? 30;
@@ -1357,7 +1359,43 @@ function orderCard(order) {
   ban.addEventListener('click', () => toggleBlock(order.user.id, !blocked, ban));
   actions.append(ban);
 
+  // Seul l'administrateur du .env voit ce bouton ; le serveur refuse de
+  // toute façon la suppression aux autres.
+  if (state.proprietaire) {
+    const suppr = document.createElement('button');
+    suppr.type = 'button';
+    suppr.className = 'a-btn a-btn--sm a-btn--danger a-order__suppr';
+    suppr.textContent = '🗑 Supprimer';
+    suppr.addEventListener('click', () => supprimerCommande(order, suppr));
+    actions.append(suppr);
+  }
+
   return card;
+}
+
+async function supprimerCommande(order, button) {
+  const enCours = !state.statuses[order.status]?.final;
+  const message =
+    `Supprimer ${order.reference} de l'historique ?\n\n` +
+    "Elle disparaîtra pour tous les administrateurs, du bilan, et de « Mes commandes » chez le client. " +
+    'Cette action est définitive.' +
+    (enCours ? "\n\nLe stock n'est pas remis en rayon : annule-la d'abord si les articles doivent revenir." : '');
+  if (!confirm(message)) return;
+
+  button.disabled = true;
+  try {
+    const fait = await api(`/orders/${encodeURIComponent(order.reference)}`, { method: 'DELETE' });
+    haptic('success');
+    toast(
+      fait.avis === 'impossible'
+        ? `${order.reference} supprimée — Telegram a refusé de retirer sa notification, efface-la à la main.`
+        : `${order.reference} supprimée.`
+    );
+    await refreshAll();
+  } catch (err) {
+    toast(err.message);
+    button.disabled = false;
+  }
 }
 
 /**

@@ -19,7 +19,7 @@ import {
   restoreStock,
 } from './catalog.js';
 import {
-  STATUSES, listOrders, allOrders, getOrder, setStatus, stats, purgerCommandes,
+  STATUSES, listOrders, allOrders, getOrder, setStatus, stats, purgerCommandes, supprimerCommande,
 } from './orders.js';
 import { bilan } from './bilan.js';
 import { ficheClients, chercherClients } from './clients.js';
@@ -30,10 +30,11 @@ import { listVerifications, decideVerification, resetVerification } from './veri
 import {
   notifyCustomer, notifyBackInStock, sendFileToAdmin, diffuser, botUsername,
   deposerMedia, retrouverVignette, ficheTelegram, ecrireAuClient, proposerAnnonce, POIDS_MAX,
+  retirerAvisAdmin,
 } from './bot.js';
 import { MUSIQUE_MAX, titreDepuisLeNom, nouvelIdentifiant } from './musique.js';
 import { refusDeTelegram, texteValide } from './messagerie.js';
-import { estAdmin, listerAdmins } from './admins.js';
+import { estAdmin, estProprietaire, listerAdmins } from './admins.js';
 import { estPasse, ouvrirLaPorte, oublier as refermerLaPorte } from './bot-captcha.js';
 import { journal } from './entretien.js';
 import {
@@ -99,6 +100,18 @@ const route = (handler) => async (req, res, next) => {
   }
 };
 
+/**
+ * Réserve un geste aux administrateurs du `.env`.
+ *
+ * Vérifié ici, côté serveur : masquer le bouton dans l'écran des autres
+ * administrateurs ne les empêcherait pas d'envoyer la requête à la main.
+ */
+function exigerProprietaire(req, quoi) {
+  if (!estProprietaire(req.telegramUser.id)) {
+    throw new HttpError(403, `Seul l'administrateur déclaré dans le .env du serveur peut ${quoi}.`);
+  }
+}
+
 /* ── Session ─────────────────────────────────────────────── */
 
 adminRouter.get(
@@ -108,6 +121,9 @@ adminRouter.get(
     // fonctionnalité n'oblige pas à retoucher le HTML de l'admin.
     res.json({
       user: req.telegramUser,
+      // L'écran s'en sert pour n'afficher les boutons de suppression qu'à qui
+      // peut s'en servir ; le serveur, lui, revérifie à chaque requête.
+      proprietaire: estProprietaire(req.telegramUser.id),
       statuses: STATUSES,
       currency: config.currency,
       features: FEATURES,
@@ -982,6 +998,25 @@ adminRouter.post(
   })
 );
 
+/**
+ * Supprimer une commande de l'historique : elle disparaît pour tous les
+ * administrateurs, du bilan, et de « Mes commandes » chez le client.
+ *
+ * Réservé au propriétaire. L'avis envoyé au vendeur à l'arrivée de la
+ * commande est retiré de la conversation quand Telegram le permet encore
+ * (moins de 48 heures) ; sinon l'écran le dit, et il reste à l'effacer à la
+ * main.
+ */
+adminRouter.delete(
+  '/orders/:reference',
+  route(async (req, res) => {
+    exigerProprietaire(req, 'supprimer des commandes');
+    const order = await supprimerCommande(req.params.reference);
+    const avis = await retirerAvisAdmin(order.reference);
+    res.json({ reference: order.reference, avis });
+  })
+);
+
 /* ── Réglages et clients bloqués ─────────────────────────── */
 
 adminRouter.get(
@@ -1385,6 +1420,7 @@ adminRouter.post(
 adminRouter.post(
   '/orders/purge',
   route(async (req, res) => {
+    exigerProprietaire(req, 'effacer des commandes');
     const { mode, avant, confirmation, sauvegarde = true } = req.body ?? {};
 
     if (String(confirmation).trim().toUpperCase() !== 'EFFACER') {
@@ -1426,7 +1462,12 @@ adminRouter.post(
 
 adminRouter.post(
   '/backup/restore',
-  route(async (req, res) => res.json(await restoreBackup(req.body)))
+  route(async (req, res) => {
+    // Restaurer remplace tout l'historique : ce serait une porte de derrière
+    // pour effacer des commandes, ou faire revenir celles qu'on a supprimées.
+    exigerProprietaire(req, 'restaurer une sauvegarde');
+    res.json(await restoreBackup(req.body));
+  })
 );
 
 /* ── Tableau de bord ─────────────────────────────────────── */

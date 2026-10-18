@@ -380,6 +380,7 @@
     <button class="a-btn a-btn--ghost a-btn--block" id="exportCsv" type="button">📊 M'envoyer les commandes (CSV)</button>
     <button class="a-btn a-btn--ghost a-btn--block" id="downloadBackup" type="button">💾 M'envoyer une sauvegarde</button>
 
+    <div class="a-proprietaire" data-proprietaire hidden>
     <p class="a-hint">
       Restaurer <b>remplace tout</b> : le catalogue, les commandes, les
       réglages et les codes de la boutique disparaissent au profit de ceux du
@@ -390,6 +391,7 @@
     <div class="a-restore" id="restorePreview" hidden>
       <p id="restoreSummary"></p>
       <button class="a-btn a-btn--danger a-btn--block" id="doRestore" type="button">Remplacer la boutique par ce fichier</button>
+    </div>
     </div>
 
     <h2 class="a-h2">Entretien automatique</h2>
@@ -429,6 +431,7 @@
     </p>
     <p class="a-hint" id="entretienJournal"></p>
 
+    <div class="a-proprietaire" data-proprietaire hidden>
     <h2 class="a-h2">Effacer des commandes</h2>
     <p class="a-hint">
       Trois façons de repartir, et elles ne se valent pas. <b>Oublier qui a
@@ -456,6 +459,7 @@
       <input id="fPurgeConfirm" type="text" autocomplete="off" spellcheck="false" placeholder="EFFACER">
     </label>
     <button class="a-btn a-btn--danger a-btn--block" id="doPurge" type="button">Effacer</button>
+    </div>
 
     <h2 class="a-h2">Vérifications</h2>
     <ul class="a-list" id="verificationsList"></ul>
