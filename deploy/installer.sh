@@ -255,8 +255,12 @@ case "${choix:-}" in
     # indéfiniment sans jamais obtenir d'adresse, ce qui ressemble à un
     # blocage. `--protocol http2` passe par le 443 en TCP, qui lui est
     # toujours ouvert — un peu moins rapide, mais il marche partout.
+    # HTTP/2 d'office, sur le 443 en TCP. QUIC, le défaut de cloudflared,
+    # sort par l'UDP 7844 que beaucoup d'hébergeurs filtrent — et un tunnel
+    # QUIC bloqué affiche quand même son adresse, puis ne se connecte jamais.
+    # Ce qu'on perd en ne prenant pas QUIC ne se mesure pas sur une boutique.
     poser_tunnel() {
-      local protocole=${1-}
+      local protocole=${1-http2}
       local options="tunnel --url http://localhost:$PORT_BOUTIQUE"
       [ -n "$protocole" ] && options="tunnel --protocol $protocole --url http://localhost:$PORT_BOUTIQUE"
 
@@ -296,12 +300,32 @@ TUNNEL
     # Un `sleep` unique ne suffit pas : sur un petit VPS, l'établissement du
     # tunnel prend parfois une demi-minute. On regarde donc régulièrement, et
     # on s'arrête dès qu'on a trouvé.
+    #
+    # DEUX ERREURS qu'il faisait, et qui écrivaient dans .env une adresse morte :
+    #
+    #  · Il lisait les 200 dernières lignes de l'unité, TOUTES EXÉCUTIONS
+    #    CONFONDUES. Juste après le redémarrage, le nouveau tunnel n'a encore
+    #    rien écrit : la dernière adresse du journal est celle de l'exécution
+    #    précédente, déjà morte — et la boucle regardait dès la première
+    #    seconde. Chaque relance « réparait » donc avec l'adresse d'avant.
+    #    On ne lit plus que l'exécution en cours, par son identifiant systemd.
+    #
+    #  · Il se contentait de voir une adresse. Or cloudflared l'obtient par un
+    #    simple appel HTTPS, AVANT de se connecter : un tunnel qui n'arrive
+    #    jamais à se brancher l'affiche quand même. On attend donc aussi
+    #    « Registered tunnel connection » dans la même exécution.
     guetter_adresse() {
-      local reste=${1:-75} trouve=''
+      local reste=${1:-75} trouve='' execution journal
       while [ "$reste" -gt 0 ]; do
-        trouve=$(sudo journalctl -u "$TUNNEL" -n 200 --no-pager 2>/dev/null \
-          | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true)
-        [ -n "$trouve" ] && { printf '%s' "$trouve"; return 0; }
+        execution=$(systemctl show -p InvocationID --value "$TUNNEL" 2>/dev/null || true)
+        if [ -n "$execution" ]; then
+          journal=$(sudo journalctl _SYSTEMD_INVOCATION_ID="$execution" --no-pager -o cat 2>/dev/null || true)
+          trouve=$(printf '%s\n' "$journal" | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true)
+          if [ -n "$trouve" ] && printf '%s\n' "$journal" | grep -q 'Registered tunnel connection'; then
+            printf '%s' "$trouve"
+            return 0
+          fi
+        fi
         sleep 3
         reste=$((reste - 3))
         # Les points d'attente vont sur la sortie d'erreur : sur la sortie
@@ -317,19 +341,6 @@ TUNNEL
     printf '  %s·%s Je guette l'"'"'adresse (jusqu'"'"'à 75 s)' "$JAUNE" "$FIN" >&2
     adresse=$(guetter_adresse 75 || true)
     printf '\n' >&2
-
-    # Rien après 75 s : l'UDP sortant est le suspect numéro un. On bascule en
-    # HTTP/2 et on laisse une seconde chance, au lieu de rendre la main.
-    if [ -z "$adresse" ] && sudo journalctl -u "$TUNNEL" -n 200 --no-pager 2>/dev/null \
-         | grep -qiE 'quic|udp|7844|timeout|failed to (dial|connect)'; then
-      note "Pas d'adresse, et le journal parle de QUIC/UDP : ton hébergeur filtre probablement l'UDP sortant."
-      note "Je rebascule le tunnel en HTTP/2 (port 443 en TCP) et je réessaie…"
-      poser_tunnel http2
-      printf '  %s·%s Seconde tentative' "$JAUNE" "$FIN" >&2
-      adresse=$(guetter_adresse 75 || true)
-      printf '\n' >&2
-      [ -n "$adresse" ] && fait "c'était bien ça : le tunnel passe en HTTP/2"
-    fi
 
     # Une dernière vérification de forme avant d'écrire quoi que ce soit : une
     # adresse mal formée dans .env casserait la boutique en silence.
@@ -349,7 +360,8 @@ TUNNEL
       # On montre le journal plutôt que d'inviter à aller le lire : c'est
       # précisément l'information qui manque à qui reste devant un écran muet.
       note "Toujours pas d'adresse. Voici ce que le tunnel raconte :"
-      sudo journalctl -u "$TUNNEL" -n 25 --no-pager 2>/dev/null | sed 's/^/      /' \
+      sudo journalctl _SYSTEMD_INVOCATION_ID="$(systemctl show -p InvocationID --value "$TUNNEL")" \
+        -n 25 --no-pager -o cat 2>/dev/null | sed 's/^/      /' \
         || note "      (journal illisible — relance : sudo journalctl -u "$TUNNEL" -n 25)"
       printf '\n'
       note "Les causes habituelles :"

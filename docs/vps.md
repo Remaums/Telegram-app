@@ -291,7 +291,7 @@ Description=Tunnel Cloudflare vers la boutique
 After=network-online.target
 
 [Service]
-ExecStart=/usr/bin/cloudflared tunnel --url http://localhost:3000
+ExecStart=/usr/bin/cloudflared tunnel --protocol http2 --url http://localhost:3000
 Restart=always
 User=shop
 
@@ -299,7 +299,9 @@ User=shop
 WantedBy=multi-user.target
 EOF
 sudo systemctl daemon-reload && sudo systemctl enable --now tunnel-coffeeshop68
-journalctl -u tunnel-coffeeshop68 -n 20      # pour relire l'adresse attribuée
+# L'adresse du tunnel EN COURS — et seulement elle :
+sudo journalctl _SYSTEMD_INVOCATION_ID=$(systemctl show -p InvocationID --value tunnel-coffeeshop68) -o cat \
+  | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1
 ```
 
 > **Le service porte le nom de la boutique — `tunnel-coffeeshop68` — et pas `tunnel` tout
@@ -309,6 +311,12 @@ journalctl -u tunnel-coffeeshop68 -n 20      # pour relire l'adresse attribuée
 > port : l'autre boutique perdait son adresse sans que rien ne le dise.
 > Un ancien `tunnel.service` qui sert encore CETTE boutique est remplacé par
 > `bash deploy/installer.sh` ; s'il sert l'autre, il n'est pas touché.
+>
+> **Ne lis pas l'adresse avec `journalctl -u … -n 20`.** Ce journal garde les
+> exécutions précédentes du tunnel, et juste après un redémarrage la dernière
+> adresse qu'il montre est celle d'AVANT — déjà morte. La commande ci-dessus
+> ne lit que l'exécution en cours. L'installeur faisait la même erreur, et
+> écrivait cette adresse morte dans `.env` : c'est corrigé.
 
 ### Option B — un sous-domaine gratuit qui, lui, ne bouge pas
 
