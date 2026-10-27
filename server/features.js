@@ -70,6 +70,15 @@ export const FEATURES = [
     default: true,
   },
   {
+    key: 'animationAccueil',
+    label: "Animation d'accueil",
+    hint:
+      "Le film plein écran qui ouvre la boutique. Coupé, le client voit un simple écran " +
+      "de chargement, qui s'efface dès que le catalogue est prêt ; dès sa visite suivante, " +
+      "son téléphone ne télécharge même plus le film.",
+    default: true,
+  },
+  {
     key: 'search',
     label: 'Recherche au catalogue',
     hint: 'Une barre de recherche et un tri (prix, nouveautés) au-dessus de la grille.',

@@ -47,6 +47,23 @@
     <source src="/assets/ui/accueil.webm" type="video/webm">
     <source src="/assets/ui/accueil.mp4" type="video/mp4">
   </video>
+  <!-- Animation coupée dans les réglages : la visite d'avant l'a noté. Il
+       faut le savoir ici, avant que le film parte : le réglage, lui, n'arrive
+       qu'avec le catalogue, et le téléphone aurait déjà téléchargé la vidéo
+       pour rien. Une erreur (navigation privée) laisse simplement le film. -->
+  <script>
+    try {
+      if (localStorage.getItem('napoli.accueil') === 'non') {
+        document.documentElement.dataset.accueil = 'off';
+        const film = document.getElementById('chargeFilm');
+        film.removeAttribute('autoplay');
+        film.removeAttribute('poster');
+        film.preload = 'none';
+        for (const source of film.querySelectorAll('source')) source.remove();
+        film.load();
+      }
+    } catch {}
+  </script>
   <div class="charge__voile" aria-hidden="true"></div>
   <div class="charge__pied">
     <p class="charge__nom goldtext">Napoli Coffee</p>

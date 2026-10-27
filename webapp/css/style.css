@@ -1623,6 +1623,10 @@ video.favori__image { display: block; background: rgb(var(--creux-rgb) / .45); }
   50%      { transform: translateX(160%); }
 }
 
+/* Animation d'accueil coupée par le vendeur : pas de film du tout, l'écran
+   de chargement garde son fond, le nom et la barre. */
+[data-accueil='off'] .charge__film { display: none; }
+
 /* Sobre : le film s'arrête sur son affiche, et la barre cesse d'aller et
    venir. L'écran reste lisible, il ne bouge plus. */
 [data-anim='off'] .charge__barre i { animation: none; width: 100%; }

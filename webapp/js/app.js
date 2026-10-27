@@ -104,6 +104,7 @@ async function init() {
     state.slotsEnabled = Boolean(data.slots?.enabled);
     state.musique = data.musique ?? { titres: [] };
     appliquerLesAnimations();
+    appliquerLAccueil();
     applyFeatures();
     state.mode = state.fulfillment.pickup ? 'pickup' : 'delivery';
   } catch (err) {
@@ -201,7 +202,8 @@ function retirerLeVoile({ toutDeSuite = false } = {}) {
 
   // `performance.now()` compte depuis l'ouverture de la page : ce qu'il
   // reste à attendre est donc ce qui manque, et rien de plus.
-  const reste = toutDeSuite || !anime()
+  // Sans film, rien à regarder : attendre ne ferait que retarder la boutique.
+  const reste = toutDeSuite || !anime() || sansFilm()
     ? 0
     : Math.max(0, DUREE_DU_VOILE - performance.now());
 
@@ -314,6 +316,48 @@ function appliquerLesAnimations() {
 
 /** Vrai si la boutique a le droit de bouger. */
 const anime = () => document.documentElement.dataset.anim !== 'off';
+
+/**
+ * L'animation d'accueil, allumée ou coupée par le vendeur.
+ *
+ * Le réglage n'arrive qu'avec le catalogue, quand le film a déjà commencé :
+ * on le coupe donc ici, et on retient le choix pour que le script en tête de
+ * page l'empêche de partir à la visite suivante.
+ *
+ * Rallumé, c'est l'inverse : le script de tête, qui se fiait à la visite
+ * d'avant, a retiré le film. On le remet aussitôt — le plancher de
+ * `DUREE_DU_VOILE` compte depuis l'ouverture de la page, le film a donc
+ * encore le temps de se dérouler.
+ */
+const ACCUEIL_CLEF = 'napoli.accueil';
+const FILMS = [['/assets/ui/accueil.webm', 'video/webm'], ['/assets/ui/accueil.mp4', 'video/mp4']];
+function appliquerLAccueil() {
+  const coupe = state.features.animationAccueil === false;
+  try { localStorage.setItem(ACCUEIL_CLEF, coupe ? 'non' : 'oui'); } catch { /* navigation privée */ }
+  const film = $('chargeFilm');
+
+  if (!coupe) {
+    if (!sansFilm()) return;
+    delete document.documentElement.dataset.accueil;
+    if (!film) return;
+    film.poster = '/assets/ui/accueil.jpg';
+    film.preload = 'auto';
+    film.replaceChildren(...FILMS.map(([src, type]) => Object.assign(document.createElement('source'), { src, type })));
+    film.load();
+    if (anime()) film.play?.().catch(() => { /* le navigateur refuse : l'affiche suffit */ });
+    return;
+  }
+
+  document.documentElement.dataset.accueil = 'off';
+  if (film) {
+    film.pause();
+    for (const source of film.querySelectorAll('source')) source.remove();
+    film.load();
+  }
+}
+
+/** Vrai quand l'écran de chargement n'a pas de film à montrer. */
+const sansFilm = () => document.documentElement.dataset.accueil === 'off';
 
 function bindStaticHandlers() {
   $('ageYes').addEventListener('click', () => {
